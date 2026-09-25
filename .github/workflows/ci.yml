@@ -1,0 +1,256 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      wasmPreset:
+        description: "Emscripten preset to publish"
+        type: choice
+        default: WASM-Release
+        options: [WASM-Release, WASM-Minimal]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # every job runs in the derived container, and pulling it from ghcr needs a token scope that a top-level
+  # permissions block would otherwise strip
+  packages: read
+
+env:
+  # inside the workspace so actions/cache can reach it; ccache.conf supplies every other setting
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  # cmake/Cache.cmake exports this for the compiles it launches, but nothing else in a job inherits it, so a bare
+  # `ccache` call reports the built-in defaults rather than what the build actually used
+  CCACHE_CONFIGPATH: ${{ github.workspace }}/devtools/ccache.conf
+  # the repository limit is sized for a developer disk; here six caches share a 10 GB quota, and a measured full build
+  # holds about 1 GB of objects before compression
+  CCACHE_MAXSIZE: "2G"
+  # packing harder than the repository default is worth it where the cache is uploaded against that quota
+  CCACHE_COMPRESSLEVEL: "6"
+  # the shared container carries Clang 20, whose libc++ predates several C++23 library features; docker/Dockerfile
+  # adds Clang 22 on top, so the derived image is the one every job runs in
+  USE_DERIVED_CONTAINER: "true"
+
+jobs:
+  container:
+    name: select build container
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.select.outputs.image }}
+    steps:
+      - uses: actions/checkout@v6
+
+      # A diff-based trigger cannot be used to decide this: a squashed history reports every file as changed, which
+      # would publish and pull a private image on an ordinary run. Adding a package to docker/Dockerfile therefore
+      # means flipping USE_DERIVED_CONTAINER as well -- one deliberate edit, in one place.
+      - name: Select the image
+        id: select
+        run: |
+          if [ "${USE_DERIVED_CONTAINER}" = "true" ]; then
+            owner=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
+            echo "image=ghcr.io/${owner}/gr4-present-build-container:latest" >> "$GITHUB_OUTPUT"
+          else
+            echo "image=ghcr.io/fair-acc/gr-digitizers-build-container:latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Docker Buildx
+        if: env.USE_DERIVED_CONTAINER == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        if: env.USE_DERIVED_CONTAINER == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        if: env.USE_DERIVED_CONTAINER == 'true'
+        with:
+          context: "{{defaultContext}}:docker"
+          push: true
+          tags: ${{ steps.select.outputs.image }}
+
+  format:
+    name: formatting
+    needs: container
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.container.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run the project formatters
+        run: ./formatFiles.sh
+      - name: Fail if anything was reformatted
+        run: git diff --exit-code || { echo "::error::run ./formatFiles.sh and commit the result"; exit 1; }
+
+  native:
+    name: native ${{ matrix.preset }}
+    needs: container
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.container.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [GCC15-Debug, Clang22-Debug]
+    steps:
+      - uses: actions/checkout@v6
+
+      # The dependency pins are part of the key, so bumping one starts a fresh generation instead of inheriting
+      # entries whose headers no longer exist.
+      - name: Restore ccache
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ matrix.preset }}-${{ hashFiles('cmake/DependenciesSHAs.cmake') }}-${{ github.sha }}
+          restore-keys: ccache-${{ matrix.preset }}-${{ hashFiles('cmake/DependenciesSHAs.cmake') }}-
+
+      # FetchContent otherwise re-clones gnuradio4, OpenDigitizer, opencmw-cpp, zeromq and SDL3 on every run. Only the
+      # checkouts and their stamps are kept; the objects they produce belong to ccache.
+      - name: Restore the dependency sources
+        uses: actions/cache@v5
+        with:
+          path: |
+            cmake-build-${{ matrix.preset }}/_deps/*-src
+            cmake-build-${{ matrix.preset }}/_deps/*-subbuild
+          key: deps-${{ matrix.preset }}-${{ hashFiles('cmake/DependenciesSHAs.cmake') }}
+
+      # The presets default to 4, which suits a 31 GB developer machine but not a 16 GB runner: two runs were killed
+      # with exit 137 partway through gnuradio4's GrBasicBlocks. 3 is what gnuradio4's own CI uses.
+      # without this the statistics printed below accumulate over the restored cache and say nothing about this run
+      - name: Zero the ccache statistics
+        run: ccache --zero-stats
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }} -DGR_BUILD_PARALLEL_LEVEL=3
+
+      - name: Build
+        run: cmake --build cmake-build-${{ matrix.preset }}
+
+      # Saved after the build rather than at the end of the job, so a failing test does not discard a warm cache -- but
+      # only once the build has succeeded. A cache written by a cancelled or killed build is a partial one, and because
+      # the restore key matches the most recent entry it would become the next run's starting point.
+      - name: Save ccache
+        if: success()
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ matrix.preset }}-${{ hashFiles('cmake/DependenciesSHAs.cmake') }}-${{ github.sha }}
+
+      - name: Test
+        run: ctest --test-dir cmake-build-${{ matrix.preset }} --output-on-failure
+
+      # the screenshot comparison writes a diff image next to each failed capture; without it a red CI run is
+      # unactionable from the log alone
+      - name: Upload screenshot diffs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: screenshot-diffs-${{ matrix.preset }}
+          path: cmake-build-${{ matrix.preset }}/captures/
+          if-no-files-found: ignore
+
+      - name: ccache statistics
+        if: always()
+        run: ccache --show-stats --verbose
+
+  wasm:
+    name: wasm ${{ github.event_name == 'pull_request' && 'WASM-Minimal' || inputs.wasmPreset || 'WASM-Release' }}
+    needs: container
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.container.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    env:
+      # pull requests get the fast path; main publishes the full runtime, which needs GR4 and OpenDigitizer
+      PRESET: ${{ github.event_name == 'pull_request' && 'WASM-Minimal' || inputs.wasmPreset || 'WASM-Release' }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Restore ccache
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ env.PRESET }}-${{ hashFiles('cmake/DependenciesSHAs.cmake') }}-${{ github.sha }}
+          restore-keys: ccache-${{ env.PRESET }}-${{ hashFiles('cmake/DependenciesSHAs.cmake') }}-
+
+      - name: Restore the dependency sources
+        uses: actions/cache@v5
+        with:
+          path: |
+            cmake-build-${{ env.PRESET }}/_deps/*-src
+            cmake-build-${{ env.PRESET }}/_deps/*-subbuild
+          key: deps-${{ env.PRESET }}-${{ hashFiles('cmake/DependenciesSHAs.cmake') }}
+
+      - name: Zero the ccache statistics
+        run: ccache --zero-stats
+
+      - name: Build
+        shell: bash
+        run: |
+          source "$EMSDK_HOME/emsdk_env.sh"
+          cmake --preset "$PRESET" -DGR_BUILD_PARALLEL_LEVEL=3
+          cmake --build "cmake-build-$PRESET"
+
+      - name: Save ccache
+        if: success()
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ env.PRESET }}-${{ hashFiles('cmake/DependenciesSHAs.cmake') }}-${{ github.sha }}
+
+      - name: Collect the site
+        run: |
+          mkdir -p site
+          cp -r "cmake-build-$PRESET/viewer-web/." site/
+          # GitHub Pages serves Jekyll by default, which drops files beginning with an underscore
+          touch site/.nojekyll
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload the Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: ccache statistics
+        if: always()
+        run: ccache --show-stats --verbose
+
+
+  pages:
+    name: deploy to GitHub Pages
+    needs: wasm
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

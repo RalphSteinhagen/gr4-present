@@ -1,0 +1,172 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 27,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/cmake-build-${presetName}",
+      "cacheVariables": {
+        "GR4_PRESENT_ENABLE_TESTING": "ON",
+        "GR_BUILD_PARALLEL_LEVEL": "4"
+      }
+    },
+    {
+      "name": "GCC15-Debug",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "gcc-15",
+        "CMAKE_CXX_COMPILER": "g++-15"
+      }
+    },
+    {
+      "name": "GCC15-Release",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "gcc-15",
+        "CMAKE_CXX_COMPILER": "g++-15"
+      }
+    },
+    {
+      "name": "Clang22-Debug",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "clang-22",
+        "CMAKE_CXX_COMPILER": "clang++-22"
+      }
+    },
+    {
+      "name": "Clang22-Release",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "clang-22",
+        "CMAKE_CXX_COMPILER": "clang++-22"
+      }
+    },
+    {
+      "name": "Core-Only",
+      "inherits": "GCC15-Debug",
+      "description": "Builds the toolkit-free presentation model and its unit tests; skips ImGui/ImPlot/SDL3.",
+      "cacheVariables": {
+        "GR4_PRESENT_WITH_OPENDIGITIZER": "OFF"
+      }
+    },
+    {
+      "name": "emscripten-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/cmake-build-${presetName}",
+      "toolchainFile": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
+      "cacheVariables": {
+        "GR4_PRESENT_ENABLE_TESTING": "ON",
+        "GR_BUILD_PARALLEL_LEVEL": "4",
+        "CMAKE_CROSSCOMPILING_EMULATOR": "$env{EMSDK_NODE}"
+      }
+    },
+    {
+      "name": "WASM-Minimal",
+      "inherits": "emscripten-base",
+      "description": "Fast path to a running WASM viewer: ImGui + the presentation core, no GR4/OpenDigitizer runtime.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "GR4_PRESENT_WITH_OPENDIGITIZER": "OFF"
+      }
+    },
+    {
+      "name": "WASM-Debug",
+      "inherits": "emscripten-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "GR4_PRESENT_WITH_OPENDIGITIZER": "ON"
+      }
+    },
+    {
+      "name": "WASM-Release",
+      "inherits": "emscripten-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "GR4_PRESENT_WITH_OPENDIGITIZER": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "GCC15-Debug",
+      "configurePreset": "GCC15-Debug"
+    },
+    {
+      "name": "GCC15-Release",
+      "configurePreset": "GCC15-Release"
+    },
+    {
+      "name": "Clang22-Debug",
+      "configurePreset": "Clang22-Debug"
+    },
+    {
+      "name": "Clang22-Release",
+      "configurePreset": "Clang22-Release"
+    },
+    {
+      "name": "Core-Only",
+      "configurePreset": "Core-Only"
+    },
+    {
+      "name": "WASM-Minimal",
+      "configurePreset": "WASM-Minimal"
+    },
+    {
+      "name": "WASM-Debug",
+      "configurePreset": "WASM-Debug"
+    },
+    {
+      "name": "WASM-Release",
+      "configurePreset": "WASM-Release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "GCC15-Debug",
+      "configurePreset": "GCC15-Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "GCC15-Release",
+      "configurePreset": "GCC15-Release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "Clang22-Debug",
+      "configurePreset": "Clang22-Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "Clang22-Release",
+      "configurePreset": "Clang22-Release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "Core-Only",
+      "configurePreset": "Core-Only",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

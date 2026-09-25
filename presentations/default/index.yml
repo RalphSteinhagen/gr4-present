@@ -1,0 +1,9 @@
+format: gr4-presentation/1
+title: gr4-present
+entry: default
+
+views:
+  - id: default
+    image: gen_spectrum.png
+    markdown: |
+      ## stay tuned ...

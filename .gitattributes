@@ -1,0 +1,10 @@
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.svg text eol=lf
+*.md text eol=lf diff=markdown
+*.sh text eol=lf
+*.py text eol=lf diff=python
+*.cpp text eol=lf diff=cpp
+*.hpp text eol=lf diff=cpp
