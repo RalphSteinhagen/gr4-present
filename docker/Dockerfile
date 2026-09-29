@@ -28,7 +28,7 @@ RUN apt-get update -y \
     && echo "deb [signed-by=/usr/share/keyrings/llvm.asc] http://apt.llvm.org/questing/ llvm-toolchain-questing-22 main" \
        > /etc/apt/sources.list.d/llvm-22.list \
     && apt-get update -y \
-    && (apt-get install --no-install-recommends -qqy clang-22 clang-tools-22 lld-22 libc++-22-dev libc++abi-22-dev libclang-rt-22-dev libomp-22-dev || true) \
+    && (apt-get install --no-install-recommends -qqy clang-22 clang-tools-22 clang-tidy-22 libclang-22-dev lld-22 libc++-22-dev libc++abi-22-dev libclang-rt-22-dev libomp-22-dev || true) \
     && dpkg-query -W -f='${Status}' clang-22 | grep -q "install ok installed" \
     && dpkg-query -W -f='${Status}' libc++-22-dev | grep -q "install ok installed" \
     && clang++-22 --version \

@@ -3,17 +3,17 @@
 
 #include <cstddef>
 #include <expected>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include <gr4-present/Markdown.hpp>
+
 namespace gr::present {
 
-/**
- * A presentation is a graph of named views, not a vector of slides. The cursor is a `(view, step)` pair so that
- * revealing within a view stays distinct from moving between views: `next()` advances the step first and only then
- * follows an outgoing edge. View ids are the document API and must stay stable across reloads.
- */
+/// a presentation is a graph of named views; the cursor is a `(view, step)` pair and `next()` advances the step first
+/// view ids are the document API and stay stable across reloads
 struct Cursor {
     std::string viewId;
     std::size_t step = 0UZ;
@@ -50,12 +50,26 @@ struct NavigationGraph {
     [[nodiscard]] std::expected<void, NavigationError> validate() const;
 };
 
+/// the id a section is known by on the graph and in a link; the untitled leading section is `start`
+[[nodiscard]] std::string_view viewIdOf(const Section& section) noexcept;
+
+/// the section whose view id is `viewId`; null when the deck has none
+[[nodiscard]] const Section* sectionOf(std::span<const Section> sections, std::string_view viewId) noexcept;
+
+/// the graph a parsed document implies: one view per section, each with the steps and `:::view` edges it declares
+/// shared by the viewer and the tests, so a test walks the shipped deck as the application does
+[[nodiscard]] NavigationGraph graphOf(std::span<const Section> sections);
+
 struct Navigator {
     NavigationGraph     graph;
     Cursor              cursor;
     std::vector<Cursor> history;
 
     bool next();
+    /// where `next` would go, without going there: the next step, else the next view, else here
+    [[nodiscard]] Cursor nextCursor() const;
+    /// to the next view straight away, past whatever steps of this one are still to come
+    bool nextView();
     bool previous();
     bool jumpTo(std::string_view viewId);
 };

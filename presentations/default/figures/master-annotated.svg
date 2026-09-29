@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 1600 900" width="1600" height="900">
+  <title>the slide master of figures/master.svg with its bands and named boxes drawn and labelled</title>
+
+  <g font-family="Liberation Sans, sans-serif">
+    <rect x="0" y="0" width="1600" height="151" fill="#0f0f13"/>
+    <rect x="0" y="0" width="1600" height="8" fill="#F36F21"/>
+    <rect x="0" y="151" width="1600" height="660" fill="#16161c"/>
+    <rect x="0" y="811" width="1600" height="89" fill="#0f0f13"/>
+    <path d="M0 150 H1600 M0 812 H1600" stroke="#2a2a32" stroke-width="2"/>
+
+    <text x="1588" y="30" font-size="22" fill="#8a8a96" text-anchor="end">g id="top" -- keeps its height</text>
+    <text x="1588" y="176" font-size="22" fill="#8a8a96" text-anchor="end">g id="middle" -- stretches</text>
+    <text x="1490" y="890" font-size="22" fill="#8a8a96" text-anchor="end">g id="bottom" -- keeps its height</text>
+    <circle cx="1540" cy="855" r="30" fill="none" stroke="#F36F21" stroke-width="3"/>
+
+    <g fill="none" stroke="#F36F21" stroke-width="4" stroke-dasharray="16 10">
+      <rect x="72" y="46" width="1456" height="86"/>
+      <rect x="72" y="190" width="900" height="590"/>
+      <rect x="1020" y="190" width="508" height="590"/>
+      <rect x="72" y="836" width="1400" height="40"/>
+      <rect x="1512" y="827" width="56" height="56"/>
+    </g>
+    <g font-size="34" fill="#F36F21">
+      <text x="92" y="100">id="title" data-present="markdown"</text>
+      <text x="96" y="250">id="content"</text>
+      <text x="96" y="294" font-size="28">data-present="markdown"</text>
+      <text x="1044" y="250">id="sidebar"</text>
+      <text x="1044" y="294" font-size="28">data-present="gr4"</text>
+      <text x="92" y="868" font-size="28">id="footer" data-present="markdown"</text>
+      <text x="1568" y="806" font-size="24" text-anchor="end">id="slide_number"</text>
+    </g>
+  </g>
+</svg>

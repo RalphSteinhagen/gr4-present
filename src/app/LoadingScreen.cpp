@@ -1,6 +1,6 @@
 #include "LoadingScreen.hpp"
 
-#include "ImGuiScoped.hpp"
+#include "ScopedWindow.hpp"
 
 #include <algorithm>
 #include <ranges>
@@ -36,15 +36,13 @@ LoadStage LoadingScreen::activeStage() const noexcept {
     return pending == progress.cend() ? LoadStage::initialisation : static_cast<LoadStage>(std::ranges::distance(progress.cbegin(), pending));
 }
 
-std::string_view LoadingScreen::statusText() const noexcept { return statusOverride ? std::string_view{*statusOverride} : defaultStatus(activeStage()); }
-
 void LoadingScreen::draw(ImTextureID logo, ImVec2 logoSize, const Theme& theme) const {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->Pos);
     ImGui::SetNextWindowSize(viewport->Size);
 
-    constexpr ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs;
-    const ScopedWindow         launchWindow("##launch", nullptr, flags);
+    constexpr ImGuiWindowFlags kWindowFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs;
+    const ScopedWindow         launchWindow("##launch", nullptr, kWindowFlags);
 
     ImDrawList* canvas = ImGui::GetWindowDrawList();
 
@@ -69,7 +67,7 @@ void LoadingScreen::draw(ImTextureID logo, ImVec2 logoSize, const Theme& theme) 
     }
     cursorY += kBarsToStatus - kBarSpacing;
 
-    const std::string_view status = statusText();
+    const std::string_view status = defaultStatus(activeStage());
     const ImVec2           extent = ImGui::CalcTextSize(status.data(), status.data() + status.size());
     canvas->AddText(ImVec2{centre.x - extent.x * 0.5f, cursorY}, theme.text, status.data(), status.data() + status.size());
 }

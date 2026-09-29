@@ -4,10 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
     <title>gr4-present</title>
+    <link rel="icon" href="data:," /><!-- no favicon request, so no 404 in the console -->
     <!-- A static host that cannot send COOP/COEP, GitHub Pages among them, leaves the page without
          SharedArrayBuffer and the threaded runtime never starts. This registers a service worker that re-serves
          every response with those headers and reloads once; where the headers already arrive, as from
-         devtools/serve.py, it does nothing. It reads window.document.currentScript.src, so it must not be
+         devtools/serve.mjs, it does nothing. It reads window.document.currentScript.src, so it must not be
          deferred, async or a module. -->
     <script src="coi-serviceworker.js"></script>
     <style>
@@ -30,7 +31,9 @@
       html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--background); }
       body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--text); }
 
-      canvas.viewer { display: block; position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--background); }
+      canvas.viewer { display: block; position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--background);
+                     /* without this a horizontal drag is a browser pan gesture and never reaches the canvas as a touch */
+                     touch-action: none; -webkit-user-select: none; user-select: none; }
 
       /* geometry mirrors gr::present::LoadingScreen so the handover to the in-application screen does not jump */
       #launch {
@@ -51,7 +54,9 @@
     </style>
   </head>
   <body>
-    <canvas class="viewer" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+    <canvas class="viewer" id="canvas" aria-label="presentation slides" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+    <!-- the deck as semantic HTML, rendered here from the same document as the canvas (spec F); empty until then -->
+    <main id="gr4-document"></main>
 
     <div id="launch">
       <svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="60.50 66.00 279.49 243.25" preserveAspectRatio="xMidYMid meet">

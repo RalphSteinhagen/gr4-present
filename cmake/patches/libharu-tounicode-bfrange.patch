@@ -1,0 +1,92 @@
+diff --git a/src/hpdf_font_cid.c b/src/hpdf_font_cid.c
+index 0b76a36..96b42a9 100644
+--- a/src/hpdf_font_cid.c
++++ b/src/hpdf_font_cid.c
+@@ -15,6 +15,7 @@
+  *
+  */
+ 
++#include <stdio.h>
+ #include "hpdf_conf.h"
+ #include "hpdf_utils.h"
+ #include "hpdf_font.h"
+@@ -68,6 +69,11 @@ static void
+ OnFree_Func  (HPDF_Dict  obj);
+ 
+ 
++static HPDF_Dict
++CreateIdentityToUnicode  (HPDF_MMgr  mmgr,
++                          HPDF_Xref  xref);
++
++
+ static HPDF_STATUS
+ CIDFontType2_BeforeWrite_Func  (HPDF_Dict   obj);
+ 
+@@ -149,7 +155,7 @@ HPDF_Type0Font_New  (HPDF_MMgr        mmgr,
+ 	 */
+         if (HPDF_StrCmp(encoder_attr->ordering, "Identity-H") == 0) {
+ 	    ret += HPDF_Dict_AddName (font, "Encoding", "Identity-H");
+-	    attr->cmap_stream = CreateCMap (encoder, xref);
++	    attr->cmap_stream = CreateIdentityToUnicode (encoder->mmgr, xref);
+ 
+ 	    if (attr->cmap_stream) {
+ 	        ret += HPDF_Dict_Add (font, "ToUnicode", attr->cmap_stream);
+@@ -1088,3 +1094,58 @@ CreateCMap  (HPDF_Encoder   encoder,
+     return cmap;
+ }
+ 
++
++/*
++ * The codes an Identity-H font written by the UTF-8 encoder shows are the
++ * characters' own Unicode values, so its ToUnicode map is the identity. A
++ * ToUnicode CMap states that with bfrange entries (PDF 32000-1:2008, 9.10.3),
++ * not cidrange, and a bfrange may only vary in its last byte, so the identity
++ * is written as one range per high byte, at most 100 to a block.
++ */
++static HPDF_Dict
++CreateIdentityToUnicode  (HPDF_MMgr  mmgr,
++                          HPDF_Xref  xref)
++{
++    HPDF_STATUS ret = HPDF_OK;
++    HPDF_Dict cmap = HPDF_DictStream_New (mmgr, xref);
++    char buf[HPDF_TMP_BUF_SIZ];
++    HPDF_UINT high;
++
++    if (!cmap)
++        return NULL;
++
++    ret += HPDF_Stream_WriteStr (cmap->stream,
++            "/CIDInit /ProcSet findresource begin\r\n"
++            "12 dict begin\r\n"
++            "begincmap\r\n"
++            "/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\r\n"
++            "/CMapName /Adobe-Identity-UCS def\r\n"
++            "/CMapType 2 def\r\n"
++            "1 begincodespacerange\r\n"
++            "<0000> <FFFF>\r\n"
++            "endcodespacerange\r\n");
++
++    for (high = 0; high < 256; high += 100) {
++        HPDF_UINT last = high + 100 < 256 ? high + 100 : 256;
++        HPDF_UINT entry;
++
++        snprintf (buf, sizeof (buf), "%u beginbfrange\r\n", last - high);
++        ret += HPDF_Stream_WriteStr (cmap->stream, buf);
++        for (entry = high; entry < last; entry++) {
++            snprintf (buf, sizeof (buf), "<%02X00> <%02XFF> <%02X00>\r\n", entry, entry, entry);
++            ret += HPDF_Stream_WriteStr (cmap->stream, buf);
++        }
++        ret += HPDF_Stream_WriteStr (cmap->stream, "endbfrange\r\n");
++    }
++
++    ret += HPDF_Stream_WriteStr (cmap->stream,
++            "endcmap\r\n"
++            "CMapName currentdict /CMap defineresource pop\r\n"
++            "end\r\n"
++            "end\r\n");
++
++    if (ret != HPDF_OK)
++        return NULL;
++
++    return cmap;
++}

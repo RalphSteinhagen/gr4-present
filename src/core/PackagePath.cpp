@@ -1,4 +1,5 @@
 #include <gr4-present/PackagePath.hpp>
+#include <gr4-present/Slice.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -19,13 +20,13 @@ namespace {
     if (colon == std::string_view::npos) {
         return {};
     }
-    const std::string_view candidate = reference.substr(0UZ, colon);
+    const std::string_view candidate = slice(reference, 0UZ, colon);
     return std::ranges::all_of(candidate, isSchemeChar) ? candidate : std::string_view{};
 }
 
 [[nodiscard]] std::string_view directoryOf(std::string_view path) noexcept {
     const auto slash = path.rfind('/');
-    return slash == std::string_view::npos ? std::string_view{} : path.substr(0UZ, slash);
+    return slash == std::string_view::npos ? std::string_view{} : slice(path, 0UZ, slash);
 }
 
 // std::views::join_with is absent from libc++ before 21, which some supported toolchains still ship

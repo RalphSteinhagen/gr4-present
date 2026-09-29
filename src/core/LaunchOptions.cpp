@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <ranges>
+#include <string>
 
 namespace gr::present {
 
@@ -16,6 +18,26 @@ namespace {
 
 [[nodiscard]] std::string_view withoutLeading(std::string_view text, std::string_view prefixes) { return !text.empty() && prefixes.find(text.front()) != std::string_view::npos ? text.substr(1UZ) : text; }
 
+/// `%3A` is `:` (RFC 3986, section 2.1), so an address passed as a parameter arrives as written; a `%` not followed
+/// by two hex digits stays as it is
+[[nodiscard]] std::string percentDecoded(std::string_view text) {
+    std::string decoded;
+    decoded.reserve(text.size());
+    for (std::size_t index = 0UZ; index < text.size(); ++index) {
+        const bool    twoCharactersFollow = index + 2UZ < text.size();
+        const char*   hexDigits           = text.data() + index + 1UZ;
+        unsigned char byte                = 0U;
+        const bool    escaped             = text[index] == '%' && twoCharactersFollow && std::from_chars(hexDigits, hexDigits + 2, byte, 16).ptr == hexDigits + 2;
+        if (escaped) {
+            decoded.push_back(static_cast<char>(byte));
+            index += 2UZ;
+        } else {
+            decoded.push_back(text[index]);
+        }
+    }
+    return decoded;
+}
+
 } // namespace
 
 void LaunchOptions::set(std::string_view key, std::string_view value) { entries.emplace_back(lowered(key), std::string{value}); }
@@ -26,6 +48,11 @@ std::optional<std::string_view> LaunchOptions::value(std::string_view key) const
     return entry == (entries | std::views::reverse).end() ? std::nullopt : std::optional{std::string_view{entry->second}};
 }
 
+std::optional<std::string_view> LaunchOptions::presentationBase() const noexcept {
+    const auto explicitName = value("presentation");
+    return explicitName.has_value() ? explicitName : value("load");
+}
+
 void LaunchOptions::parseUrlParameters(LaunchOptions& into, std::string_view parameters) {
     for (const auto field : withoutLeading(parameters, "?#") | std::views::split('&')) {
         const std::string_view pair{field};
@@ -34,9 +61,9 @@ void LaunchOptions::parseUrlParameters(LaunchOptions& into, std::string_view par
         }
         const auto separator = pair.find('=');
         if (separator == std::string_view::npos) {
-            into.set(pair, "");
+            into.set(percentDecoded(pair), "");
         } else {
-            into.set(pair.substr(0UZ, separator), pair.substr(separator + 1UZ));
+            into.set(percentDecoded(pair.substr(0UZ, separator)), percentDecoded(pair.substr(separator + 1UZ)));
         }
     }
 }

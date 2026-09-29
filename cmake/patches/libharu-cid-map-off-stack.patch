@@ -1,0 +1,43 @@
+--- a/src/hpdf_font_cid.c	2026-10-02 13:35:09.896498256 +0200
++++ b/src/hpdf_font_cid.c	2026-10-02 13:35:09.898285663 +0200
+@@ -346,9 +346,32 @@
+     return font;
+ }
+ 
++/*
++ * The map from Unicode to glyph ids has 65536 entries, 128 kB: allocated
++ * rather than kept on the stack, which in WebAssembly or on a small target may
++ * well be smaller than that, and overflows without a word.
++ */
++static HPDF_Font
++CIDFontType2_NewWithMap (HPDF_Font parent, HPDF_Xref xref, HPDF_UNICODE *tmp_map);
++
+ static HPDF_Font
+ CIDFontType2_New (HPDF_Font parent, HPDF_Xref xref)
+ {
++    HPDF_UNICODE *tmp_map = (HPDF_UNICODE *)HPDF_GetMem (parent->mmgr,
++                    sizeof(HPDF_UNICODE) * 65536);
++    HPDF_Font font;
++
++    if (!tmp_map)
++        return NULL;
++
++    font = CIDFontType2_NewWithMap (parent, xref, tmp_map);
++    HPDF_FreeMem (parent->mmgr, tmp_map);
++    return font;
++}
++
++static HPDF_Font
++CIDFontType2_NewWithMap (HPDF_Font parent, HPDF_Xref xref, HPDF_UNICODE *tmp_map)
++{
+     HPDF_STATUS ret = HPDF_OK;
+     HPDF_FontAttr attr = (HPDF_FontAttr)parent->attr;
+     HPDF_FontDef fontdef = attr->fontdef;
+@@ -360,7 +383,6 @@
+     HPDF_Font font;
+     HPDF_Array array;
+     HPDF_UINT i;
+-    HPDF_UNICODE tmp_map[65536];
+     HPDF_Dict cid_system_info;
+ 
+     HPDF_UINT16 max = 0;

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 900 200" width="900" height="200">
+  <title>a signal chain</title>
+  <g fill="none" stroke="#F36F21" stroke-width="3">
+    <rect x="20"  y="60" width="190" height="80" rx="8"/>
+    <rect x="355" y="60" width="190" height="80" rx="8"/>
+    <rect x="690" y="60" width="190" height="80" rx="8"/>
+    <path d="M210 100 H330"/>
+    <path d="M545 100 H665"/>
+  </g>
+  <g fill="#F36F21">
+    <path d="M355 100 L331 92 L331 108 Z"/>
+    <path d="M690 100 L666 92 L666 108 Z"/>
+  </g>
+  <g font-family="sans-serif" font-size="26" fill="#b4b4be" text-anchor="middle">
+    <text x="115" y="108">ADC</text>
+    <text x="450" y="108">decimate</text>
+    <text x="785" y="108">FFT</text>
+  </g>
+  <g font-family="sans-serif" font-size="17" fill="#6f6f7a" text-anchor="middle">
+    <text x="270" y="86">125 MS/s</text>
+    <text x="605" y="86">2 MS/s</text>
+  </g>
+</svg>

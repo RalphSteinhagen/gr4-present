@@ -138,7 +138,7 @@ jobs:
         run: ccache --zero-stats
 
       - name: Configure
-        run: cmake --preset ${{ matrix.preset }} -DGR_BUILD_PARALLEL_LEVEL=3
+        run: cmake --preset ${{ matrix.preset }} -DGR_BUILD_PARALLEL_LEVEL=3 ${{ matrix.preset == 'Clang22-Debug' && '-DGR4_PRESENT_BUILD_DEVTOOLS=ON' || '' }}
 
       - name: Build
         run: cmake --build cmake-build-${{ matrix.preset }}
@@ -155,6 +155,27 @@ jobs:
 
       - name: Test
         run: ctest --test-dir cmake-build-${{ matrix.preset }} --output-on-failure
+
+      # .clang-tidy names every check it switches off with its reason or as dated debt; two jobs fit the runner's memory
+      - name: clang-tidy
+        if: matrix.preset == 'Clang22-Debug'
+        run: >-
+          grep -o '"file": *"[^"]*"' cmake-build-${{ matrix.preset }}/compile_commands.json | sed 's/"file": *"//; s/"$//' |
+          grep "^$PWD/src/" | sort -u |
+          xargs -P 2 -I{} clang-tidy-22 -p cmake-build-${{ matrix.preset }} --header-filter="^$PWD/src/" --quiet {}
+
+      # CLAUDE.md §3 is a gate: zero violations, every unit checked; the fixtures hold deliberate violations
+      - name: Naming
+        if: matrix.preset == 'Clang22-Debug'
+        run: >-
+          cmake-build-${{ matrix.preset }}/devtools/naming-check cmake-build-${{ matrix.preset }} --root src --root test --root devtools
+          --exclude devtools/test/naming-check --exclude devtools/test/code-metrics --jobs 2
+
+      # figures for review, compared by hand with the previous run's; never a gate (CLAUDE.md, measured quality)
+      - name: Code metrics
+        if: matrix.preset == 'Clang22-Debug'
+        continue-on-error: true
+        run: devtools/code-metrics.sh cmake-build-${{ matrix.preset }} --cognitive --jobs 2
 
       # the screenshot comparison writes a diff image next to each failed capture; without it a red CI run is
       # unactionable from the log alone
@@ -235,7 +256,6 @@ jobs:
       - name: ccache statistics
         if: always()
         run: ccache --show-stats --verbose
-
 
   pages:
     name: deploy to GitHub Pages

@@ -1,0 +1,166 @@
+# OpenDigitizer's assets/sampleDashboards/UIControlledSines.grc, as controlled-sines.grc copies it, turned into an
+# amplitude modulation for one slide: the carrier (sine 1) times a modulation (sine 2), plus noise with its own
+# control, charted in time and as the magnitude of its spectrum
+blocks:
+  - id: gr::basic::SignalGenerator<float32>
+    parameters:
+      name: sineSource1
+      signal_type: Sin
+      frequency: 12
+      amplitude: 1
+      sample_rate: 1000
+      chunk_size: 40
+  - id: gr::basic::SignalGenerator<float32>
+    parameters:
+      name: sineSource2
+      signal_type: Sin
+      frequency: 5
+      amplitude: 1
+      sample_rate: 1000
+      chunk_size: 40
+  - id: gr::basic::SignalGenerator<float32>
+    parameters:
+      name: noiseSource
+      signal_type: GaussianNoise
+      amplitude: 0.01
+      sample_rate: 1000
+      chunk_size: 40
+  - id: gr::blocks::math::Multiply<float32, std::multiplies<float32>>
+    parameters:
+      name: modulation
+      n_inputs: 2
+  - id: gr::blocks::math::Add<float32, std::plus<float32>>
+    parameters:
+      name: withNoise
+      n_inputs: 2
+  - id: gr::blocks::fft::FFT<float32, gr::DataSet<float32>>
+    parameters:
+      name: FFT
+      fft_size: 2048 # 0.49 Hz bins, a spectrum every 2 s at 1 kS/s: the product's lines at 12 ± 5 Hz, 7 and 17 Hz, come out sharp
+      sample_rate: 1000
+      window: Hann
+      signal_name: Modulation
+      signal_unit: V
+      output_in_db: true
+  - id: opendigitizer::ImPlotSink<float32>
+    parameters:
+      name: carrierSink
+      color: 0x00C800
+      signal_name: Carrier
+      signal_unit: V
+  - id: opendigitizer::ImPlotSink<float32>
+    parameters:
+      name: modulationSink
+      signal_name: Modulation
+      signal_unit: V
+  - id: opendigitizer::ImPlotSink<gr::DataSet<float32>>
+    parameters:
+      name: spectrumSink
+      dataset_index: 0
+      signal_name: Modulation spectrum
+      abscissa_quantity: frequency
+      abscissa_unit: Hz
+      signal_quantity: magnitude
+      signal_unit: dB
+  - id: DigitizerUi::ImControlNumber
+    parameters:
+      name: frequency1
+      label: f1
+      unit: Hz
+      value_type: float32
+      value: 12
+      min: 0.1
+      max: 20
+      step: 0.5
+      style: sliderSpinner
+      target_map: "sineSource1:frequency"
+  - id: DigitizerUi::ImControlNumber
+    parameters:
+      name: amplitude1
+      label: A1
+      unit: V
+      value_type: float32
+      value: 1
+      min: 0
+      max: 2
+      step: 0.1
+      style: sliderSpinner
+      target_map: "sineSource1:amplitude"
+  - id: DigitizerUi::ImControlNumber
+    parameters:
+      name: frequency2
+      label: f2
+      unit: Hz
+      value_type: float32
+      value: 5
+      min: 0.1
+      max: 20
+      step: 0.5
+      style: sliderSpinner
+      target_map: "sineSource2:frequency"
+  - id: DigitizerUi::ImControlNumber
+    parameters:
+      name: amplitude2
+      label: A2
+      unit: V
+      value_type: float32
+      value: 1
+      min: 0
+      max: 2
+      step: 0.1
+      style: sliderSpinner
+      target_map: "sineSource2:amplitude"
+  - id: DigitizerUi::ImControlNumber
+    parameters:
+      name: noiseAmplitude
+      label: noise
+      unit: V
+      value_type: float32
+      value: 0.01
+      min: 0
+      max: 0.1
+      step: 0.005
+      style: sliderSpinner
+      target_map: "noiseSource:amplitude"
+connections:
+  - [ sineSource1, 0, modulation, [0, 0] ]
+  - [ sineSource2, 0, modulation, [0, 1] ]
+  - [ modulation, 0, withNoise, [0, 0] ]
+  - [ noiseSource, 0, withNoise, [0, 1] ]
+  - [ sineSource1, 0, carrierSink, 0 ]
+  - [ withNoise, 0, modulationSink, 0 ]
+  - [ withNoise, 0, FFT, 0 ]
+  - [ FFT, 0, spectrumSink, 0 ]
+dashboard:
+  layout: Column # the time chart over the spectrum, each the width of the column
+  scheduler_ui: false # the deck starts and stops the graph itself
+  sources:
+    - name: carrierSink
+      block: carrierSink
+    - name: modulationSink
+      block: modulationSink
+    - name: spectrumSink
+      block: spectrumSink
+  plots:
+    - name: Carrier and modulation
+      type: XYChart
+      parameters:
+        show_legend: true
+      sources:
+        - carrierSink
+        - modulationSink
+    - name: Modulation spectrum
+      type: XYChart
+      parameters:
+        show_legend: true
+        max_history_count: 1
+      axes:
+        - axis: X
+          min: 0
+          max: 25
+          scale: Linear
+        - axis: Y
+          min: NaN # auto-range
+          max: NaN
+      sources:
+        - spectrumSink

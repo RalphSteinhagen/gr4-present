@@ -7,16 +7,10 @@ struct SDL_Window;
 
 namespace gr::present {
 
-/**
- * Applies and toggles the window mode.
- *
- * Natively the mode can be set at any time. A browser refuses to enter fullscreen except from a user gesture, so a
- * requested fullscreen is remembered and applied at the first click or key press; until then the canvas merely fills
- * the tab. `pending()` reports that wait so the viewer can say why nothing has happened yet.
- */
+/// applies and toggles the window mode; a browser enters fullscreen only from a user gesture, so a request is kept
+/// and applied at the first click or key press
 struct WindowModeControl {
-    SDL_Window* window  = nullptr;
-    WindowMode  desired = WindowMode::fullscreen;
+    SDL_Window* window = nullptr;
 
     void apply(WindowMode mode);
     void toggle();
@@ -25,7 +19,6 @@ struct WindowModeControl {
     void onUserGesture();
 
     [[nodiscard]] bool isFullscreen() const noexcept;
-    [[nodiscard]] bool pending() const noexcept { return _awaitingGesture; }
 
 private:
     bool _awaitingGesture = false;

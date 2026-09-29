@@ -1,7 +1,7 @@
 #include "FallbackScene.hpp"
 
 #include "Fonts.hpp"
-#include "ImGuiScoped.hpp"
+#include "ScopedWindow.hpp"
 
 #include <format>
 #include <string_view>
@@ -15,7 +15,6 @@ constexpr float kTextWidthFraction = 0.80f;
 
 [[nodiscard]] float lineHeight(float pixels) { return pixels; }
 
-/// keeps a long address inside the viewport instead of letting it run off both edges
 [[nodiscard]] std::string elided(std::string_view text, float available) {
     if (ImGui::CalcTextSize(text.data(), text.data() + text.size()).x <= available) {
         return std::string{text};
@@ -38,8 +37,8 @@ void FallbackScene::draw(const Texture& mark, const Theme& theme) const {
     ImGui::SetNextWindowPos(viewport->Pos);
     ImGui::SetNextWindowSize(viewport->Size);
 
-    constexpr ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs;
-    const ScopedWindow         scene("##fallback", nullptr, flags);
+    constexpr ImGuiWindowFlags kWindowFlags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs;
+    const ScopedWindow         scene("##fallback", nullptr, kWindowFlags);
 
     ImDrawList*  canvas    = ImGui::GetWindowDrawList();
     const ImVec2 markSize  = mark.id == 0 ? ImVec2{0.0f, 0.0f} : mark.scaledToWidth(viewport->Size.x * kMarkWidthFraction);
@@ -47,7 +46,7 @@ void FallbackScene::draw(const Texture& mark, const Theme& theme) const {
     const float  centreX   = viewport->Pos.x + viewport->Size.x * 0.5f;
     const float  available = viewport->Size.x * kTextWidthFraction;
 
-    // the address goes on its own line at body size: a URL at headline size overflows any viewport
+    // body size, not headline size: a long URL overflows any viewport at headline size
     const std::string scanning = untilRetry.count() > 0 ? std::format("scanning ... (attempt {}, next in {}s)", attempt, (untilRetry.count() + 999) / 1000) : std::format("scanning ... (attempt {})", attempt);
 
     float blockHeight = markSize.y + gap;

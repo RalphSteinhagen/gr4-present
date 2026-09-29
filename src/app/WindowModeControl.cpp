@@ -25,8 +25,7 @@ bool WindowModeControl::isFullscreen() const noexcept {
 #endif
 }
 
-void WindowModeControl::apply(WindowMode mode) {
-    desired = mode;
+void WindowModeControl::apply(WindowMode mode) { // NOLINT(readability-make-member-function-const): the browser build writes `_awaitingGesture`
 #ifdef __EMSCRIPTEN__
     if (mode == WindowMode::windowed) {
         _awaitingGesture = false;
@@ -51,7 +50,9 @@ void WindowModeControl::onUserGesture() {
     strategy.scaleMode                 = EMSCRIPTEN_FULLSCREEN_SCALE_STRETCH;
     strategy.canvasResolutionScaleMode = EMSCRIPTEN_FULLSCREEN_CANVAS_SCALE_HIDEF;
     strategy.filteringMode             = EMSCRIPTEN_FULLSCREEN_FILTERING_DEFAULT;
-    if (emscripten_request_fullscreen_strategy("#canvas", 1, &strategy) == EMSCRIPTEN_RESULT_SUCCESS) {
+    // not deferred: Emscripten queues one call per deferred request and runs them together, so the second asks after the first
+    // used the gesture's activation up and Chrome refuses it ("Permissions check failed"); the next gesture asks again instead
+    if (emscripten_request_fullscreen_strategy("#canvas", false, &strategy) == EMSCRIPTEN_RESULT_SUCCESS) {
         _awaitingGesture = false;
     }
 #endif

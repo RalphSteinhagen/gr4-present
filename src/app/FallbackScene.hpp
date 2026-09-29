@@ -9,16 +9,8 @@
 
 namespace gr::present {
 
-/**
- * Shown when no presentation could be read.
- *
- * Drawn from what is already in the binary -- the mark and the bundled face -- so that it cannot itself fail to
- * load, and so that nothing large has to be embedded for a screen that is usually never seen. It states the address
- * that did not answer, because "could not load" without the address is useless on someone else's machine.
- *
- * It will be replaced by a genuine embedded presentation once the package format carries enough to express it;
- * keeping the wording and layout close to ViewScene makes that swap uneventful.
- */
+/// shown when no presentation could be read, naming the address that did not answer
+/// drawn from the embedded mark and face only, so it cannot itself fail to load
 struct FallbackScene {
     std::string               address;
     std::string               reason;

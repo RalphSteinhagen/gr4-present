@@ -7,11 +7,8 @@
 
 namespace gr::present {
 
-/**
- * Where a presentation physically lives (directory, archive, HTTP hierarchy) must not leak into its syntax, so every
- * reference resolves against the package root. `..` may never escape that root: a remote package is untrusted and
- * must not be able to name a resource outside its own tree.
- */
+/// every reference resolves against the package root, so where a package lives does not leak into its syntax
+/// `..` never escapes the root: a remote package is untrusted
 enum class PathError { emptyReference, escapesPackageRoot, unsupportedScheme };
 
 [[nodiscard]] constexpr std::string_view message(PathError error) noexcept {

@@ -24,6 +24,7 @@ public:
     ~Texture() { release(); }
 
     [[nodiscard]] static Texture load(std::span<const unsigned char> encodedPng);
+    [[nodiscard]] static Texture loadRgba(std::span<const unsigned char> pixels, int width, int height);
     [[nodiscard]] static Texture loadLogo(ColourScheme scheme);
     void                         release() noexcept;
     void                         swap(Texture& other) noexcept;

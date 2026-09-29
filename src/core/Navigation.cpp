@@ -47,16 +47,49 @@ std::expected<void, NavigationError> NavigationGraph::validate() const {
     return {};
 }
 
-bool Navigator::next() {
+std::string_view viewIdOf(const Section& section) noexcept { return section.id.empty() ? std::string_view{"start"} : std::string_view{section.id}; }
+
+const Section* sectionOf(std::span<const Section> sections, std::string_view viewId) noexcept {
+    const auto found = std::ranges::find(sections, viewId, viewIdOf);
+    return found == sections.end() ? nullptr : &*found;
+}
+
+NavigationGraph graphOf(std::span<const Section> sections) {
+    NavigationGraph graph;
+    for (const Section& section : sections) {
+        // a `:::view` directive names where this section can go; without one it follows document order
+        const auto declared = std::ranges::find_if(section.document.blocks, [](const Block& block) { return block.kind == BlockKind::directive && block.info == "view"; });
+        const auto edges    = declared == section.document.blocks.end() ? std::vector<std::string>{} : parseNameList(declared->field("next"));
+        graph.views.push_back(View{.id = std::string{viewIdOf(section)}, .stepCount = static_cast<std::size_t>(std::max(section.document.stepCount(), 1)), .next = edges});
+    }
+    return graph;
+}
+Cursor Navigator::nextCursor() const {
     const View* view = graph.find(cursor.viewId);
     if (view == nullptr) {
-        return false;
+        return cursor;
     }
     if (cursor.step + 1UZ < view->stepCount) {
-        history.push_back(cursor);
-        ++cursor.step;
-        return true;
+        return Cursor{.viewId = cursor.viewId, .step = cursor.step + 1UZ};
     }
+    std::string target = graph.defaultNext(cursor.viewId);
+    if (target.empty() || graph.find(target) == nullptr) {
+        return cursor;
+    }
+    return Cursor{.viewId = std::move(target), .step = 0UZ};
+}
+
+bool Navigator::next() {
+    Cursor ahead = nextCursor();
+    if (ahead == cursor) {
+        return false;
+    }
+    history.push_back(cursor);
+    cursor = std::move(ahead);
+    return true;
+}
+
+bool Navigator::nextView() {
     std::string target = graph.defaultNext(cursor.viewId);
     if (target.empty() || graph.find(target) == nullptr) {
         return false;

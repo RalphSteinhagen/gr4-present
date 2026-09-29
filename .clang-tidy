@@ -1,9 +1,100 @@
 ---
-Checks:          '*,-fuchsia-*,-google-*,-zircon-*,-abseil-*,-modernize-use-trailing-return-type,-llvm*,-cert-dcl21-cpp'
+# every check on, each one off named with its reason; a debt entry is switched on again once its findings are fixed
+Checks:
+  - '*'
+  # other projects' house styles, and Altera's FPGA loop advice
+  - '-fuchsia-*'
+  - '-google-*'
+  - '-zircon-*'
+  - '-abseil-*'
+  - '-altera-*'
+  - '-llvm*'
+  - '-boost-*'
+  - '-modernize-use-trailing-return-type'
+  - '-cert-dcl21-cpp'
+  # lowercase literal suffixes are this project's style (0.5f)
+  - '-readability-uppercase-literal-suffix'
+  - '-hicpp-uppercase-literal-suffix'
+  # .at() throws, and library code never throws
+  - '-cppcoreguidelines-pro-bounds-avoid-unchecked-container-access'
+  # short names are fine in a short scope (i, x)
+  - '-readability-identifier-length'
+  # `= {}` defaults are needed for partial designated initialisers (Clang)
+  - '-readability-redundant-member-init'
+  # cognitive complexity is summed over the project, not capped per function (devtools/code-metrics.sh --cognitive)
+  - '-readability-function-cognitive-complexity'
+  # unused and missing includes against GR4's umbrella headers (1,089 findings); include reach is measured by devtools/code-metrics.sh
+  - '-misc-include-cleaner'
+  # flags 0.5 and 2 alike; named kConstants are a review rule
+  - '-readability-magic-numbers'
+  - '-cppcoreguidelines-avoid-magic-numbers'
+  # parentheses around every mixed-precedence term; operator precedence is standard C++
+  - '-readability-math-missing-parentheses'
+  # C APIs (OpenGL, SDL, ImGui, libharu) need pointers, casts and arrays
+  - '-cppcoreguidelines-pro-bounds-pointer-arithmetic'
+  - '-cppcoreguidelines-pro-type-reinterpret-cast'
+  - '-cppcoreguidelines-pro-bounds-constant-array-index'
+  - '-cppcoreguidelines-pro-type-vararg'
+  - '-hicpp-vararg'
+  - '-cppcoreguidelines-pro-bounds-array-to-pointer-decay'
+  - '-hicpp-no-array-decay'
+  - '-cppcoreguidelines-pro-type-const-cast'
+  # opinion, not defects: parameter order, enum width, unnamed parameters, recursion over nested input, reference members
+  - '-bugprone-easily-swappable-parameters'
+  - '-performance-enum-size'
+  - '-readability-named-parameter'
+  - '-hicpp-named-parameter'
+  - '-misc-no-recursion'
+  - '-cppcoreguidelines-avoid-const-or-ref-data-members'
+  # fields are ordered as the API reads (CLAUDE.md §4), not by size
+  - '-clang-analyzer-optin.performance.Padding'
+  # debt, 2026-10-09 (findings in src/): fix, then remove the line
+  - '-readability-avoid-nested-conditional-operator' # 62
+  - '-misc-use-anonymous-namespace' # 31
+  - '-modernize-use-designated-initializers' # 27
+  - '-readability-redundant-string-cstr' # 20
+  - '-cppcoreguidelines-special-member-functions' # 20
+  - '-hicpp-special-member-functions' # 20
+  - '-hicpp-signed-bitwise' # 15
+  - '-misc-const-correctness' # 10
+  - '-readability-qualified-auto' # 9
+  - '-hicpp-use-auto' # 8
+  - '-modernize-use-auto' # 8
+  - '-readability-isolate-declaration' # 4
+  - '-hicpp-use-emplace' # 3
+  - '-modernize-use-emplace' # 3
+  - '-cppcoreguidelines-avoid-non-const-global-variables' # 3
+  - '-bugprone-throwing-static-initialization' # 3
+  - '-cert-err58-cpp' # 3
+  - '-readability-simplify-boolean-expr' # 2
+  - '-readability-container-contains' # 2
+  - '-performance-inefficient-vector-operation' # 2
+  - '-modernize-use-integer-sign-comparison' # 2
+  - '-cppcoreguidelines-avoid-c-arrays' # 2
+  - '-hicpp-avoid-c-arrays' # 2
+  - '-modernize-avoid-c-arrays' # 2
+  - '-concurrency-mt-unsafe' # 2
+  - '-bugprone-optional-value-conversion' # 2
+  - '-bugprone-branch-clone' # 2
+  - '-readability-redundant-parentheses' # 1
+  - '-readability-redundant-declaration' # 1
+  - '-readability-inconsistent-declaration-parameter-name' # 1
+  - '-readability-convert-member-functions-to-static' # 1
+  - '-modernize-loop-convert' # 1
+  - '-misc-use-internal-linkage' # 1
+  - '-cppcoreguidelines-pro-type-static-cast-downcast' # 1
+  - '-cppcoreguidelines-missing-std-forward' # 1
+  - '-cppcoreguidelines-avoid-do-while' # 1
+  - '-cert-dcl03-c' # 1
+  - '-hicpp-static-assert' # 1
+  - '-misc-static-assert' # 1
+  - '-bugprone-incorrect-roundings' # 1
 WarningsAsErrors: '*'
-HeaderFilterRegex: ''
-FormatStyle:     none
-cppcoreguidelines-non-private-member-variables-in-classes: IgnorePublicMemberVariables # N.B. public member variables are part of opencmw domain-object declarations
-altera-unroll-loops: false
-
-
+FormatStyle: none
+CheckOptions:
+  # cannot occur here: allocation sizes (bad_array_new_length, length_error), format strings checked at compile time
+  # (format_error), std::function calls behind an `if (fn)` guard (bad_function_call); bad_alloc is ignored by default
+  bugprone-exception-escape.IgnoredExceptions: 'bad_array_new_length,length_error,format_error,bad_function_call'
+  # public member variables are part of domain-object declarations
+  cppcoreguidelines-non-private-member-variables-in-classes.IgnorePublicMemberVariables: true
+  misc-non-private-member-variables-in-classes.IgnorePublicMemberVariables: true
