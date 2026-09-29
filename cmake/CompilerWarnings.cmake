@@ -53,6 +53,12 @@ function(set_project_warnings project_name)
     set(MSVC_WARNINGS ${MSVC_WARNINGS} /WX)
   endif()
 
+  if(EMSCRIPTEN)
+    # ccache 4.11 reorders -Werror after -Wno-error=experimental; SDL3's port diagnostic needs an order-independent
+    # suppression.
+    set(CLANG_WARNINGS ${CLANG_WARNINGS} -Wno-experimental)
+  endif()
+
   set(GCC_WARNINGS
       ${CLANG_WARNINGS}
       -Wno-unknown-pragmas # disable warning since clang-tidy suppression pragmas -- while necessary -- are unknown to

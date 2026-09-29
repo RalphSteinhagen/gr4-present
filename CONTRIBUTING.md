@@ -27,7 +27,7 @@ ctest --test-dir cmake-build-GCC15-Debug --output-on-failure
 
 The build must be warning-free under `-Werror` on both GCC 15 and Clang 20. `CLAUDE.md` §10 is the full checklist.
 
-Screenshot references under `src/app/test/reference/` are committed. When a UI change is intended, re-record them and
+Screenshot references under `test/app/reference/` are committed. When a UI change is intended, re-record them and
 say so in the pull request:
 
 ```bash

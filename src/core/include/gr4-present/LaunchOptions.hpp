@@ -33,6 +33,9 @@ struct LaunchOptions {
     [[nodiscard]] static LaunchOptions from(std::string_view query, std::string_view fragment, std::span<const std::string_view> arguments);
 
     [[nodiscard]] std::optional<std::string_view> value(std::string_view key) const noexcept;
+
+    /// the package to open: `presentation=` and `load=` name the same thing, so a link written either way works
+    [[nodiscard]] std::optional<std::string_view> presentationBase() const noexcept;
     [[nodiscard]] bool                            contains(std::string_view key) const noexcept { return value(key).has_value(); }
     void                                          set(std::string_view key, std::string_view value);
 

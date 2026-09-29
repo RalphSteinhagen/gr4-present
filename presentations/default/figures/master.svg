@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 1600 900" width="1600" height="900">
+  <title>slide master: title, content, sidebar, footer, in a top, middle and bottom band</title>
+
+  <g id="top">
+    <rect x="0" y="0" width="1600" height="151" fill="#0f0f13"/>
+    <rect x="0" y="0" width="1600" height="8" fill="#F36F21"/>
+    <path d="M0 150 H1600" stroke="#2a2a32" stroke-width="2"/>
+    <rect id="title"   data-present="markdown" x="72"  y="46"  width="1456" height="86"  fill="none"/>
+  </g>
+
+  <g id="middle">
+    <rect x="0" y="151" width="1600" height="660" fill="#0f0f13"/>
+    <rect id="content" data-present="markdown" x="72"  y="190" width="900"  height="590" fill="none"/>
+    <rect id="sidebar" data-present="gr4"      x="1020" y="190" width="508"  height="590" fill="none"/>
+  </g>
+
+  <g id="bottom">
+    <rect x="0" y="811" width="1600" height="89" fill="#0f0f13"/>
+    <path d="M0 812 H1600" stroke="#2a2a32" stroke-width="2"/>
+    <circle cx="1540" cy="855" r="30" fill="none" stroke="#F36F21" stroke-width="3"/>
+    <rect id="slide_number" data-present="number" x="1512" y="827" width="56" height="56" fill="none"/>
+    <rect id="footer"  data-present="markdown" x="72"  y="836" width="1400" height="40"  fill="none"/>
+  </g>
+</svg>

@@ -1,0 +1,55 @@
+diff --git a/blocks/trigger/include/gnuradio-4.0/trigger/SchmittTrigger.hpp b/blocks/trigger/include/gnuradio-4.0/trigger/SchmittTrigger.hpp
+index 5702ea6..fbbd56d 100644
+--- a/blocks/trigger/include/gnuradio-4.0/trigger/SchmittTrigger.hpp
++++ b/blocks/trigger/include/gnuradio-4.0/trigger/SchmittTrigger.hpp
+@@ -43,6 +43,7 @@ polynomial fit.
+
+     A<value_t, "offset", Visible>                                                                    offset{value_t(0)};
+     A<value_t, "threshold", Visible>                                                                 threshold{value_t(1)};
++    A<gr::Size_t, "dead time", Doc<"minimum sample distance between emitted edges">, Visible>           n_dead_time = 0U;
+     A<std::pmr::string, "rising trigger", Doc<"rising-edge trigger name; \"\" omits it">, Visible>   trigger_name_rising_edge{std::string(gr::meta::enumName(RISING).value_or(""))};
+     A<std::pmr::string, "falling trigger", Doc<"falling-edge trigger name; \"\" omits it">, Visible> trigger_name_falling_edge{std::string(gr::meta::enumName(FALLING).value_or(""))};
+     A<float, "avg. sample rate">                                                                     sample_rate = 1.f;
+@@ -53,13 +54,14 @@ polynomial fit.
+     A<float, "trigger offset", Doc<"last trigger offset; then sample counting">, Unit<"s">>          trigger_offset{0.0f};
+     std::pmr::string                                                                                 context = "";
+
+-    GR_MAKE_REFLECTABLE(SchmittTrigger, in, out, offset, threshold, trigger_name_rising_edge, trigger_name_falling_edge, sample_rate, forward_tag, trigger_name, trigger_time, trigger_offset, context);
++    GR_MAKE_REFLECTABLE(SchmittTrigger, in, out, offset, threshold, n_dead_time, trigger_name_rising_edge, trigger_name_falling_edge, sample_rate, forward_tag, trigger_name, trigger_time, trigger_offset, context);
+
+     using TriggerType = gr::trigger::SchmittTrigger<T, Method, N_HISTORY>;
+     TriggerType                                          _trigger{0, 1};
+     std::pmr::vector<typename TriggerType::sg_compute_t> _sgCoefficients;
+     TimeBase                                             _time;
+     std::size_t                                          _streamIndex     = 0UZ;
++    std::size_t                                          _deadUntil       = 0UZ;
+     bool                                                 _undatedReported = false;
+
+     void settingsChanged(const gr::property_map& /*oldSettings*/, const gr::property_map& newSettings) {
+@@ -106,6 +108,7 @@ polynomial fit.
+         }
+         _trigger.reset();
+         _streamIndex = 0UZ;
++        _deadUntil   = 0UZ;
+         _time.reset();
+         _time.setRate(static_cast<double>(sample_rate));
+         _undatedReported = false;
+@@ -147,6 +150,7 @@ polynomial fit.
+             forwardTags(edgePos);
+
+             outputSpan.publishTag(dateEdge(triggerName, edgePos), edgePos);
++            _deadUntil = _streamIndex + edgePos + static_cast<std::size_t>(n_dead_time);
+
+             const std::size_t nPublish = edgePos + 1; // include edge sample
+             std::copy_n(inputSpan.begin(), nPublish, outputSpan.begin());
+@@ -161,6 +165,10 @@ polynomial fit.
+                 const std::ptrdiff_t edgePosition = std::max<std::ptrdiff_t>(0, static_cast<std::ptrdiff_t>(i) + _trigger.lastEdgeIdx);
+
+                 if (static_cast<std::size_t>(edgePosition) < nProcess) {
++                    const std::size_t edgeIndex = _streamIndex + static_cast<std::size_t>(edgePosition);
++                    if (edgeIndex < _deadUntil) {
++                        continue;
++                    }
+                     if (_trigger.lastEdge == RISING && !trigger_name_rising_edge.value.empty()) {
+                         return publishEdge(trigger_name_rising_edge, static_cast<std::size_t>(edgePosition));
+                     }

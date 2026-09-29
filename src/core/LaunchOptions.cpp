@@ -26,6 +26,11 @@ std::optional<std::string_view> LaunchOptions::value(std::string_view key) const
     return entry == (entries | std::views::reverse).end() ? std::nullopt : std::optional{std::string_view{entry->second}};
 }
 
+std::optional<std::string_view> LaunchOptions::presentationBase() const noexcept {
+    const auto explicitName = value("presentation");
+    return explicitName.has_value() ? explicitName : value("load");
+}
+
 void LaunchOptions::parseUrlParameters(LaunchOptions& into, std::string_view parameters) {
     for (const auto field : withoutLeading(parameters, "?#") | std::views::split('&')) {
         const std::string_view pair{field};

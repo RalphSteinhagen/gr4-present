@@ -1,0 +1,244 @@
+# a recorded clap, in stereo, played and analysed as the microphone would be: the standby of microphone.grc, which runs
+# until the browser grants the microphone. A file is read as fast as it can be, so the analysis is paced by a silent
+# generator running on the wall clock: added sample by sample to each channel, the clap reaches the charts in real
+# time rather than a whole loop at once.
+blocks:
+  - id: gr::basic::SignalGenerator<float32>
+    parameters:
+      name: wallClock
+      signal_type: Const
+      amplitude: 0
+      sample_rate: 48000
+      chunk_size: 480
+  - id: gr::blocks::fileio::WavSource<float32>
+    parameters:
+      name: recording
+      uri: media/clap.wav
+      repeat: true
+      trigger_name: "" # no start-of-file trigger: its time is when the file was read, ahead of the paced playback
+  - id: gr::audio::AudioSink<float32>
+    parameters:
+      name: speaker
+      sample_rate: 48000
+      num_channels: 2
+  - id: gr::present::blocks::Deinterleave<float32>
+    parameters:
+      name: channels
+      n_channels: 2
+  - id: gr::present::blocks::PeakDecimator<float32>
+    parameters:
+      name: peaksL
+      block_size: 48 # the time chart draws each block's minimum and maximum: 2000 samples a second
+  - id: gr::present::blocks::PeakDecimator<float32>
+    parameters:
+      name: peaksR
+      block_size: 48
+  - id: opendigitizer::Arithmetic<float32>
+    parameters:
+      name: pacedL
+      operation: "+"
+  - id: opendigitizer::Arithmetic<float32>
+    parameters:
+      name: pacedR
+      operation: "+"
+  - id: gr::blocks::trigger::SchmittTriggerNoInterpolation<float32>
+    parameters:
+      name: triggerL
+      threshold: 0.1
+      n_dead_time: 50000
+  - id: gr::blocks::trigger::SchmittTriggerNoInterpolation<float32>
+    parameters:
+      name: triggerR
+      threshold: 0.1
+      n_dead_time: 50000
+  - id: gr::basic::StreamToDataSet<float32>
+    parameters:
+      name: snapshotL
+      filter: RISING
+      n_pre: 1000
+      n_post: 20000
+      holdoff_samples: 50000
+  - id: gr::basic::StreamToDataSet<float32>
+    parameters:
+      name: snapshotR
+      filter: RISING
+      n_pre: 1000
+      n_post: 20000
+      holdoff_samples: 50000
+  - id: gr::blocks::fft::FFT<float32, gr::DataSet<float32>>
+    parameters:
+      name: FFT
+      fft_size: 4096
+      sample_rate: 48000
+      output_in_db: true
+      signal_name: clap L
+  - id: opendigitizer::ImPlotSink<float32>
+    parameters:
+      name: lastL
+      signal_name: L
+      signal_unit: FS
+      required_size: 4000
+  - id: opendigitizer::ImPlotSink<float32>
+    parameters:
+      name: lastR
+      signal_name: R
+      signal_unit: FS
+      required_size: 4000
+  - id: opendigitizer::ImPlotSink<gr::DataSet<float32>>
+    parameters:
+      name: clapL
+      dataset_index: 0
+      signal_name: L, triggered
+      signal_unit: FS
+      n_history: 1
+  - id: opendigitizer::ImPlotSink<gr::DataSet<float32>>
+    parameters:
+      name: clapR
+      dataset_index: 0
+      signal_name: R, triggered
+      signal_unit: FS
+      n_history: 1
+  - id: opendigitizer::ImPlotSink<gr::DataSet<float32>>
+    parameters:
+      name: audioSink
+      dataset_index: 0
+      signal_name: clap L
+      abscissa_quantity: frequency
+      abscissa_unit: Hz
+      signal_quantity: magnitude
+      signal_unit: dB
+  - id: DigitizerUi::ImControlNumber
+    parameters:
+      name: threshold
+      label: threshold
+      unit: FS
+      value_type: float32
+      value: 0.1
+      min: 0
+      max: 1
+      step: 0.01
+      style: slider
+      target_map: "triggerL,triggerR:threshold"
+  - id: DigitizerUi::ImControlNumber
+    parameters:
+      name: postTrigger
+      label: post-trigger
+      unit: samples
+      value_type: uint32
+      value: 20000
+      min: 2000
+      max: 100000
+      step: 1000
+      style: slider
+      target_map: "snapshotL,snapshotR:n_post"
+  - id: DigitizerUi::ImControlNumber
+    parameters:
+      name: holdOff
+      label: trigger hold-off
+      unit: samples
+      value_type: uint32
+      value: 50000
+      min: 2000
+      max: 100000
+      step: 1000
+      style: slider
+      target_map: "snapshotL,snapshotR:holdoff_samples;triggerL,triggerR:n_dead_time"
+connections:
+  - [ recording, 0, speaker, 0 ]
+  - [ recording, 0, channels, 0 ]
+  - [ channels, [0, 0], pacedL, 0 ]
+  - [ wallClock, 0, pacedL, 1 ]
+  - [ channels, [0, 1], pacedR, 0 ]
+  - [ wallClock, 0, pacedR, 1 ]
+  - [ pacedL, 0, triggerL, 0 ]
+  - [ pacedR, 0, triggerR, 0 ]
+  - [ triggerL, 0, snapshotL, 0 ]
+  - [ triggerR, 0, snapshotR, 0 ]
+  - [ snapshotL, 0, clapL, 0 ]
+  - [ snapshotR, 0, clapR, 0 ]
+  - [ pacedL, 0, FFT, 0 ]
+  - [ FFT, 0, audioSink, 0 ]
+  - [ pacedL, 0, peaksL, 0 ]
+  - [ peaksL, 0, lastL, 0 ]
+  - [ pacedR, 0, peaksR, 0 ]
+  - [ peaksR, 0, lastR, 0 ]
+dashboard:
+  layout: Free
+  windowLayout:
+    floatingWindows: { }
+    dockSpace:
+      vsplit:
+        first:
+          hsplit:
+            first: "Last 2 s"
+            second: "Triggered"
+            ratio: !!float32 0.5
+        second: "Audio Spectrum"
+        ratio: !!float32 0.62 # the spectrum's share: in a vsplit the ratio goes to the bottom pane
+  sources:
+    - name: lastL
+      block: lastL
+    - name: lastR
+      block: lastR
+    - name: clapL
+      block: clapL
+    - name: clapR
+      block: clapR
+    - name: audioSink
+      block: audioSink
+  plots:
+    - name: Last 2 s
+      type: XYChart
+      parameters:
+        show_legend: true
+        # qFix 2026-10-07: history_seconds: 2 removed, pinned OD 9a16a942 rejects it; restore after the OD re-pin
+        n_history: 4000 # 2 s of minimum-maximum pairs at 2000 a second
+      axes:
+        - axis: Y
+          min: -1
+          max: 1
+          scale: SymLog
+          # qFix 2026-10-07: linear_threshold: 0.001 removed, not in pinned OD 9a16a942; restore after the OD re-pin
+      sources:
+        - lastL
+        - lastR
+    - name: Triggered
+      type: XYChart
+      parameters:
+        show_legend: true
+        show_tags: false # the clap's every threshold crossing would hide the trace
+        n_history: 24000 # samples: one snapshot, 0.5 s at 48 kS/s
+        max_history_count: 1
+      axes:
+        - axis: X
+          min: NaN # auto-range the triggered time axis
+          max: NaN
+        - axis: Y
+          min: -1
+          max: 1
+      sources:
+        - clapL
+        - clapR
+    - name: Audio Spectrum
+      type: opendigitizer::charts::SpectrumView
+      parameters:
+        show_max_hold: true
+        show_average: true
+        decay_tau_frames: 60
+        n_history: 59 # spectra in the waterfall: 5 s at 11.7 a second (8192 points at 96 kS/s, 4096 at 48)
+        colormap: ImPlotColormap_Viridis
+        top_pane_ratio: 0.5
+      axes:
+        - axis: X
+          min: 0
+          max: NaN
+          scale: Linear
+          format: MetricInline
+        - axis: Y
+          min: -120
+          max: -20
+        - axis: Z
+          min: -110
+          max: -30
+      sources:
+        - audioSink

@@ -1,0 +1,95 @@
+diff --git a/src/ui/charts/XYChart.hpp b/src/ui/charts/XYChart.hpp
+index 2289ea5..28e65c2 100644
+--- a/src/ui/charts/XYChart.hpp
++++ b/src/ui/charts/XYChart.hpp
+@@ -26,8 +26,14 @@ namespace opendigitizer::charts {
+ struct DataSetPlotContext {
+     const gr::DataSet<float>* data_set;
+     std::size_t               signal_index{0}; // which signal within the DataSet to plot
++    std::size_t               sample_offset{0};
+ };
+ 
++[[nodiscard]] constexpr std::pair<std::size_t, std::size_t> recentDataSetRange(std::size_t sampleCount, std::size_t historyDepth) noexcept {
++    const std::size_t count = std::min(sampleCount, historyDepth);
++    return {sampleCount - count, count};
++}
++
+ /// XYChart - standard X-Y line/scatter chart as a GR4 block.
+ /// Plots Y-values against a common X-axis with support for multiple axes, automatic signal grouping,
+ /// various X-axis modes (UTC/relative time, sample index), tag rendering, and DataSet history fading.
+@@ -282,8 +288,12 @@ struct XYChart : gr::Block<XYChart, gr::Drawable<gr::UICategory::Content, "ImGui
+         const std::size_t spanSize = allDataSets.size();
+         const std::size_t offset   = spanSize - historySize; // skip older entries
+         for (std::size_t i = 0; i < historySize; ++i) {
+-            const auto&        ds = allDataSets[offset + i]; // i=0 is oldest of selected, i=historySize-1 is newest
+-            DataSetPlotContext ctx{&ds, 0};
++            const auto& ds = allDataSets[offset + i]; // i=0 is oldest of selected, i=historySize-1 is newest
++            if (ds.axis_values.empty() || ds.axis_values[0].empty()) {
++                continue;
++            }
++            const auto [sampleOffset, dataCount] = recentDataSetRange(ds.axis_values[0].size(), static_cast<std::size_t>(n_history.value));
++            DataSetPlotContext ctx{&ds, 0, sampleOffset};
+ 
+             const bool isNewest = (i == historySize - 1);
+             float      opacity  = isNewest ? 1.0f : (0.2f + (static_cast<float>(i) / static_cast<float>(std::max(historySize, std::size_t{2}) - 1)) * 0.8f);
+@@ -294,26 +304,21 @@ struct XYChart : gr::Block<XYChart, gr::Drawable<gr::UICategory::Content, "ImGui
+ 
+             std::string label = isNewest ? baseLabel : std::format("##{}_hist_{}", sink.uniqueName(), i);
+ 
+-            // Get data count from DataSet's axis_values
+-            if (ds.axis_values.empty() || ds.axis_values[0].empty()) {
+-                continue;
+-            }
+-            int dataCount = static_cast<int>(ds.axis_values[0].size());
+-
+             ImPlot::PlotLineG(
+                 label.c_str(),
+                 [](int idx, void* user_data) -> ImPlotPoint {
+-                    auto*       context  = static_cast<DataSetPlotContext*>(user_data);
+-                    const auto& data_set = *context->data_set;
+-                    double      xVal     = static_cast<double>(data_set.axis_values[0][static_cast<std::size_t>(idx)]);
+-                    double      yVal     = 0.0;
+-                    auto        sigVals  = data_set.signalValues(context->signal_index);
+-                    if (static_cast<std::size_t>(idx) < sigVals.size()) {
+-                        yVal = static_cast<double>(sigVals[static_cast<std::size_t>(idx)]);
++                    auto*             context     = static_cast<DataSetPlotContext*>(user_data);
++                    const auto&       data_set    = *context->data_set;
++                    const std::size_t sampleIndex = context->sample_offset + static_cast<std::size_t>(idx);
++                    double            xVal        = static_cast<double>(data_set.axis_values[0][sampleIndex]);
++                    double            yVal        = 0.0;
++                    auto              sigVals     = data_set.signalValues(context->signal_index);
++                    if (sampleIndex < sigVals.size()) {
++                        yVal = static_cast<double>(sigVals[sampleIndex]);
+                     }
+                     return ImPlotPoint(xVal, yVal);
+                 },
+-                &ctx, dataCount);
++                &ctx, static_cast<int>(dataCount));
+         }
+     }
+ };
+diff --git a/src/ui/test/qa_ChartAbstraction.cpp b/src/ui/test/qa_ChartAbstraction.cpp
+index f4bc266..da1e7b4 100644
+--- a/src/ui/test/qa_ChartAbstraction.cpp
++++ b/src/ui/test/qa_ChartAbstraction.cpp
+@@ -47,6 +47,20 @@ int main() {
+         expect(eq(sink.bufferCapacity(), 16UZ));
+     };
+ 
++    "XYChart draws only the most recent n_history samples of each DataSet"_test = [] {
++        const auto [clampedOffset, clampedCount] = recentDataSetRange(48'000UZ, 22'000UZ);
++        expect(eq(clampedOffset, 26'000UZ));
++        expect(eq(clampedCount, 22'000UZ));
++
++        const auto [shortOffset, shortCount] = recentDataSetRange(10'000UZ, 22'000UZ);
++        expect(eq(shortOffset, 0UZ));
++        expect(eq(shortCount, 10'000UZ));
++
++        const auto [emptyOffset, emptyCount] = recentDataSetRange(0UZ, 22'000UZ);
++        expect(eq(emptyOffset, 0UZ));
++        expect(eq(emptyCount, 0UZ));
++    };
++
+     "DataSet keeps custom axis labels"_test = [] {
+         gr::Graph graph;
+         auto&     sink = graph.emplaceBlock<opendigitizer::ImPlotSink<gr::DataSet<float>>>({{"signal_quantity", "amplitude"}, {"signal_unit", "dB"}});

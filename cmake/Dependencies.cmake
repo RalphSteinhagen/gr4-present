@@ -1,20 +1,62 @@
 include(FetchContent)
 include(${CMAKE_CURRENT_LIST_DIR}/DependenciesSHAs.cmake)
 
+# `source_subdirectory` empty takes the whole project, which its root now supports; naming one takes only that part.
+# SOURCE_SUBDIR cannot simply be given an empty value -- the keyword would swallow whatever follows it.
 function(gr4_present_fetch_opendigitizer source_subdirectory)
-  FetchContent_Declare(
-    opendigitizer
-    GIT_REPOSITORY https://github.com/fair-acc/opendigitizer.git
-    GIT_TAG ${GIT_SHA_OPENDIGITIZER}
-    SOURCE_SUBDIR
-    ${source_subdirectory}
-    SYSTEM
-    EXCLUDE_FROM_ALL)
+  # following a branch means re-checking it on every configure; pinned dependencies do not need this and are not given
+  # it, because refetching what cannot have moved is only slower
+  set(FETCHCONTENT_UPDATES_DISCONNECTED_OPENDIGITIZER OFF)
+  if(source_subdirectory STREQUAL "")
+    FetchContent_Declare(
+      opendigitizer
+      GIT_REPOSITORY https://github.com/fair-acc/opendigitizer.git
+      GIT_TAG ${GIT_REF_OPENDIGITIZER}
+      PATCH_COMMAND ${CMAKE_COMMAND} -DPATCH=${CMAKE_SOURCE_DIR}/cmake/patches/opendigitizer-dataset-draw-limit.patch
+                    -P ${CMAKE_SOURCE_DIR}/cmake/ApplyPatch.cmake SYSTEM EXCLUDE_FROM_ALL)
+  else()
+    FetchContent_Declare(
+      opendigitizer
+      GIT_REPOSITORY https://github.com/fair-acc/opendigitizer.git
+      GIT_TAG ${GIT_REF_OPENDIGITIZER}
+      SOURCE_SUBDIR ${source_subdirectory}
+      PATCH_COMMAND ${CMAKE_COMMAND} -DPATCH=${CMAKE_SOURCE_DIR}/cmake/patches/opendigitizer-dataset-draw-limit.patch
+                    -P ${CMAKE_SOURCE_DIR}/cmake/ApplyPatch.cmake SYSTEM EXCLUDE_FROM_ALL)
+  endif()
   FetchContent_MakeAvailable(opendigitizer)
   set(opendigitizer_SOURCE_DIR
       "${opendigitizer_SOURCE_DIR}"
       PARENT_SCOPE)
 endfunction()
+
+# a branch rather than a commit, so every configure checks for its newest commit, as OpenDigitizer's does
+set(FETCHCONTENT_UPDATES_DISCONNECTED_GNURADIO4 OFF)
+
+# qFix 2026-10-07: workaround until the OD Dashboard.cpp pragma fix is pinned; then revert. GR4's warnings are its own
+# to keep at zero; as errors here they would stop this build on a newer compiler's new warning in GR4 or in
+# OpenDigitizer, which takes GR4's flags. This project's own code keeps -Werror.
+set(WARNINGS_AS_ERRORS
+    OFF
+    CACHE BOOL "GR4: treat GR4 compiler warnings as errors" FORCE)
+
+# The viewer links GR4's block libraries into its one binary and registers the blocks itself. On Emscripten GR4 builds
+# them only when its plugin package (blocks as WASM side modules) is off, and that is on by default, so a fresh
+# configure would have no `Gr*BlocksShared` for OpenDigitizer and this project to link.
+if(EMSCRIPTEN)
+  set(INTERNAL_ENABLE_BLOCK_PLUGINS
+      OFF
+      CACHE BOOL "GR4: block libraries as static archives, not WASM plugins" FORCE)
+endif()
+
+# declared before OpenDigitizer is fetched: the first declaration of a name wins, so this pin holds over OpenDigitizer's
+FetchContent_Declare(
+  gnuradio4
+  GIT_REPOSITORY https://github.com/fair-acc/gnuradio4.git
+  GIT_TAG ${GR4_PRESENT_GIT_REF_GNURADIO4}
+  PATCH_COMMAND
+    ${CMAKE_COMMAND} -DPATCH=${CMAKE_SOURCE_DIR}/cmake/patches/gnuradio4-wasm-thread-budget.patch
+    -DPATCH_EXTRA=${CMAKE_SOURCE_DIR}/cmake/patches/gnuradio4-schmitt-dead-time.patch -P
+    ${CMAKE_SOURCE_DIR}/cmake/ApplyPatch.cmake OVERRIDE_FIND_PACKAGE SYSTEM EXCLUDE_FROM_ALL)
 
 # OpenDigitizer publishes no CMake package, so it is consumed as a source dependency. src/utils is added in every
 # configuration for `raii_wrapper` (stdex::c_resource), which wraps the C APIs this project uses; src/ui, which carries
@@ -28,39 +70,17 @@ if(GR4_PRESENT_WITH_OPENDIGITIZER)
       OFF
       CACHE BOOL "Treat OpenDigitizer compiler warnings as errors" FORCE)
 
-  # src/ui resolves `DependenciesSHAs` and `CompileGr4Release` through CMAKE_MODULE_PATH; the entry it appends itself
-  # (${CMAKE_SOURCE_DIR}/../../cmake) is relative to the consuming project and does not find them from here. The path is
-  # added before FetchContent_MakeAvailable() because that call runs src/ui's add_subdirectory() internally.
-  if(FETCHCONTENT_SOURCE_DIR_OPENDIGITIZER)
-    list(APPEND CMAKE_MODULE_PATH "${FETCHCONTENT_SOURCE_DIR_OPENDIGITIZER}/cmake")
-  else()
-    if(NOT FETCHCONTENT_BASE_DIR)
-      set(FETCHCONTENT_BASE_DIR "${CMAKE_BINARY_DIR}/_deps")
-    endif()
-    list(APPEND CMAKE_MODULE_PATH "${FETCHCONTENT_BASE_DIR}/opendigitizer-src/cmake")
-  endif()
+  # OpenDigitizer's root is consumable now: taken whole, it skips its own tests, service, application and the WASM
+  # sub-build because it is not the top-level project, and publishes its user interface as layered targets. Adding
+  # src/ui by hand was only ever what worked while that was not true.
+  gr4_present_fetch_opendigitizer("")
 
-  gr4_present_fetch_opendigitizer(src/utils)
-  add_subdirectory(${opendigitizer_SOURCE_DIR}/src/ui ${CMAKE_BINARY_DIR}/_deps/opendigitizer-ui-build EXCLUDE_FROM_ALL)
-
-  # OpenDigitizer applies ImGui's ABI-affecting macros with add_compile_definitions() inside src/ui, so they reach its
-  # own translation units but not a consumer outside that directory. ImGui's headers then disagree with the compiled
-  # library about ImDrawIdx and every consumer aborts in DebugCheckVersionAndDataLayout() at start-up. Carrying them on
-  # the target makes the setting travel with the dependency.
-  if(TARGET imgui)
-    target_compile_definitions(imgui PUBLIC "ImDrawIdx=unsigned int" IMGUI_USE_WCHAR32 IMGUI_DEFINE_MATH_OPERATORS)
-  endif()
 else()
   gr4_present_fetch_opendigitizer(src/utils)
 
   find_package(gnuradio4 4.0.0 QUIET)
   if(NOT gnuradio4_FOUND)
     message(STATUS "Pre-built gnuradio4 not found, fetching and building from source...")
-    FetchContent_Declare(
-      gnuradio4
-      GIT_REPOSITORY https://github.com/fair-acc/gnuradio4.git
-      GIT_TAG ${GIT_SHA_GNURADIO4}
-      OVERRIDE_FIND_PACKAGE SYSTEM EXCLUDE_FROM_ALL)
     FetchContent_MakeAvailable(gnuradio4)
   endif()
 endif()
@@ -223,6 +243,106 @@ if(GR4_PRESENT_ENABLE_IMGUI_TEST_ENGINE)
   target_link_libraries(imgui-instrumented PUBLIC SDL3::SDL3 OpenGL::GL)
 endif()
 
+if(NOT TARGET lunasvg)
+  set(LUNASVG_BUILD_EXAMPLES
+      OFF
+      CACHE BOOL "" FORCE)
+  FetchContent_Declare(
+    lunasvg
+    GIT_REPOSITORY https://github.com/sammycage/lunasvg.git
+    GIT_TAG ${GIT_TAG_LUNASVG}
+    SYSTEM EXCLUDE_FROM_ALL)
+  FetchContent_MakeAvailable(lunasvg)
+
+  # every translation unit in a shared-memory build must agree about atomics, and lunasvg does not know it is being
+  # linked into one; wasm-ld rejects the whole link otherwise
+  if(EMSCRIPTEN)
+    foreach(_svg_target IN ITEMS lunasvg plutovg)
+      if(TARGET ${_svg_target})
+        target_compile_options(${_svg_target} PRIVATE -pthread)
+      endif()
+    endforeach()
+  endif()
+endif()
+
+# WebM: VP8 video and Vorbis audio in a Matroska container, which is what browsers decode natively. libogg ships CMake
+# and is still required -- Vorbis packets are framed as `ogg_packet` whatever container carried them. libvpx ships
+# autotools only, and libwebm's parser is two files, so both are given targets here.
+if(NOT TARGET vpxdec)
+  set(BUILD_TESTING
+      OFF
+      CACHE BOOL "" FORCE)
+  set(INSTALL_DOCS
+      OFF
+      CACHE BOOL "" FORCE)
+  FetchContent_Declare(
+    ogg
+    GIT_REPOSITORY https://github.com/xiph/ogg.git
+    GIT_TAG ${GIT_TAG_OGG}
+    SYSTEM EXCLUDE_FROM_ALL)
+  FetchContent_MakeAvailable(ogg)
+
+  # SOURCE_SUBDIR names a directory with no CMakeLists.txt, so the content is fetched but never added as a subproject:
+  # libwebm's own build produces tools and tests this project has no use for, and only the parser is wanted
+  FetchContent_Declare(
+    libwebm
+    GIT_REPOSITORY https://github.com/webmproject/libwebm.git
+    GIT_TAG ${GIT_TAG_LIBWEBM}
+    SOURCE_SUBDIR
+    no-cmake-project-here
+    SYSTEM
+    EXCLUDE_FROM_ALL)
+  FetchContent_MakeAvailable(libwebm)
+
+  # mkvparser alone: the reader that comes beside it reads through a FILE*, and a package's bytes are already in memory
+  # by the time a video is played, so VideoStream implements mkvparser::IMkvReader over a span instead.
+  add_library(webmparser STATIC ${libwebm_SOURCE_DIR}/mkvparser/mkvparser.cc)
+  target_include_directories(webmparser SYSTEM PUBLIC ${libwebm_SOURCE_DIR})
+  # upstream C++ that we do not maintain: its warnings are not ours to fix, and -Werror would stop the build dead
+  target_compile_options(webmparser PRIVATE -w)
+  if(EMSCRIPTEN)
+    target_compile_options(webmparser PRIVATE -pthread)
+  endif()
+
+  # libvpx configures and builds with autotools, so it is built as an external project and imported. `generic-gnu` is
+  # the pure-C target: it needs no yasm and no per-architecture assembly, which is what lets one recipe serve both the
+  # native and the Emscripten build. The decoder is 312 kB native and 214 kB of wasm, measured.
+  include(ExternalProject)
+  # an empty generator expression is still passed as an empty argument, which configure rejects outright
+  set(_vpx_extra_flags "")
+  if(EMSCRIPTEN)
+    set(_vpx_extra_flags --extra-cflags=-pthread)
+  endif()
+  set(_vpx_install ${CMAKE_BINARY_DIR}/_deps/libvpx-install)
+  set(_vpx_library ${_vpx_install}/lib/libvpx.a)
+  ExternalProject_Add(
+    libvpx_external
+    GIT_REPOSITORY https://chromium.googlesource.com/webm/libvpx
+    GIT_TAG ${GIT_TAG_LIBVPX}
+    GIT_SHALLOW TRUE
+    UPDATE_DISCONNECTED TRUE
+    CONFIGURE_COMMAND
+      ${CMAKE_COMMAND} -E env "CC=${CMAKE_C_COMPILER}" "CXX=${CMAKE_CXX_COMPILER}" "AR=${CMAKE_AR}"
+      "RANLIB=${CMAKE_RANLIB}" "LD=${CMAKE_C_COMPILER}" <SOURCE_DIR>/configure --target=generic-gnu
+      --prefix=${_vpx_install} --enable-vp8-decoder --enable-static --enable-pic --disable-shared --disable-vp8-encoder
+      --disable-vp9 --disable-examples --disable-tools --disable-docs --disable-unit-tests --disable-webm-io
+      --disable-libyuv --disable-runtime-cpu-detect --disable-multithread ${_vpx_extra_flags}
+    BUILD_COMMAND ${CMAKE_COMMAND} -E env make -j2
+    INSTALL_COMMAND ${CMAKE_COMMAND} -E env make install
+    BUILD_BYPRODUCTS ${_vpx_library})
+
+  add_library(
+    vpxdec
+    STATIC
+    IMPORTED
+    GLOBAL)
+  add_dependencies(vpxdec libvpx_external)
+  # the include directory must exist at configure time or INTERFACE_INCLUDE_DIRECTORIES is rejected
+  file(MAKE_DIRECTORY ${_vpx_install}/include)
+  set_target_properties(vpxdec PROPERTIES IMPORTED_LOCATION ${_vpx_library} INTERFACE_INCLUDE_DIRECTORIES
+                                                                            ${_vpx_install}/include)
+endif()
+
 # zeromq's polling_util.hpp uses std::nothrow without including <new>; libstdc++ and libc++ 20 pull it in transitively,
 # libc++ 22 does not. The target is opencmw's, fetched two levels down, so the include is forced on the command line.
 foreach(_zeromq_target IN ITEMS objects libzmq libzmq-static)
@@ -230,3 +350,145 @@ foreach(_zeromq_target IN ITEMS objects libzmq libzmq-static)
     target_compile_options(${_zeromq_target} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-include;new>)
   endif()
 endforeach()
+
+if(NOT TARGET microtex)
+  set(BUILD_STATIC
+      ON
+      CACHE BOOL "" FORCE)
+  set(HAVE_LOG
+      OFF
+      CACHE BOOL "" FORCE)
+  # 1 is GLYPH_RENDER_TYPE_PATH: glyphs arrive as outlines, never as font ids, so no typeface is ever loaded and plutovg
+  # -- already here for lunasvg -- can fill them with their holes intact, which ImDrawList cannot
+  set(GLYPH_RENDER_TYPE
+      1
+      CACHE STRING "" FORCE)
+  FetchContent_Declare(
+    microtex
+    GIT_REPOSITORY https://github.com/NanoMichael/MicroTeX.git
+    GIT_TAG ${GIT_SHA_MICROTEX}
+    SYSTEM EXCLUDE_FROM_ALL)
+  FetchContent_MakeAvailable(microtex)
+  # upstream is not warning-clean and is not ours to fix; -Werror would stop the build on code we do not maintain
+  target_compile_options(microtex PRIVATE -w)
+  target_include_directories(microtex SYSTEM PUBLIC $<BUILD_INTERFACE:${microtex_SOURCE_DIR}/lib>)
+  if(EMSCRIPTEN)
+    target_compile_options(microtex PRIVATE -pthread)
+  endif()
+endif()
+
+if(NOT TARGET webp)
+  foreach(
+    _webp_tool IN
+    ITEMS WEBP_BUILD_ANIM_UTILS
+          WEBP_BUILD_CWEBP
+          WEBP_BUILD_DWEBP
+          WEBP_BUILD_GIF2WEBP
+          WEBP_BUILD_IMG2WEBP
+          WEBP_BUILD_VWEBP
+          WEBP_BUILD_WEBPINFO
+          WEBP_BUILD_LIBWEBPMUX
+          WEBP_BUILD_WEBPMUX
+          WEBP_BUILD_EXTRAS
+          WEBP_BUILD_FUZZTEST)
+    set(${_webp_tool}
+        OFF
+        CACHE BOOL "" FORCE)
+  endforeach()
+  FetchContent_Declare(
+    libwebp
+    GIT_REPOSITORY https://github.com/webmproject/libwebp.git
+    GIT_TAG ${GIT_TAG_LIBWEBP}
+    SYSTEM EXCLUDE_FROM_ALL)
+  FetchContent_MakeAvailable(libwebp)
+  if(EMSCRIPTEN)
+    # the same trap lunasvg and libvpx sprang: a dependency compiled without -pthread cannot link against a target that
+    # was
+    foreach(
+      _webp_target IN
+      ITEMS webp
+            webpdecoder
+            webpdemux
+            sharpyuv)
+      if(TARGET ${_webp_target})
+        target_compile_options(${_webp_target} PRIVATE -pthread)
+      endif()
+    endforeach()
+  endif()
+endif()
+
+if(NOT TARGET vorbisdec)
+  # libvorbis still declares cmake_minimum_required(VERSION 2.8), which CMake 4 refuses, and overriding the policy would
+  # change how every other subproject is configured. Its decoder sources are compiled here instead, exactly as libvpx's
+  # are; vorbisenc.c and the standalone tools are left out, so no encoder is built.
+  FetchContent_Declare(
+    vorbis
+    GIT_REPOSITORY https://github.com/xiph/vorbis.git
+    GIT_TAG ${GIT_TAG_VORBIS}
+    SOURCE_SUBDIR
+    no-cmake-project-here
+    SYSTEM
+    EXCLUDE_FROM_ALL)
+  FetchContent_MakeAvailable(vorbis)
+
+  add_library(
+    vorbisdec STATIC
+    ${vorbis_SOURCE_DIR}/lib/bitrate.c
+    ${vorbis_SOURCE_DIR}/lib/block.c
+    ${vorbis_SOURCE_DIR}/lib/codebook.c
+    ${vorbis_SOURCE_DIR}/lib/envelope.c
+    ${vorbis_SOURCE_DIR}/lib/floor0.c
+    ${vorbis_SOURCE_DIR}/lib/floor1.c
+    ${vorbis_SOURCE_DIR}/lib/info.c
+    ${vorbis_SOURCE_DIR}/lib/lookup.c
+    ${vorbis_SOURCE_DIR}/lib/lpc.c
+    ${vorbis_SOURCE_DIR}/lib/lsp.c
+    ${vorbis_SOURCE_DIR}/lib/mapping0.c
+    ${vorbis_SOURCE_DIR}/lib/mdct.c
+    ${vorbis_SOURCE_DIR}/lib/psy.c
+    ${vorbis_SOURCE_DIR}/lib/registry.c
+    ${vorbis_SOURCE_DIR}/lib/res0.c
+    ${vorbis_SOURCE_DIR}/lib/sharedbook.c
+    ${vorbis_SOURCE_DIR}/lib/smallft.c
+    ${vorbis_SOURCE_DIR}/lib/synthesis.c
+    ${vorbis_SOURCE_DIR}/lib/window.c)
+  target_include_directories(vorbisdec SYSTEM PUBLIC $<BUILD_INTERFACE:${vorbis_SOURCE_DIR}/include>)
+  target_include_directories(vorbisdec PRIVATE ${vorbis_SOURCE_DIR}/lib)
+  target_link_libraries(vorbisdec PUBLIC ogg)
+  target_compile_options(vorbisdec PRIVATE -w)
+  if(EMSCRIPTEN)
+    target_compile_options(vorbisdec PRIVATE -pthread)
+  endif()
+endif()
+
+if(GR4_PRESENT_ENABLE_EXPORT AND NOT TARGET hpdf)
+  # static, and without libpng: pages embed JPEG and raw pixels, never PNG files
+  set(_shared_before ${BUILD_SHARED_LIBS})
+  set(BUILD_SHARED_LIBS OFF)
+  set(CMAKE_DISABLE_FIND_PACKAGE_PNG ON)
+  if(EMSCRIPTEN)
+    # Emscripten's zlib is a port: ask for it, then point libharu's find_package(ZLIB) at what the port installed
+    execute_process(COMMAND embuilder build zlib OUTPUT_QUIET)
+    set(ZLIB_INCLUDE_DIR ${EMSCRIPTEN_SYSROOT}/include)
+    set(ZLIB_LIBRARY ${EMSCRIPTEN_SYSROOT}/lib/wasm32-emscripten/libz.a)
+  endif()
+  FetchContent_Declare(
+    libharu
+    GIT_REPOSITORY https://github.com/libharu/libharu.git
+    GIT_TAG ${GIT_TAG_LIBHARU}
+    # two fixes, both to be offered upstream: the ToUnicode map for UTF-8 TrueType used `cidrange`, which readers reject
+    # or warn about; and a 128 kB map kept on the stack overflowed the browser's, which hung the export
+    PATCH_COMMAND
+      ${CMAKE_COMMAND} -DPATCH=${CMAKE_SOURCE_DIR}/cmake/patches/libharu-tounicode-bfrange.patch -P
+      ${CMAKE_SOURCE_DIR}/cmake/ApplyPatch.cmake COMMAND ${CMAKE_COMMAND}
+      -DPATCH=${CMAKE_SOURCE_DIR}/cmake/patches/libharu-cid-map-off-stack.patch -P
+      ${CMAKE_SOURCE_DIR}/cmake/ApplyPatch.cmake SYSTEM EXCLUDE_FROM_ALL)
+  FetchContent_MakeAvailable(libharu)
+  set(BUILD_SHARED_LIBS ${_shared_before})
+  target_compile_options(hpdf PRIVATE -w)
+  target_include_directories(hpdf SYSTEM INTERFACE $<BUILD_INTERFACE:${libharu_SOURCE_DIR}/include>
+                                                   $<BUILD_INTERFACE:${libharu_BINARY_DIR}/include>)
+  if(EMSCRIPTEN)
+    target_compile_options(hpdf PRIVATE -pthread)
+  endif()
+endif()
