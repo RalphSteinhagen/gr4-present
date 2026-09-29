@@ -1,63 +1,43 @@
+#include "Viewer.hpp"
+
+#include "Animation.hpp"
+#include "BuiltinFace.hpp"
 #include "EmbeddedLogos.hpp"
-#include "FallbackScene.hpp"
 #include "Fonts.hpp"
 #include "ImGuiScoped.hpp"
-#include "LoadingScreen.hpp"
-#include "SideMenu.hpp"
-#include "Texture.hpp"
-#include "Theme.hpp"
-#include "ViewScene.hpp"
-#include "WindowModeControl.hpp"
+#include "MathRender.hpp"
+#include "SwipeNavigation.hpp"
 
-#include <gr4-present/LaunchOptions.hpp>
-#include <gr4-present/Navigation.hpp>
-#include <gr4-present/PresentationLoader.hpp>
+#ifdef GR4_PRESENT_HAS_OPENDIGITIZER
+#include <common/LookAndFeel.hpp>
+#include <common/TouchHandler.hpp>
+#endif
+
+#include <gnuradio-4.0/Logger.hpp>
 
 #include <imgui.h>
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_sdl3.h>
+#include <imgui_internal.h>
 
 #include <SDL3/SDL.h>
 
 #ifdef __EMSCRIPTEN__
 #include <GLES3/gl3.h>
 #include <emscripten.h>
+#include <emscripten/html5.h>
 #else
 #include <SDL3/SDL_opengl.h>
 #endif
 
-#include <cstdio>
-#include <filesystem>
+#include <chrono>
+#include <cmath>
 #include <format>
 #include <string>
 #include <string_view>
-#include <vector>
 
+namespace gr::present {
 namespace {
-
-using namespace gr::present;
-
-struct Viewer {
-    SDL_Window*   window    = nullptr;
-    SDL_GLContext context   = nullptr;
-    bool          isRunning = true;
-
-    Theme         theme;
-    Texture       logo;
-    Texture       viewArtwork;
-    LoadingScreen launch;
-    bool          launchComplete = false;
-
-    LaunchOptions      options;
-    PresentationLoader loader;
-    WindowModeControl  windowMode;
-    SideMenu           menu;
-    ViewScene          viewScene;
-    FallbackScene      fallback;
-    Navigator          navigator;
-};
-
-constexpr float kSplashLogoWidthFraction = 0.20f; // of the viewport width
 
 [[nodiscard]] Navigator placeholderNavigatorUntilPackagesLoad() {
     return Navigator{
@@ -71,13 +51,6 @@ constexpr float kSplashLogoWidthFraction = 0.20f; // of the viewport width
         .history = {},
     };
 }
-
-#ifdef __EMSCRIPTEN__
-[[nodiscard]] std::string emscriptenLocation(std::string_view component) {
-    const char* text = emscripten_run_script_string(std::format("window.location.{}", component).c_str());
-    return text != nullptr ? std::string{text} : std::string{};
-}
-#endif
 
 [[nodiscard]] std::string defaultPresentationBase(std::string_view executable) {
 #ifdef __EMSCRIPTEN__
@@ -97,66 +70,6 @@ constexpr float kSplashLogoWidthFraction = 0.20f; // of the viewport width
 #endif
 }
 
-/// the first line of the view's Markdown, without its heading marks
-[[nodiscard]] std::string headingOf(std::string_view markdown) {
-    const auto end  = markdown.find('\n');
-    auto       line = markdown.substr(0UZ, end == std::string_view::npos ? markdown.size() : end);
-    while (!line.empty() && (line.front() == '#' || line.front() == ' ')) {
-        line.remove_prefix(1UZ);
-    }
-    return std::string{line};
-}
-
-void advanceLoading(Viewer& viewer) {
-    viewer.loader.advance();
-    viewer.launch.setProgress(LoadStage::content, viewer.loader.progress());
-
-    switch (viewer.loader.state()) {
-    case LoadState::failed:
-        viewer.fallback.address    = std::string{viewer.loader.baseUri()};
-        viewer.fallback.reason     = std::string{viewer.loader.diagnostic()};
-        viewer.fallback.attempt    = viewer.loader.attempts();
-        viewer.fallback.untilRetry = viewer.loader.untilRetry();
-        viewer.launch.setProgress(LoadStage::content, 1.0f);
-        viewer.launch.setProgress(LoadStage::initialisation, 1.0f);
-        return;
-    case LoadState::ready: break;
-    default: return;
-    }
-
-    if (viewer.viewArtwork.id == 0 && !viewer.loader.imageBytes().empty()) {
-        viewer.viewArtwork = Texture::load(viewer.loader.imageBytes());
-    }
-    if (!viewer.loader.manifest().views.empty()) {
-        viewer.viewScene.heading = headingOf(viewer.loader.manifest().views.front().markdown);
-    }
-    viewer.viewScene.hint = viewer.loader.missingAsset().empty() ? std::string{} : std::format("asset unavailable: {}", viewer.loader.missingAsset());
-    viewer.launch.setProgress(LoadStage::initialisation, 1.0f);
-}
-
-void applyTheme(Viewer& viewer, ColourScheme scheme) {
-    if (viewer.logo.id != 0 && viewer.theme.scheme == scheme) {
-        return;
-    }
-    viewer.logo.release();
-    viewer.theme = themeFor(scheme);
-    viewer.logo  = Texture::loadLogo(scheme);
-
-    ImGuiStyle& style               = ImGui::GetStyle();
-    style.Colors[ImGuiCol_Text]     = ImGui::ColorConvertU32ToFloat4(viewer.theme.text);
-    style.Colors[ImGuiCol_WindowBg] = viewer.theme.backgroundColour();
-}
-
-void buildSideMenu(Viewer& viewer) {
-    viewer.menu.items.clear();
-    for (const View& candidate : viewer.navigator.graph.views) {
-        viewer.menu.items.push_back({.label = candidate.id, .activate = [&viewer, id = candidate.id] { viewer.navigator.jumpTo(id); }, .separatorBefore = false});
-    }
-    viewer.menu.items.push_back({.label = "previous", .activate = [&viewer] { viewer.navigator.previous(); }, .separatorBefore = true});
-    viewer.menu.items.push_back({.label = "next", .activate = [&viewer] { viewer.navigator.next(); }, .separatorBefore = false});
-    viewer.menu.items.push_back({.label = "toggle full screen", .activate = [&viewer] { viewer.windowMode.toggle(); }, .separatorBefore = true});
-}
-
 void renderFrame(Viewer& viewer) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -164,16 +77,45 @@ void renderFrame(Viewer& viewer) {
         if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
             viewer.isRunning = false;
         }
+#ifdef GR4_PRESENT_HAS_OPENDIGITIZER
+        DigitizerUi::TouchHandler<>::processSDLEvent(event); // finger tracking, and the mouse events ImGui needs
+#endif
         if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_FINGER_DOWN) {
             viewer.windowMode.onUserGesture();
         }
     }
 
-    applyTheme(viewer, detectColourScheme());
+    applyTheme(viewer, viewer.exporting ? ColourScheme::light : detectColourScheme()); // a PDF is for paper
 
+#ifdef GR4_PRESENT_HAS_OPENDIGITIZER
+    // pinch and rotation go unused here, but this also recovers a finger whose lift event never arrived
+    DigitizerUi::TouchHandler<>::updateGestures();
+#endif
+    tendLiveGraphs(viewer);
+
+    static_cast<void>(Fonts::instance().applyStagedDeck()); // between frames: the atlas is not to change under one
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
+    if (viewer.exporting) {
+        ImGui::GetIO().AddMousePosEvent(-FLT_MAX, -FLT_MAX); // nothing hovered: a chart's tooltip is not part of a page
+    }
     ImGui::NewFrame();
+
+#ifdef GR4_PRESENT_HAS_OPENDIGITIZER
+    // the flick is read first: endFrame() clears the per-frame finger flags, and a flick read twice advances twice
+    if (!viewer.sections.empty()) {
+        applyZoomInput(viewer);
+        applyTouchNavigation(viewer);
+        if (DigitizerUi::TouchHandler<>::nFingers == 0UZ) {
+            viewer.pinching = false;
+        }
+    }
+    DigitizerUi::TouchHandler<>::endFrame();
+#else
+    if (!viewer.sections.empty()) {
+        applyZoomInput(viewer);
+    }
+#endif
 
     if (!viewer.launchComplete) {
         advanceLoading(viewer);
@@ -181,15 +123,39 @@ void renderFrame(Viewer& viewer) {
         viewer.launch.draw(viewer.logo.id, viewer.logo.scaledToWidth(ImGui::GetMainViewport()->Size.x * kSplashLogoWidthFraction), viewer.theme);
     } else {
         advanceLoading(viewer);
+        beginExport(viewer);
+        const bool recordingPage = viewer.exporting && prepareExportPage(viewer);
+        if (!viewer.sections.empty() && !viewer.exporting) {
+            followRemoteCursor(viewer);
+            applyNavigationKeys(viewer);
+            const auto& views   = viewer.navigator.graph.views;
+            viewer.menu.current = static_cast<std::size_t>(std::ranges::find(views, viewer.navigator.cursor.viewId, &View::id) - views.begin());
+            advanceTransition(viewer, ImGui::GetIO().DeltaTime);
+            advanceOnItsOwn(viewer, ImGui::GetIO().DeltaTime);
+        }
         if (viewer.loader.state() == LoadState::failed) {
             viewer.fallback.draw(viewer.logo, viewer.theme);
         } else {
-            viewer.viewScene.draw(viewer.viewArtwork, viewer.theme);
+            viewer.zoomedLists.clear();
+            drawCurrentSection(viewer);
+            viewer.zoomedLists.push_back(viewer.documentView.drawnInto);
+            applyVideoButtons(viewer);
+            applyLinkClicks(viewer);
+            applyTextSelection(viewer);
         }
-        viewer.menu.draw(viewer.theme);
+        if (recordingPage) {
+            finishExportPage(viewer);
+        }
+        if (!viewer.exporting) { // a page is the slide alone
+            viewer.menu.draw(viewer.theme);
+            viewer.diagnosticsPanel.draw(viewer.diagnostics, viewer.theme);
+            drawNotes(viewer);
+            drawPhoneLink(viewer);
+        }
     }
 
     ImGui::Render();
+    applyZoomToDrawData(viewer);
     int width  = 0;
     int height = 0;
     SDL_GetWindowSizeInPixels(viewer.window, &width, &height);
@@ -198,13 +164,41 @@ void renderFrame(Viewer& viewer) {
     glClearColor(background.x, background.y, background.z, background.w);
     glClear(GL_COLOR_BUFFER_BIT);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    if (viewer.exporting) {
+        captureExportPixels(viewer); // before the swap: a browser's buffer is not kept past it
+    }
     SDL_GL_SwapWindow(viewer.window);
 }
 
 Viewer viewer; // the main loop is a callback under Emscripten, so the state outlives main()
 
 #ifdef __EMSCRIPTEN__
+/**
+ * Keep the window the size of the canvas the browser is showing.
+ *
+ * The canvas is styled to fill the page, so its size is the browser's to decide and changes when the window is
+ * resized or the device is turned over. SDL sets it once when the window is created and then stops following it,
+ * falling back to its own 800x600 after the first key press, so every later slide would be laid out for a screen
+ * it is not shown on.
+ */
+void followCanvas() {
+    double cssWidth  = 0.0;
+    double cssHeight = 0.0;
+    if (emscripten_get_element_css_size("#canvas", &cssWidth, &cssHeight) != EMSCRIPTEN_RESULT_SUCCESS || cssWidth < 1.0 || cssHeight < 1.0) {
+        return;
+    }
+    int have       = 0;
+    int haveHeight = 0;
+    SDL_GetWindowSize(viewer.window, &have, &haveHeight);
+    if (const int wide = static_cast<int>(cssWidth), tall = static_cast<int>(cssHeight); wide != have || tall != haveHeight) {
+        SDL_SetWindowSize(viewer.window, wide, tall);
+    }
+}
+
 void emscriptenMainLoop() {
+    if (!viewer.exporting) { // an export lays its pages out at 1920x1080, whatever the tab's size
+        followCanvas();
+    }
     renderFrame(viewer);
     if (!viewer.isRunning) {
         emscripten_cancel_main_loop();
@@ -213,20 +207,44 @@ void emscriptenMainLoop() {
 #endif
 
 } // namespace
+} // namespace gr::present
+
+using namespace gr::present;
 
 int main(int argc, char** argv) {
+    captureLogFromStart();
     const std::vector<std::string_view> arguments(argv, argv + argc);
 #ifdef __EMSCRIPTEN__
+    passBrowserKeys();
     const std::string query    = emscriptenLocation("search");
     const std::string fragment = emscriptenLocation("hash");
     viewer.options             = LaunchOptions::from(query, fragment, arguments);
+    if (!viewer.options.contains("export")) { // an export walks the deck on its own, and must not take other windows with it
+        joinDeckChannel();
+        followAddressBar();
+        joinRelay();
+    }
 #else
     viewer.options = LaunchOptions::from("", "", arguments);
 #endif
 
+    viewer.presenter     = viewer.options.contains("presenter");
+    viewer.notes.visible = viewer.presenter;
+#ifdef __EMSCRIPTEN__
+    if (viewer.presenter) {
+        holdScreenAwake();
+    }
+#endif
+
     if (!SDL_Init(SDL_INIT_VIDEO)) {
-        std::fprintf(stderr, "SDL3 initialisation failed: %s\n", SDL_GetError());
+        gr::log::error("SDL3 initialisation failed: {}", SDL_GetError());
         return 1;
+    }
+    // Audio is a separate subsystem and was never started, so a clip asking for sound opened a device that could
+    // not exist and played silently with nothing said. It is not required to show a presentation -- a machine with
+    // no sound card is a normal machine to present from -- so a failure here is reported and survived.
+    if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) {
+        gr::log::warning("no audio: clips that ask for sound will play silently: {}", SDL_GetError());
     }
 
 #ifdef __EMSCRIPTEN__
@@ -245,13 +263,13 @@ int main(int argc, char** argv) {
 
     viewer.window = SDL_CreateWindow("gr4-present", 1280, 720, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
     if (viewer.window == nullptr) {
-        std::fprintf(stderr, "SDL3 window creation failed: %s\n", SDL_GetError());
+        gr::log::error("SDL3 window creation failed: {}", SDL_GetError());
         return 1;
     }
 
     viewer.context = SDL_GL_CreateContext(viewer.window);
     if (viewer.context == nullptr) {
-        std::fprintf(stderr, "OpenGL context creation failed: %s\n", SDL_GetError());
+        gr::log::error("OpenGL context creation failed: {}", SDL_GetError());
         return 1;
     }
     SDL_GL_MakeCurrent(viewer.window, viewer.context);
@@ -263,9 +281,10 @@ int main(int argc, char** argv) {
     ImGui_ImplOpenGL3_Init(glslVersion);
 
     Fonts::instance().load();
+    prepareLiveGraphs(); // while the atlas is still open: a live region's chart adds its own faces to it
     applyTheme(viewer, detectColourScheme());
     viewer.navigator = placeholderNavigatorUntilPackagesLoad();
-    viewer.loader.begin(viewer.options.value("load").value_or(defaultPresentationBase(argc > 0 ? argv[0] : "")));
+    viewer.loader.begin(viewer.options.presentationBase().value_or(defaultPresentationBase(argc > 0 ? argv[0] : "")));
     buildSideMenu(viewer);
 
     viewer.windowMode.window = viewer.window;
@@ -283,7 +302,11 @@ int main(int argc, char** argv) {
         renderFrame(viewer);
     }
 
+    // `viewer` outlives main(); a live graph left to its destructor would be released after GR4's thread pools, whose
+    // destructor waits for workers the graph's sources keep busy, and after the ImGui context its dashboard reads
+    viewer.graphs.clear();
     viewer.logo.release();
+    viewer.videos.release(); // its audio streams belong to SDL, which is shut down below, before `viewer` is destroyed
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();

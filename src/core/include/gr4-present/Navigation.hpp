@@ -3,9 +3,12 @@
 
 #include <cstddef>
 #include <expected>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
+
+#include <gr4-present/Markdown.hpp>
 
 namespace gr::present {
 
@@ -50,12 +53,29 @@ struct NavigationGraph {
     [[nodiscard]] std::expected<void, NavigationError> validate() const;
 };
 
+/// `next: architecture, demo` from a `:::view` directive; blank entries are dropped, order is the author's
+[[nodiscard]] std::vector<std::string> parseEdgeList(std::string_view list);
+
+/**
+ * The graph a parsed document implies: one view per section, in document order, each with as many steps as the
+ * section declares and whatever edges its `:::view` directive names.
+ *
+ * The viewer builds its graph with this and then raises a view's step count where an SVG master reveals more
+ * groups than the Markdown does. Keeping the common part here is what lets a test walk the shipped deck the way
+ * the application walks it, rather than re-deriving it and testing the copy.
+ */
+[[nodiscard]] NavigationGraph graphOf(std::span<const Section> sections);
+
 struct Navigator {
     NavigationGraph     graph;
     Cursor              cursor;
     std::vector<Cursor> history;
 
     bool next();
+    /// where `next` would go, without going there: the next step, else the next view, else here
+    [[nodiscard]] Cursor nextCursor() const;
+    /// to the next view straight away, past whatever steps of this one are still to come
+    bool nextView();
     bool previous();
     bool jumpTo(std::string_view viewId);
 };

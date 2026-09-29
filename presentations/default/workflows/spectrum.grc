@@ -1,0 +1,64 @@
+# extracted from OpenDigitizer's assets/sampleDashboards/DemoDashboard.grc
+blocks:
+  - id: gr::basic::ClockSource
+    parameters:
+      name: SpectrumClock
+      sample_rate: 25
+      chunk_size: 1
+      n_samples_max: 0
+  - id: opendigitizer::TestSpectrumGenerator<float32>
+    parameters:
+      name: SpectrumGenerator
+      spectrum_size: 4096
+      center_freq: 100e6
+      signal_bandwidth: 1e6
+      clock_rate: 25
+      seed: 42
+      show_schottky: true
+      show_interference_lines: true
+      show_sweep_line: true
+      log_interval: 0
+  - id: opendigitizer::ImPlotSink<gr::DataSet<float32>>
+    parameters:
+      name: spectrumSink
+      dataset_index: 0
+      signal_name: spectrum
+      abscissa_quantity: frequency
+      abscissa_unit: Hz
+      signal_quantity: magnitude
+      signal_unit: dB
+connections:
+  - [ SpectrumClock, 0, SpectrumGenerator, 0 ]
+  - [ SpectrumGenerator, 0, spectrumSink, 0 ]
+dashboard:
+  layout: Free
+  windowLayout:
+    floatingWindows: { }
+    dockSpace: Spectrum View
+  sources:
+    - name: spectrumSink
+      block: spectrumSink
+  plots:
+    - name: Spectrum View
+      type: opendigitizer::charts::SpectrumView
+      parameters:
+        show_max_hold: true
+        show_min_hold: true
+        show_average: true
+        decay_tau_frames: 120
+        n_history: 256
+        colormap: ImPlotColormap_Viridis
+        top_pane_ratio: 0.4
+      axes:
+        - axis: X
+          min: NaN
+          max: NaN
+          format: MetricInline
+        - axis: Y
+          min: NaN
+          max: NaN
+        - axis: Z
+          min: -85
+          max: -55
+      sources:
+        - spectrumSink

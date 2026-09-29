@@ -1,9 +1,9 @@
 format: gr4-presentation/1
 title: gr4-present
-entry: default
+entry: talk.md
 
-views:
-  - id: default
-    image: gen_spectrum.png
-    markdown: |
-      ## stay tuned ...
+viewer:
+  minimumVersion: "0.1"
+
+fonts:
+  hand: fonts/PatrickHand-Regular.ttf

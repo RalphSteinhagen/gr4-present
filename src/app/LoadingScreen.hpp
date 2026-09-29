@@ -28,9 +28,7 @@ struct LoadingScreen {
 
     void setProgress(LoadStage stage, float fraction) noexcept;
     void setStatus(std::string text) { statusOverride = std::move(text); }
-    void clearStatus() noexcept { statusOverride.reset(); }
 
-    [[nodiscard]] float            progressOf(LoadStage stage) const noexcept { return progress[std::to_underlying(stage)]; }
     [[nodiscard]] bool             finished() const noexcept;
     [[nodiscard]] LoadStage        activeStage() const noexcept; // first stage that is not complete
     [[nodiscard]] std::string_view statusText() const noexcept;

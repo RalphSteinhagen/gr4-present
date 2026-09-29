@@ -1,9 +1,10 @@
 cmake_minimum_required(VERSION 3.27)
 
+# C as well as C++: the Theora decoder and stb are C, and a CXX-only project has no compile rule for them
 project(
   gr4-present
   VERSION 0.1.0
-  LANGUAGES CXX)
+  LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -35,6 +36,7 @@ include(CMakeDependentOption)
 option(GR4_PRESENT_ENABLE_TESTING "Enable unit tests" ON)
 option(GR4_PRESENT_WARNINGS_AS_ERRORS "Treat gr4-present compiler warnings as errors" ON)
 option(GR4_PRESENT_WITH_OPENDIGITIZER "Build the OpenDigitizer/GR4 live-region viewer" ON)
+option(GR4_PRESENT_ENABLE_EXPORT "Build the PDF export (libharu)" ON)
 
 # the test engine instruments ImGui, so it is built only where tests are
 cmake_dependent_option(
@@ -103,9 +105,11 @@ if(GR4_PRESENT_ENABLE_CLANG_TIDY)
 endif()
 
 add_subdirectory(src/core)
+add_subdirectory(src/export)
 add_subdirectory(src/app)
-if(GR4_PRESENT_WITH_OPENDIGITIZER)
-  add_subdirectory(src/viewer)
+if(GR4_PRESENT_ENABLE_TESTING)
+  add_subdirectory(test) # unit tests
+  add_subdirectory(e2e) # the viewer driven as a person would, natively and in a browser
 endif()
 
 message(STATUS "GR4_PRESENT_ENABLE_TESTING       : ${GR4_PRESENT_ENABLE_TESTING}")

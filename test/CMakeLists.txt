@@ -1,0 +1,7 @@
+add_subdirectory(core)
+if(GR4_PRESENT_ENABLE_EXPORT)
+  add_subdirectory(export)
+endif()
+if(GR4_PRESENT_ENABLE_IMGUI_TEST_ENGINE)
+  add_subdirectory(app)
+endif()

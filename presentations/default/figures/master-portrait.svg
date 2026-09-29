@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 900 1600" width="900" height="1600">
+  <title>portrait slide master: title, content above sidebar, footer, in a top, middle and bottom band</title>
+
+  <g id="top">
+    <rect x="0" y="0" width="900" height="261" fill="#0f0f13"/>
+    <rect x="0" y="0" width="900" height="10" fill="#F36F21"/>
+    <path d="M0 260 H900" stroke="#2a2a32" stroke-width="2"/>
+    <rect id="title"   data-present="markdown" x="48" y="40"   width="804" height="200" fill="none"/>
+  </g>
+
+  <g id="middle">
+    <rect x="0" y="261" width="900" height="1199" fill="#0f0f13"/>
+    <rect id="content" data-present="markdown" x="48" y="290"  width="804" height="760" fill="none"/>
+    <rect id="sidebar" data-present="gr4"      x="48" y="1080" width="804" height="360" fill="none"/>
+  </g>
+
+  <g id="bottom">
+    <rect x="0" y="1460" width="900" height="140" fill="#0f0f13"/>
+    <path d="M0 1461 H900" stroke="#2a2a32" stroke-width="2"/>
+    <circle cx="840" cy="1530" r="14" fill="none" stroke="#F36F21" stroke-width="3"/>
+    <rect id="footer"  data-present="markdown" x="48" y="1490" width="740" height="80" fill="none"/>
+  </g>
+</svg>
