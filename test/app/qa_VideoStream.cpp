@@ -1,5 +1,7 @@
 #include <boost/ut.hpp>
 
+#include "FileContents.hpp"
+
 #include "ScreenshotDiff.hpp"
 #include "VideoStream.hpp"
 
@@ -7,7 +9,6 @@
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
-#include <fstream>
 #include <string>
 #include <vector>
 
@@ -17,10 +18,7 @@ using namespace gr::present::test;
 
 namespace {
 
-[[nodiscard]] std::vector<std::uint8_t> readClip() {
-    std::ifstream file(std::string{GR4_PRESENT_PACKAGE_DIRECTORY} + "/media/Steamboat_Willie_(1928)_by_Walt_Disney_extract.webm", std::ios::binary);
-    return std::vector<std::uint8_t>{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
-}
+[[nodiscard]] std::vector<std::uint8_t> readClip() { return fileContents<std::vector<std::uint8_t>>(std::string{GR4_PRESENT_PACKAGE_DIRECTORY} + "/media/Steamboat_Willie_(1928)_by_Walt_Disney_extract.webm"); }
 
 /// mean absolute difference per colour channel, alpha ignored, 0 to 255
 [[nodiscard]] double meanDifference(const std::vector<std::uint8_t>& decoded, const Screenshot& reference) {

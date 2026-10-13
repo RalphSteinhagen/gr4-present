@@ -1,0 +1,7 @@
+[
+  {"preset": "GCC15-Debug", "job": "native", "configure": "-DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON"},
+  {"preset": "Clang22-Debug", "job": "native", "configure": "-DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON -DGR4_PRESENT_BUILD_DEVTOOLS=ON -DGR4_PRESENT_COVERAGE=ON"},
+  {"preset": "GCC15-Release", "job": "hot-paths", "configure": "-DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON"},
+  {"preset": "WASM-Release", "job": "wasm", "configure": "-DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON"},
+  {"preset": "WASM-Minimal", "job": "wasm", "configure": "-DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON"}
+]

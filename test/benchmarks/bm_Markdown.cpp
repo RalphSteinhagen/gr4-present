@@ -1,14 +1,13 @@
 #include <benchmark.hpp>
 
+#include "FileContents.hpp"
+
 #include <gr4-present/Markdown.hpp>
 
-#include <fstream>
-#include <iterator>
 #include <string>
 
 inline const boost::ut::suite<"Markdown benchmarks"> markdownBenchmarks = [] {
-    std::ifstream     file{GR4_PRESENT_DEFAULT_PRESENTATION "/talk.md"};
-    const std::string deck{std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
+    const std::string deck                                            = fileContents(GR4_PRESENT_DEFAULT_PRESENTATION "/talk.md");
     ::benchmark::benchmark<20>("parse the default deck", deck.size()) = [&deck] { [[maybe_unused]] const auto document = gr::present::parseMarkdown(deck); };
 };
 

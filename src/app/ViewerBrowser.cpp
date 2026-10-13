@@ -5,7 +5,9 @@
 #include <imgui.h>
 
 #ifdef __EMSCRIPTEN__
+#ifdef GR4_PRESENT_HAS_OPENDIGITIZER
 #include <common/LookAndFeel.hpp>
+#endif
 #include <emscripten.h>
 #endif
 
@@ -251,12 +253,18 @@ void publishRegionBounds(const Viewer& viewer) {
     const std::string   notesArea        = std::format("{},{:.1f},{:.0f},{:.0f}", roundedRectangle(notes.notesArea), notes.notesPixels, notes.notesScroll, notes.notesScrollMax);
     const std::string   infoBox          = box.width <= 0.0f ? std::string{} : std::format("{},{}", roundedRectangle(box), roundedRectangle(face));
     // quantised to a quarter of a second, so a playing clip does not republish every frame
-    const double                    clipPosition = viewer.documentView.videoButtons.empty() ? 0.0 : std::floor(viewer.videos.positionOf(viewer.documentView.videoButtons.front().source) * 4.0) / 4.0;
-    const DigitizerUi::LookAndFeel& lookAndFeel  = DigitizerUi::LookAndFeel::instance();
-    const float                     normal       = lookAndFeel.fontNormal[0] != nullptr ? lookAndFeel.fontNormal[0]->LegacySize : 0.0f;
-    const float                     small        = lookAndFeel.fontSmall[0] != nullptr && normal > 0.0f ? lookAndFeel.fontSmall[0]->LegacySize / normal : 0.0f;
-    const float                     tiny         = lookAndFeel.fontTiny[0] != nullptr && normal > 0.0f ? lookAndFeel.fontTiny[0]->LegacySize / normal : 0.0f;
-    std::string                     menuEntries;
+    const double clipPosition = viewer.documentView.videoButtons.empty() ? 0.0 : std::floor(viewer.videos.positionOf(viewer.documentView.videoButtons.front().source) * 4.0) / 4.0;
+#ifdef GR4_PRESENT_HAS_OPENDIGITIZER
+    const DigitizerUi::LookAndFeel& lookAndFeel = DigitizerUi::LookAndFeel::instance();
+    const float                     normal      = lookAndFeel.fontNormal[0] != nullptr ? lookAndFeel.fontNormal[0]->LegacySize : 0.0f;
+    const float                     small       = lookAndFeel.fontSmall[0] != nullptr && normal > 0.0f ? lookAndFeel.fontSmall[0]->LegacySize / normal : 0.0f;
+    const float                     tiny        = lookAndFeel.fontTiny[0] != nullptr && normal > 0.0f ? lookAndFeel.fontTiny[0]->LegacySize / normal : 0.0f;
+#else
+    // without OpenDigitizer there are no charts, so no chart fonts to report
+    const float small = 0.0f;
+    const float tiny  = 0.0f;
+#endif
+    std::string menuEntries;
     for (const auto& [index, entry] : viewer.menu.drawnEntries) {
         menuEntries += std::format("{}[{},{},{},{},{}]", menuEntries.empty() ? "" : ",", index, std::lround(entry.x), std::lround(entry.y), std::lround(entry.width), std::lround(entry.height));
     }

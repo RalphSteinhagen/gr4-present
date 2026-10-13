@@ -1,0 +1,95 @@
+name: Naming
+
+# CLAUDE.md §3 checked by devtools/naming-check on a configured Clang tree (no full build: what it parses is generated at
+# configure time); red on a violation on a changed line, but not required for merging.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    name: build image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      image: ${{ steps.wait.outputs.image }}
+      configure: ${{ steps.wait.outputs.configure }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: wait
+        uses: ./.github/actions/wait-for-image
+        with:
+          flavour: Clang22-Debug
+
+  naming:
+    name: Naming
+    needs: image
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.image.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: read
+      packages: read
+      pull-requests: write
+      statuses: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: ccache settings
+        run: devtools/ci/ccache-env.sh >> "$GITHUB_ENV"
+
+      - name: Configure
+        run: |
+          mkdir -p cmake-build-Clang22-Debug/_deps && cp -a /opt/gr4-present/deps-src/. cmake-build-Clang22-Debug/_deps/
+          cmake --preset Clang22-Debug -DGR_BUILD_PARALLEL_LEVEL=3 -DFETCHCONTENT_FULLY_DISCONNECTED=ON ${{ needs.image.outputs.configure }}
+
+      # libvpx's headers are installed when its external project builds; every other header exists after configuring
+      - name: Build naming-check
+        run: cmake --build cmake-build-Clang22-Debug --target libvpx_external naming-check
+
+      - name: History
+        run: git fetch --no-tags --depth=1 origin ci-metrics:refs/remotes/origin/ci-metrics || echo "no history yet"
+
+      - name: Check
+        run: python3 devtools/ci/qualitybot.py naming --build cmake-build-Clang22-Debug --out report
+
+      - name: Keep the figures
+        uses: actions/upload-artifact@v7
+        with:
+          name: naming-figures
+          path: report/figures.json
+
+      - uses: ./.github/actions/report
+        with:
+          directory: report
+
+  # main's figures join the history on the ci-metrics branch; the only job here that may write to the repository
+  record:
+    name: record
+    needs: naming
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/record
+        with:
+          artifact: naming-figures

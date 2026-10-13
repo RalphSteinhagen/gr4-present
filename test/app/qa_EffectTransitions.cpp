@@ -4,6 +4,8 @@
 
 #include <boost/ut.hpp>
 
+#include "FileContents.hpp"
+
 #include "EffectRenderer.hpp"
 
 #include <gr4-present/EffectSource.hpp>
@@ -16,8 +18,6 @@
 #include <cstdint>
 #include <filesystem>
 #include <format>
-#include <fstream>
-#include <iterator>
 #include <print>
 #include <string>
 #include <string_view>
@@ -32,10 +32,7 @@ namespace {
 constexpr int kWidth  = 320;
 constexpr int kHeight = 180;
 
-[[nodiscard]] std::string fileText(const std::filesystem::path& path) {
-    std::ifstream in{path, std::ios::binary};
-    return {std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
-}
+[[nodiscard]] std::string fileText(const std::filesystem::path& path) { return fileContents(path); }
 
 /// two slides with structure at every scale: smooth gradients for wipes and folds, hard edges for grains and tears
 [[nodiscard]] std::vector<std::uint8_t> slidePixels(bool arriving) {

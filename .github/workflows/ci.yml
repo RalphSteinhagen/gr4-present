@@ -18,143 +18,249 @@ concurrency:
 
 permissions:
   contents: read
-  # every job runs in the derived container, and pulling it from ghcr needs a token scope that a top-level
-  # permissions block would otherwise strip
+  # every job runs in a build image from ghcr, and pulling it needs a token scope that a top-level permissions block
+  # would otherwise strip
   packages: read
 
 env:
-  # inside the workspace so actions/cache can reach it; ccache.conf supplies every other setting
-  CCACHE_DIR: ${{ github.workspace }}/.ccache
-  # cmake/Cache.cmake exports this for the compiles it launches, but nothing else in a job inherits it, so a bare
-  # `ccache` call reports the built-in defaults rather than what the build actually used
-  CCACHE_CONFIGPATH: ${{ github.workspace }}/devtools/ccache.conf
-  # the repository limit is sized for a developer disk; here six caches share a 10 GB quota, and a measured full build
-  # holds about 1 GB of objects before compression
-  CCACHE_MAXSIZE: "2G"
-  # packing harder than the repository default is worth it where the cache is uploaded against that quota
-  CCACHE_COMPRESSLEVEL: "6"
-  # the shared container carries Clang 20, whose libc++ predates several C++23 library features; docker/Dockerfile
-  # adds Clang 22 on top, so the derived image is the one every job runs in
-  USE_DERIVED_CONTAINER: "true"
+  # a flavour's own objects once saved; one entry per flavour is kept, from main only (ccache's other settings:
+  # devtools/ci/ccache-env.sh, written into each job's environment from inside its container)
+  OWN_CACHE_LIMIT: 1G
 
 jobs:
-  container:
-    name: select build container
+  images:
+    name: build images
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     outputs:
-      image: ${{ steps.select.outputs.image }}
+      repository: ${{ steps.tags.outputs.repository }}
+      toolchain: ${{ steps.tags.outputs.toolchain }}
+      tag: ${{ steps.tags.outputs.tag }}
+      missing: ${{ steps.missing.outputs.flavours }}
+      native: ${{ steps.tags.outputs.native }}
+      wasmConfigure: ${{ steps.tags.outputs.wasmConfigure }}
     steps:
       - uses: actions/checkout@v6
 
-      # A diff-based trigger cannot be used to decide this: a squashed history reports every file as changed, which
-      # would publish and pull a private image on an ordinary run. Adding a package to docker/Dockerfile therefore
-      # means flipping USE_DERIVED_CONTAINER as well -- one deliberate edit, in one place.
-      - name: Select the image
-        id: select
+      # Tagged by content, so an image is rebuilt exactly when one of its inputs changes: a diff-based trigger cannot
+      # tell on a squashed history, and prewarming a flavour takes about an hour.
+      - name: Tags
+        id: tags
+        env:
+          WASM_PRESET: ${{ github.event_name == 'pull_request' && 'WASM-Minimal' || inputs.wasmPreset || 'WASM-Release' }}
         run: |
-          if [ "${USE_DERIVED_CONTAINER}" = "true" ]; then
-            owner=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
-            echo "image=ghcr.io/${owner}/gr4-present-build-container:latest" >> "$GITHUB_OUTPUT"
-          else
-            echo "image=ghcr.io/fair-acc/gr-digitizers-build-container:latest" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Set up Docker Buildx
-        if: env.USE_DERIVED_CONTAINER == 'true'
-        uses: docker/setup-buildx-action@v3
+          devtools/ci/image-tags.sh >> "$GITHUB_OUTPUT"
+          echo "native=$(jq -c '[.[] | select(.job == "native")]' devtools/ci/flavours.json)" >> "$GITHUB_OUTPUT"
+          echo "wasmConfigure=$(jq -r --arg preset "$WASM_PRESET" '.[] | select(.preset == $preset) | .configure' devtools/ci/flavours.json)" >> "$GITHUB_OUTPUT"
 
       - uses: docker/login-action@v3
-        if: env.USE_DERIVED_CONTAINER == 'true'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/build-push-action@v6
-        if: env.USE_DERIVED_CONTAINER == 'true'
-        with:
-          context: "{{defaultContext}}:docker"
-          push: true
-          tags: ${{ steps.select.outputs.image }}
+      - name: Toolchain image
+        env:
+          IMAGE: ${{ steps.tags.outputs.repository }}:${{ steps.tags.outputs.toolchain }}
+        run: |
+          if docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
+            echo "$IMAGE exists"
+          else
+            docker build -f docker/Dockerfile -t "$IMAGE" docker
+            docker push "$IMAGE"
+          fi
 
-  format:
-    name: formatting
-    needs: container
-    runs-on: ubuntu-latest
-    container:
-      image: ${{ needs.container.outputs.image }}
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v6
-      - name: Run the project formatters
-        run: ./formatFiles.sh
-      - name: Fail if anything was reformatted
-        run: git diff --exit-code || { echo "::error::run ./formatFiles.sh and commit the result"; exit 1; }
+      - name: Flavours without an image
+        id: missing
+        env:
+          REPOSITORY: ${{ steps.tags.outputs.repository }}
+          TAG: ${{ steps.tags.outputs.tag }}
+        run: |
+          missing='[]'
+          while read -r flavour; do
+            preset=$(jq -r .preset <<< "$flavour")
+            docker manifest inspect "$REPOSITORY:$preset-$TAG" > /dev/null 2>&1 ||
+              missing=$(jq -c --argjson flavour "$flavour" '. + [$flavour]' <<< "$missing")
+          done < <(jq -c '.[]' devtools/ci/flavours.json)
+          echo "flavours=$missing" >> "$GITHUB_OUTPUT"
+          echo "flavours to prewarm: $missing"
 
-  native:
-    name: native ${{ matrix.preset }}
-    needs: container
+  # Runs only when an image is missing. The build runs in `docker run` with the checkout mounted where CI's container
+  # jobs find theirs, because ccache hashes absolute include paths: only then do the prewarmed objects hit later.
+  dependencies:
+    name: prewarm ${{ matrix.preset }}
+    needs: images
+    if: needs.images.outputs.missing != '[]'
     runs-on: ubuntu-latest
-    container:
-      image: ${{ needs.container.outputs.image }}
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
-        preset: [GCC15-Debug, Clang22-Debug]
+        include: ${{ fromJSON(needs.images.outputs.missing) }}
+    env:
+      REPOSITORY: ${{ needs.images.outputs.repository }}
+      TOOLCHAIN: ${{ needs.images.outputs.repository }}:${{ needs.images.outputs.toolchain }}
+      IMAGE: ${{ needs.images.outputs.repository }}:${{ matrix.preset }}-${{ needs.images.outputs.tag }}
     steps:
       - uses: actions/checkout@v6
 
-      # The dependency pins are part of the key, so bumping one starts a fresh generation instead of inheriting
-      # entries whose headers no longer exist.
-      - name: Restore ccache
-        uses: actions/cache@v5
-        with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ccache-${{ matrix.preset }}-${{ hashFiles('cmake/DependenciesSHAs.cmake') }}-${{ github.sha }}
-          restore-keys: ccache-${{ matrix.preset }}-${{ hashFiles('cmake/DependenciesSHAs.cmake') }}-
+      # a full build of every dependency, its sources and the image layer do not fit the runner's free disk otherwise
+      - name: Free disk space
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/share/boost
 
-      # FetchContent otherwise re-clones gnuradio4, OpenDigitizer, opencmw-cpp, zeromq and SDL3 on every run. Only the
-      # checkouts and their stamps are kept; the objects they produce belong to ccache.
-      - name: Restore the dependency sources
-        uses: actions/cache@v5
+      - uses: docker/login-action@v3
         with:
-          path: |
-            cmake-build-${{ matrix.preset }}/_deps/*-src
-            cmake-build-${{ matrix.preset }}/_deps/*-subbuild
-          key: deps-${{ matrix.preset }}-${{ hashFiles('cmake/DependenciesSHAs.cmake') }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      # The presets default to 4, which suits a 31 GB developer machine but not a 16 GB runner: two runs were killed
-      # with exit 137 partway through gnuradio4's GrBasicBlocks. 3 is what gnuradio4's own CI uses.
-      # without this the statistics printed below accumulate over the restored cache and say nothing about this run
+      - name: Prewarm and publish
+        run: devtools/ci/prewarm-image.sh "$TOOLCHAIN" "$IMAGE" ${{ matrix.preset }} ${{ matrix.configure }}
+
+  native:
+    # the instrumented Clang build is also the Coverage bot
+    name: ${{ matrix.preset == 'Clang22-Debug' && 'Coverage · Clang22-Debug' || format('native {0}', matrix.preset) }}
+    needs: [images, dependencies]
+    # a flavour whose prewarm failed has no image, and its job fails at the pull; the others go ahead
+    if: ${{ !cancelled() && needs.images.result == 'success' }}
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.images.outputs.repository }}:${{ matrix.preset }}-${{ needs.images.outputs.tag }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: read
+      packages: read
+      # only to delete this flavour's superseded own-object caches after a main build has saved its own
+      actions: write
+      # the Coverage bot's comment and status
+      pull-requests: write
+      statuses: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.images.outputs.native) }}
+    env:
+      PRESET: ${{ matrix.preset }}
+      OWN_CACHE_KEY: own-${{ matrix.preset }}-${{ needs.images.outputs.tag }}
+    steps:
+      # whole history (three commits): the coverage patch needs the merge-base with main
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: ccache settings
+        run: devtools/ci/ccache-env.sh >> "$GITHUB_ENV"
+
+      # the image's sources and FetchContent stamps, at the path they were built from; configured fully disconnected,
+      # nothing is fetched
+      - name: Dependency sources
+        run: mkdir -p "cmake-build-$PRESET/_deps" && cp -a /opt/gr4-present/deps-src/. "cmake-build-$PRESET/_deps/"
+
+      - name: Restore this project's objects
+        uses: actions/cache/restore@v5
+        with:
+          path: .ccache-own
+          key: ${{ env.OWN_CACHE_KEY }}-${{ github.sha }}
+          restore-keys: ${{ env.OWN_CACHE_KEY }}-
+
+      # without this the statistics printed below accumulate over earlier runs and say nothing about this one
       - name: Zero the ccache statistics
         run: ccache --zero-stats
 
+      # The presets default to 4, which suits a 31 GB developer machine but not a 16 GB runner: two runs were killed
+      # with exit 137 partway through gnuradio4's GrBasicBlocks. 3 is what gnuradio4's own CI uses.
       - name: Configure
-        run: cmake --preset ${{ matrix.preset }} -DGR_BUILD_PARALLEL_LEVEL=3 ${{ matrix.preset == 'Clang22-Debug' && '-DGR4_PRESENT_BUILD_DEVTOOLS=ON' || '' }}
+        run: cmake --preset "$PRESET" -DGR_BUILD_PARALLEL_LEVEL=3 -DFETCHCONTENT_FULLY_DISCONNECTED=ON ${{ matrix.configure }}
 
       - name: Build
-        run: cmake --build cmake-build-${{ matrix.preset }}
+        run: CCACHE_LOGFILE="$GITHUB_WORKSPACE/ccache.log" cmake --build "cmake-build-$PRESET"
 
-      # Saved after the build rather than at the end of the job, so a failing test does not discard a warm cache -- but
-      # only once the build has succeeded. A cache written by a cancelled or killed build is a partial one, and because
-      # the restore key matches the most recent entry it would become the next run's starting point.
-      - name: Save ccache
-        if: success()
+      # nearly every dependency compile should hit the image's store; a low rate means the image no longer matches,
+      # and the misses by directory say where
+      - name: ccache statistics
+        run: |
+          ccache --show-stats --verbose
+          echo "misses by directory:"
+          # lines of parallel compiles interleave: an object and its result are paired by the process id in the prefix
+          awk '/Object file: /{object[$2]=$NF} /Result: .*miss/{print object[$2]}' ccache.log | sort -u |
+            sed -E "s|$GITHUB_WORKSPACE/cmake-build-$PRESET/||; s|/CMakeFiles/.*||" | sort | uniq -c | sort -rn | head -30
+
+      # Saved from main only, after the build and before the tests, so a failing test does not discard a warm store;
+      # the superseded entries of this flavour are deleted once the new one is in.
+      - name: Trim this project's objects
+        if: github.ref == 'refs/heads/main'
+        run: ccache --trim-dir .ccache-own --trim-max-size "$OWN_CACHE_LIMIT" || echo "this ccache cannot trim a store"
+
+      - name: Save this project's objects
+        if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v5
         with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ccache-${{ matrix.preset }}-${{ hashFiles('cmake/DependenciesSHAs.cmake') }}-${{ github.sha }}
+          path: .ccache-own
+          key: ${{ env.OWN_CACHE_KEY }}-${{ github.sha }}
 
+      - name: Delete superseded caches
+        if: github.ref == 'refs/heads/main'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const keep = `${process.env.OWN_CACHE_KEY}-${context.sha}`;
+            const caches = await github.paginate(github.rest.actions.getActionsCacheList,
+              { owner: context.repo.owner, repo: context.repo.repo, key: `own-${process.env.PRESET}-`, per_page: 100 });
+            for (const cache of caches.filter((cache) => cache.key !== keep)) {
+              await github.rest.actions.deleteActionsCacheById({ owner: context.repo.owner, repo: context.repo.repo, cache_id: cache.id });
+              core.info(`deleted ${cache.key}`);
+            }
+
+      # every instrumented process writes its own profile, which the coverage report merges; the PDF export tests run the
+      # viewer itself, which needs a display (the native GUI tests start their own Xvfb)
       - name: Test
-        run: ctest --test-dir cmake-build-${{ matrix.preset }} --output-on-failure
+        shell: bash
+        run: |
+          Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
+          display=$!
+          trap 'kill "$display"' EXIT
+          DISPLAY=:99 LLVM_PROFILE_FILE="$GITHUB_WORKSPACE/coverage-profiles/%p-%m.profraw" ctest --test-dir "cmake-build-$PRESET" --output-on-failure
+
+      # the coverage of what ran is reported even when a test failed
+      - name: History
+        if: ${{ !cancelled() && matrix.preset == 'Clang22-Debug' }}
+        run: |
+          git fetch --no-tags --depth=1 origin ci-metrics:refs/remotes/origin/ci-metrics || echo "no history yet"
+          git fetch --no-tags origin main:refs/remotes/origin/main || true
+
+      - name: Coverage
+        if: ${{ !cancelled() && matrix.preset == 'Clang22-Debug' }}
+        run: python3 devtools/ci/qualitybot.py coverage --build "cmake-build-$PRESET" --profiles coverage-profiles --out coverage-report
+
+      - name: Keep the coverage figures and report
+        if: ${{ !cancelled() && matrix.preset == 'Clang22-Debug' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-figures
+          path: |
+            coverage-report/figures.json
+            coverage-report/coverage.lcov
+
+      # llvm-cov's annotated sources: this run's artefact, and on main the report /metrics/coverage/ shows
+      - name: Keep the coverage report
+        if: ${{ !cancelled() && matrix.preset == 'Clang22-Debug' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-html
+          path: coverage-report/html
+
+      - name: Report coverage
+        if: ${{ !cancelled() && matrix.preset == 'Clang22-Debug' }}
+        uses: ./.github/actions/report
+        with:
+          directory: coverage-report
+          fail-on-no-go: false
 
       # .clang-tidy names every check it switches off with its reason or as dated debt; two jobs fit the runner's memory
       - name: clang-tidy
@@ -163,19 +269,6 @@ jobs:
           grep -o '"file": *"[^"]*"' cmake-build-${{ matrix.preset }}/compile_commands.json | sed 's/"file": *"//; s/"$//' |
           grep "^$PWD/src/" | sort -u |
           xargs -P 2 -I{} clang-tidy-22 -p cmake-build-${{ matrix.preset }} --header-filter="^$PWD/src/" --quiet {}
-
-      # CLAUDE.md §3 is a gate: zero violations, every unit checked; the fixtures hold deliberate violations
-      - name: Naming
-        if: matrix.preset == 'Clang22-Debug'
-        run: >-
-          cmake-build-${{ matrix.preset }}/devtools/naming-check cmake-build-${{ matrix.preset }} --root src --root test --root devtools
-          --exclude devtools/test/naming-check --exclude devtools/test/code-metrics --jobs 2
-
-      # figures for review, compared by hand with the previous run's; never a gate (CLAUDE.md, measured quality)
-      - name: Code metrics
-        if: matrix.preset == 'Clang22-Debug'
-        continue-on-error: true
-        run: devtools/code-metrics.sh cmake-build-${{ matrix.preset }} --cognitive --jobs 2
 
       # the screenshot comparison writes a diff image next to each failed capture; without it a red CI run is
       # unactionable from the log alone
@@ -187,80 +280,136 @@ jobs:
           path: cmake-build-${{ matrix.preset }}/captures/
           if-no-files-found: ignore
 
-      - name: ccache statistics
-        if: always()
-        run: ccache --show-stats --verbose
-
   wasm:
     name: wasm ${{ github.event_name == 'pull_request' && 'WASM-Minimal' || inputs.wasmPreset || 'WASM-Release' }}
-    needs: container
+    needs: [images, dependencies]
+    # a flavour whose prewarm failed has no image, and its job fails at the pull; the others go ahead
+    if: ${{ !cancelled() && needs.images.result == 'success' }}
     runs-on: ubuntu-latest
     container:
-      image: ${{ needs.container.outputs.image }}
+      image: ${{ needs.images.outputs.repository }}:${{ github.event_name == 'pull_request' && 'WASM-Minimal' || inputs.wasmPreset || 'WASM-Release' }}-${{ needs.images.outputs.tag }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: read
+      packages: read
+      actions: write
     env:
       # pull requests get the fast path; main publishes the full runtime, which needs GR4 and OpenDigitizer
       PRESET: ${{ github.event_name == 'pull_request' && 'WASM-Minimal' || inputs.wasmPreset || 'WASM-Release' }}
+      OWN_CACHE_KEY: own-${{ github.event_name == 'pull_request' && 'WASM-Minimal' || inputs.wasmPreset || 'WASM-Release' }}-${{ needs.images.outputs.tag }}
     steps:
       - uses: actions/checkout@v6
 
-      - name: Restore ccache
-        uses: actions/cache@v5
-        with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ccache-${{ env.PRESET }}-${{ hashFiles('cmake/DependenciesSHAs.cmake') }}-${{ github.sha }}
-          restore-keys: ccache-${{ env.PRESET }}-${{ hashFiles('cmake/DependenciesSHAs.cmake') }}-
+      - name: ccache settings
+        run: devtools/ci/ccache-env.sh >> "$GITHUB_ENV"
 
-      - name: Restore the dependency sources
-        uses: actions/cache@v5
+      - name: Dependency sources
+        run: mkdir -p "cmake-build-$PRESET/_deps" && cp -a /opt/gr4-present/deps-src/. "cmake-build-$PRESET/_deps/"
+
+      - name: Restore this project's objects
+        uses: actions/cache/restore@v5
         with:
-          path: |
-            cmake-build-${{ env.PRESET }}/_deps/*-src
-            cmake-build-${{ env.PRESET }}/_deps/*-subbuild
-          key: deps-${{ env.PRESET }}-${{ hashFiles('cmake/DependenciesSHAs.cmake') }}
+          path: .ccache-own
+          key: ${{ env.OWN_CACHE_KEY }}-${{ github.sha }}
+          restore-keys: ${{ env.OWN_CACHE_KEY }}-
 
       - name: Zero the ccache statistics
         run: ccache --zero-stats
 
+      # EM_CACHE is the image's: the Emscripten ports (zlib, SDL3) were fetched and built when it was prewarmed
       - name: Build
         shell: bash
         run: |
           source "$EMSDK_HOME/emsdk_env.sh"
-          cmake --preset "$PRESET" -DGR_BUILD_PARALLEL_LEVEL=3
+          cmake --preset "$PRESET" -DGR_BUILD_PARALLEL_LEVEL=3 -DFETCHCONTENT_FULLY_DISCONNECTED=ON ${{ needs.images.outputs.wasmConfigure }}
           cmake --build "cmake-build-$PRESET"
 
-      - name: Save ccache
-        if: success()
+      - name: ccache statistics
+        run: ccache --show-stats --verbose
+
+      - name: Trim this project's objects
+        if: github.ref == 'refs/heads/main'
+        run: ccache --trim-dir .ccache-own --trim-max-size "$OWN_CACHE_LIMIT" || echo "this ccache cannot trim a store"
+
+      - name: Save this project's objects
+        if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@v5
         with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ccache-${{ env.PRESET }}-${{ hashFiles('cmake/DependenciesSHAs.cmake') }}-${{ github.sha }}
+          path: .ccache-own
+          key: ${{ env.OWN_CACHE_KEY }}-${{ github.sha }}
 
+      - name: Delete superseded caches
+        if: github.ref == 'refs/heads/main'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const keep = `${process.env.OWN_CACHE_KEY}-${context.sha}`;
+            const caches = await github.paginate(github.rest.actions.getActionsCacheList,
+              { owner: context.repo.owner, repo: context.repo.repo, key: `own-${process.env.PRESET}-`, per_page: 100 });
+            for (const cache of caches.filter((cache) => cache.key !== keep)) {
+              await github.rest.actions.deleteActionsCacheById({ owner: context.repo.owner, repo: context.repo.repo, cache_id: cache.id });
+              core.info(`deleted ${cache.key}`);
+            }
+
+      - name: WASM size
+        if: github.ref == 'refs/heads/main'
+        run: python3 devtools/ci/qualitybot.py wasm-size --build "cmake-build-$PRESET" --out wasm-size
+
+      - name: Keep the WASM size
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v7
+        with:
+          name: wasm-size-figures
+          path: wasm-size/figures.json
+
+      # /metrics/ reads the bots' histories from ci-metrics when opened; the copies here are its fallback, one main
+      # commit behind, as the bots record after this deploys
       - name: Collect the site
         run: |
-          mkdir -p site
+          mkdir -p site/metrics/data
           cp -r "cmake-build-$PRESET/viewer-web/." site/
+          cp devtools/ci/metrics.html site/metrics/index.html
+          if git fetch --no-tags --depth=1 origin ci-metrics; then git archive FETCH_HEAD | tar -x -C site/metrics/data; fi
           # GitHub Pages serves Jekyll by default, which drops files beginning with an underscore
           touch site/.nojekyll
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload the Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Keep the site
+        uses: actions/upload-artifact@v7
         with:
+          name: site
           path: site
+          include-hidden-files: true
 
-      - name: ccache statistics
-        if: always()
-        run: ccache --show-stats --verbose
+  # main's coverage and WASM size join the history on the ci-metrics branch; the only job here that may write to it
+  record:
+    name: record
+    needs: [native, wasm]
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Coverage
+        if: needs.native.result == 'success'
+        uses: ./.github/actions/record
+        with:
+          artifact: coverage-figures
+      - name: WASM size
+        if: needs.wasm.result == 'success'
+        uses: ./.github/actions/record
+        with:
+          artifact: wasm-size-figures
 
+  # the presenter, /metrics/ and main's coverage report under /metrics/coverage/, deployed together
   pages:
     name: deploy to GitHub Pages
-    needs: wasm
-    if: github.ref == 'refs/heads/main'
+    needs: [wasm, native]
+    if: ${{ !cancelled() && needs.wasm.result == 'success' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -269,8 +418,25 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: site
+          path: site
+
+      - name: Main's coverage report
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-html
+          path: site/metrics/coverage
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
+
+      - name: Upload the Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
 
       - id: deployment
         uses: actions/deploy-pages@v4

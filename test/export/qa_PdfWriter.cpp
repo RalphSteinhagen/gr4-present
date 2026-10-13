@@ -1,5 +1,7 @@
 #include <boost/ut.hpp>
 
+#include "FileContents.hpp"
+
 #include <gr4-present/export/PdfWriter.hpp>
 
 #include <gnuradio-4.0/Compression.hpp>
@@ -9,7 +11,6 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
-#include <iterator>
 #include <optional>
 #include <ranges>
 #include <string>
@@ -25,10 +26,7 @@ using namespace gr::present;
 // the words searchable and copyable rather than shapes that happen to look like letters.
 namespace {
 
-[[nodiscard]] std::vector<std::uint8_t> bytesOf(const std::filesystem::path& path) {
-    std::ifstream file(path, std::ios::binary);
-    return {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
-}
+[[nodiscard]] std::vector<std::uint8_t> bytesOf(const std::filesystem::path& path) { return fileContents<std::vector<std::uint8_t>>(path); }
 
 [[nodiscard]] std::string outputOf(const std::string& command) {
     std::string output;

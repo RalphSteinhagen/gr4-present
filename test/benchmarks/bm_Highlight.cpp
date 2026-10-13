@@ -1,17 +1,16 @@
 #include <benchmark.hpp>
 
+#include "FileContents.hpp"
+
 #include <gr4-present/Highlight.hpp>
 #include <gr4-present/Markdown.hpp>
 
-#include <fstream>
-#include <iterator>
 #include <string>
 #include <vector>
 
 // the deck's fenced code blocks, highlighted as the layout pass does on every frame a code slide is shown
 inline const boost::ut::suite<"Highlight benchmarks"> highlightBenchmarks = [] {
-    std::ifstream                          file{GR4_PRESENT_DEFAULT_PRESENTATION "/talk.md"};
-    const std::string                      deck{std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
+    const std::string                      deck     = fileContents(GR4_PRESENT_DEFAULT_PRESENTATION "/talk.md");
     const gr::present::Document            document = gr::present::parseMarkdown(deck);
     std::vector<const gr::present::Block*> codeBlocks;
     std::size_t                            lineCount = 0UZ;

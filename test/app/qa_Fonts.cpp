@@ -6,12 +6,12 @@
 
 #include <boost/ut.hpp>
 
+#include "FileContents.hpp"
+
 #include <array>
 #include <cmath>
 #include <filesystem>
-#include <fstream>
 #include <functional>
-#include <iterator>
 #include <map>
 #include <optional>
 #include <string>
@@ -107,10 +107,7 @@ void checkTheFaceCarriesTheIcons() {
     }
 }
 
-[[nodiscard]] std::vector<std::uint8_t> packageFile(std::string_view reference) {
-    std::ifstream file(std::filesystem::path{GR4_PRESENT_PACKAGE_DIRECTORY} / reference, std::ios::binary);
-    return {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
-}
+[[nodiscard]] std::vector<std::uint8_t> packageFile(std::string_view reference) { return fileContents<std::vector<std::uint8_t>>(std::filesystem::path{GR4_PRESENT_PACKAGE_DIRECTORY} / reference); }
 
 // Ground truth: Patrick Hand's cmap (fontTools) maps 515 characters and not U+03C3, so a sigma comes from behind it
 void checkADeckFaceFallsBackPerGlyph() {

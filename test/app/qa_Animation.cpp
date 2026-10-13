@@ -1,9 +1,10 @@
 #include <boost/ut.hpp>
 
+#include "FileContents.hpp"
+
 #include "Animation.hpp"
 
 #include <cstdlib>
-#include <fstream>
 #include <string>
 #include <vector>
 
@@ -12,10 +13,7 @@ using namespace gr::present;
 
 namespace {
 
-[[nodiscard]] std::vector<std::uint8_t> readMedia(const std::string& name) {
-    std::ifstream file(std::string{GR4_PRESENT_PACKAGE_DIRECTORY} + "/media/" + name, std::ios::binary);
-    return std::vector<std::uint8_t>{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
-}
+[[nodiscard]] std::vector<std::uint8_t> readMedia(const std::string& name) { return fileContents<std::vector<std::uint8_t>>(std::string{GR4_PRESENT_PACKAGE_DIRECTORY} + "/media/" + name); }
 
 /// mean absolute difference per channel, 0 to 255
 [[nodiscard]] double meanDifference(const std::vector<std::uint8_t>& left, const std::vector<std::uint8_t>& right) {

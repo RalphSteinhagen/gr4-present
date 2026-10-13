@@ -4,6 +4,7 @@
 > Rationale: `CORE_DEVELOPMENT_GUIDELINE.md`, `CORE_NAMING_GUIDELINE.md`;
 > orchestration: `CORE_AGENT_WORKFLOW.md`;
 > review only: `CORE_REVIEW_GUIDELINE.md` (same RFC 2119 keywords).
+> This file and the instructions derived from it (`CORE_*.md`, agent memory) MUST NOT be changed without the author's express approval, which expires with each approved change.
 > These rules are the default, not doctrine: a measurement or a counter-example overrides a rule and is recorded here.
 
 ## 1 · Working agreement
@@ -297,6 +298,7 @@ Before committing: build and test with GCC 15 and Emscripten, plus Clang and the
 ## 10 · Commits and pull requests
 
 Commit message = pull-request description: terse, functional, Markdown, `--cleanup=verbatim` (keeps `###`).
+No narrative of how the change was found, what was tried or intermediate measurements: that stays in the review.
 Block: ` ```text ` ImGraph of the simplest graph per mode, a short ` ```cpp ` construction example, a schematic sample layout, `### Changes`.
 Application: a short example in the input it reads (e.g. ` ```markdown `), then `### Changes`.
 One commit per change scenario or feature; during its review, amend that commit rather than stacking fixes.

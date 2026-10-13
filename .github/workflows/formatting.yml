@@ -1,0 +1,88 @@
+name: Formatting
+
+# Reports which files ./formatFiles.sh would change; red when the change touches one, but not required for merging.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    name: build image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      image: ${{ steps.wait.outputs.image }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: wait
+        uses: ./.github/actions/wait-for-image
+        with:
+          flavour: toolchain
+
+  formatting:
+    name: Formatting
+    needs: image
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.image.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: read
+      packages: read
+      pull-requests: write
+      statuses: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: History
+        run: git fetch --no-tags --depth=1 origin ci-metrics:refs/remotes/origin/ci-metrics || echo "no history yet"
+
+      - name: Check
+        run: python3 devtools/ci/qualitybot.py formatting --out report
+
+      - name: Keep the patch
+        uses: actions/upload-artifact@v7
+        with:
+          name: formatting-patch
+          path: report/formatting.patch
+          if-no-files-found: ignore
+
+      - name: Keep the figures
+        uses: actions/upload-artifact@v7
+        with:
+          name: formatting-figures
+          path: report/figures.json
+
+      - uses: ./.github/actions/report
+        with:
+          directory: report
+
+  # main's figures join the history on the ci-metrics branch; the only job here that may write to the repository
+  record:
+    name: record
+    needs: formatting
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/record
+        with:
+          artifact: formatting-figures

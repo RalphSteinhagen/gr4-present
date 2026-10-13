@@ -1,0 +1,44 @@
+name: Wait for a build image
+description: >-
+  Names a CI flavour's build image (devtools/ci/image-tags.sh) and waits until it exists: CI's `images` and
+  `dependencies` jobs build it when an input changed, and a bot started by the same push must not run before it.
+inputs:
+  flavour:
+    description: a preset from devtools/ci/flavours.json, or `toolchain`
+    required: true
+  minutes:
+    description: how long to wait for CI to build the image
+    default: "150"
+outputs:
+  image:
+    description: the image to run the bot in
+    value: ${{ steps.image.outputs.image }}
+  configure:
+    description: the flavour's extra configure arguments
+    value: ${{ steps.image.outputs.configure }}
+runs:
+  using: composite
+  steps:
+    - uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
+
+    - id: image
+      shell: bash
+      env:
+        FLAVOUR: ${{ inputs.flavour }}
+        MINUTES: ${{ inputs.minutes }}
+      run: |
+        eval "$(devtools/ci/image-tags.sh)"
+        if [[ $FLAVOUR == toolchain ]]; then image="$repository:$toolchain"; else image="$repository:$FLAVOUR-$tag"; fi
+        echo "image=$image" >> "$GITHUB_OUTPUT"
+        echo "configure=$(jq -r --arg preset "$FLAVOUR" '.[] | select(.preset == $preset) | .configure' devtools/ci/flavours.json)" >> "$GITHUB_OUTPUT"
+        deadline=$((SECONDS + 60 * MINUTES))
+        until docker manifest inspect "$image" > /dev/null 2>&1; do
+          ((SECONDS < deadline)) || { echo "::error::$image did not appear within $MINUTES minutes"; exit 1; }
+          echo "waiting for $image"
+          sleep 60
+        done
+        echo "$image is there"

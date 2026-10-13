@@ -37,6 +37,7 @@ option(GR4_PRESENT_ENABLE_TESTING "Enable unit tests" ON)
 option(GR4_PRESENT_WARNINGS_AS_ERRORS "Treat gr4-present compiler warnings as errors" ON)
 option(GR4_PRESENT_WITH_OPENDIGITIZER "Build the OpenDigitizer/GR4 live-region viewer" ON)
 option(GR4_PRESENT_ENABLE_EXPORT "Build the PDF export (libharu)" ON)
+option(GR4_PRESENT_COVERAGE "Instrument gr4-present's own targets for llvm-cov (Clang)" OFF)
 
 # the test engine instruments ImGui, so it is built only where tests are
 cmake_dependent_option(
@@ -71,6 +72,13 @@ if(EMSCRIPTEN)
   # without -pthread is rejected by wasm-ld the moment it uses std::atomic, as gr::algorithm::fileio does
   target_compile_options(gr4-present-options INTERFACE -pthread)
   target_link_options(gr4-present-options INTERFACE -pthread)
+endif()
+
+# on the project's own targets only: the dependencies keep the flags their prebuilt objects in the CI image were
+# compiled with, so the instrumented build still takes them from the image's cache
+if(GR4_PRESENT_COVERAGE)
+  target_compile_options(gr4-present-options INTERFACE -fprofile-instr-generate -fcoverage-mapping)
+  target_link_options(gr4-present-options INTERFACE -fprofile-instr-generate)
 endif()
 
 # Selecting the pools has to happen before the dependencies are added, otherwise OpenDigitizer's own UI translation
