@@ -1,0 +1,100 @@
+name: Code Style
+
+# devtools/code-metrics.sh compared with main's report of the commit the change lands on (ci-metrics branch); red only
+# when units could not be parsed, never required for merging: the figures are evidence for review (CLAUDE.md, measured quality).
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    name: build image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      image: ${{ steps.wait.outputs.image }}
+      configure: ${{ steps.wait.outputs.configure }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: wait
+        uses: ./.github/actions/wait-for-image
+        with:
+          flavour: Clang22-Debug
+
+  code-style:
+    name: Code Style
+    needs: image
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.image.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: read
+      packages: read
+      pull-requests: write
+      statuses: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: ccache settings
+        run: devtools/ci/ccache-env.sh >> "$GITHUB_ENV"
+
+      - name: Configure
+        run: |
+          mkdir -p cmake-build-Clang22-Debug/_deps && cp -a /opt/gr4-present/deps-src/. cmake-build-Clang22-Debug/_deps/
+          cmake --preset Clang22-Debug -DGR_BUILD_PARALLEL_LEVEL=3 -DFETCHCONTENT_FULLY_DISCONNECTED=ON ${{ needs.image.outputs.configure }}
+
+      # libvpx's headers are installed when its external project builds; every other header exists after configuring
+      - name: Build code-metrics
+        run: cmake --build cmake-build-Clang22-Debug --target libvpx_external code-metrics
+
+      - name: History
+        run: |
+          git fetch --no-tags --depth=1 origin ci-metrics:refs/remotes/origin/ci-metrics || echo "no history yet"
+          git fetch --no-tags origin main:refs/remotes/origin/main || true
+
+      - name: Measure
+        run: python3 devtools/ci/qualitybot.py code-style --build cmake-build-Clang22-Debug --out report
+
+      - name: Keep the figures and the report
+        uses: actions/upload-artifact@v7
+        with:
+          name: code-style-figures
+          path: |
+            report/figures.json
+            report/code-style-list.txt
+
+      - uses: ./.github/actions/report
+        with:
+          directory: report
+
+  # main's figures join the history on the ci-metrics branch; the only job here that may write to the repository
+  record:
+    name: record
+    needs: code-style
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/record
+        with:
+          artifact: code-style-figures
+          report: code-style-list.txt

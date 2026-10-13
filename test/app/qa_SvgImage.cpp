@@ -1,5 +1,7 @@
 #include <boost/ut.hpp>
 
+#include "FileContents.hpp"
+
 #include "SvgImage.hpp"
 
 #include <gr4-present/export/PageRecording.hpp>
@@ -8,7 +10,6 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
-#include <fstream>
 #include <ranges>
 #include <span>
 #include <string>
@@ -38,10 +39,7 @@ constexpr std::string_view kStagedSource = R"svg(<svg xmlns="http://www.w3.org/2
 
 [[nodiscard]] std::span<const std::uint8_t> bytesOf(std::string_view text) noexcept { return {reinterpret_cast<const std::uint8_t*>(text.data()), text.size()}; }
 
-[[nodiscard]] std::vector<std::uint8_t> readFile(const std::string& path) {
-    std::ifstream file(path, std::ios::binary);
-    return std::vector<std::uint8_t>{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
-}
+[[nodiscard]] std::vector<std::uint8_t> readFile(const std::string& path) { return fileContents<std::vector<std::uint8_t>>(path); }
 
 } // namespace
 

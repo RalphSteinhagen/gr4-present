@@ -40,14 +40,18 @@
 
 namespace gr::present {
 
+#ifdef GR4_PRESENT_HAS_EXPORT
 namespace {
 std::optional<gr::algorithm::fileio::Writer> exportDelivery; // the browser's download, finishing after the frame
 } // namespace
+#endif
 
-[[nodiscard]] static double      liveWaitOf(const Viewer& viewer, std::string_view viewId);
+[[nodiscard]] static double liveWaitOf(const Viewer& viewer, std::string_view viewId);
+#ifdef GR4_PRESENT_HAS_EXPORT
 [[nodiscard]] static std::string fileNameOf(std::string_view title, std::string_view mode);
-static void                      writeExport(Viewer& viewer);
-static void                      tendExportDelivery(Viewer& viewer);
+#endif
+static void writeExport(Viewer& viewer);
+static void tendExportDelivery(Viewer& viewer);
 
 /// `--export slides` makes a page per section at its last step, `--export steps` one per step; branches included
 void startExport(Viewer& viewer, std::string_view mode, bool exitWhenDone) {
@@ -137,6 +141,7 @@ void tendExportDelivery(Viewer& viewer);
     return true;
 }
 
+#ifdef GR4_PRESENT_HAS_EXPORT
 /// lower case, a dash for anything that is not a letter or a digit
 [[nodiscard]] static std::string fileNameOf(std::string_view title, std::string_view mode) {
     std::string name;
@@ -151,6 +156,7 @@ void tendExportDelivery(Viewer& viewer);
     }
     return std::format("{}-{}.pdf", name.empty() ? "deck" : name, mode);
 }
+#endif
 
 /// writes the PDF once every page is recorded: natively to `--export-to`, in a browser as a download
 static void writeExport(Viewer& viewer) {

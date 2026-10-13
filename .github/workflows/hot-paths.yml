@@ -1,0 +1,94 @@
+name: Hot Paths
+
+# Instructions of each bm_ benchmark (callgrind) and the release binaries' sizes, compared with main's; red when one
+# rose by more than 3 %, but never required for merging (CLAUDE.md, measured quality).
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    name: build image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      image: ${{ steps.wait.outputs.image }}
+      configure: ${{ steps.wait.outputs.configure }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: wait
+        uses: ./.github/actions/wait-for-image
+        with:
+          flavour: GCC15-Release
+
+  hot-paths:
+    name: Hot Paths
+    needs: image
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.image.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: read
+      packages: read
+      pull-requests: write
+      statuses: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: ccache settings
+        run: devtools/ci/ccache-env.sh >> "$GITHUB_ENV"
+
+      - name: Configure
+        run: |
+          mkdir -p cmake-build-GCC15-Release/_deps && cp -a /opt/gr4-present/deps-src/. cmake-build-GCC15-Release/_deps/
+          cmake --preset GCC15-Release -DGR_BUILD_PARALLEL_LEVEL=3 -DFETCHCONTENT_FULLY_DISCONNECTED=ON ${{ needs.image.outputs.configure }}
+
+      - name: Build the benchmarks and the application
+        run: cmake --build cmake-build-GCC15-Release --target gr4-present $(basename -s .cpp test/benchmarks/bm_*.cpp)
+
+      - name: History
+        run: git fetch --no-tags --depth=1 origin ci-metrics:refs/remotes/origin/ci-metrics || echo "no history yet"
+
+      - name: Measure
+        run: python3 devtools/ci/qualitybot.py hot-paths --build cmake-build-GCC15-Release --out report
+
+      - name: Keep the figures
+        uses: actions/upload-artifact@v7
+        with:
+          name: hot-paths-figures
+          path: report/figures.json
+
+      - uses: ./.github/actions/report
+        with:
+          directory: report
+
+  # main's figures join the history on the ci-metrics branch; the only job here that may write to the repository
+  record:
+    name: record
+    needs: hot-paths
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/record
+        with:
+          artifact: hot-paths-figures

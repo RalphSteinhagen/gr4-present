@@ -14,6 +14,8 @@
 
 #include <boost/ut.hpp>
 
+#include "FileContents.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -21,7 +23,6 @@
 #include <cstdlib>
 #include <filesystem>
 #include <format>
-#include <fstream>
 #include <map>
 #include <ranges>
 #include <set>
@@ -519,9 +520,8 @@ void recordMissingGlyphs() {
     }
     done = true;
 
-    std::ifstream     file(std::string{GR4_PRESENT_PACKAGE_DIRECTORY} + "/talk.md", std::ios::binary);
-    const std::string source{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
-    const Fonts&      fonts = Fonts::instance();
+    const std::string source = fileContents(std::string{GR4_PRESENT_PACKAGE_DIRECTORY} + "/talk.md");
+    const Fonts&      fonts  = Fonts::instance();
     if (source.empty() || fonts.face == nullptr || fonts.mono == nullptr) {
         gMissingGlyphs.emplace_back("the deck or the faces could not be read");
         return;
@@ -575,8 +575,7 @@ void drawScenario(const Scenario& scenario) {
     static Layout                    master;
     static FigureCache               masterFigures;
     if (scenario.useMaster && masterSource.empty()) {
-        std::ifstream file(std::string{GR4_PRESENT_PACKAGE_DIRECTORY} + "/figures/master.svg", std::ios::binary);
-        masterSource.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+        masterSource           = fileContents<std::vector<std::uint8_t>>(std::string{GR4_PRESENT_PACKAGE_DIRECTORY} + "/figures/master.svg");
         master                 = layoutOfSvg(masterSource).value_or(Layout{});
         masterFigures.bytesFor = [](std::string_view) { return std::span<const std::uint8_t>{masterSource}; };
     }
@@ -585,8 +584,7 @@ void drawScenario(const Scenario& scenario) {
     static Layout                    drawing;
     static FigureCache               drawingFigures;
     if (scenario.useDrawing && drawingSource.empty()) {
-        std::ifstream file(std::string{GR4_PRESENT_PACKAGE_DIRECTORY} + "/figures/facility.svg", std::ios::binary);
-        drawingSource.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+        drawingSource           = fileContents<std::vector<std::uint8_t>>(std::string{GR4_PRESENT_PACKAGE_DIRECTORY} + "/figures/facility.svg");
         drawing                 = layoutOfSvg(drawingSource).value_or(Layout{});
         drawingFigures.bytesFor = [](std::string_view) { return std::span<const std::uint8_t>{drawingSource}; };
     }
@@ -598,8 +596,7 @@ void drawScenario(const Scenario& scenario) {
         if (const auto known = mediaBytes.find(reference); known != mediaBytes.end()) {
             return std::span<const std::uint8_t>{known->second};
         }
-        std::ifstream file(std::string{GR4_PRESENT_PACKAGE_DIRECTORY} + "/" + std::string{reference}, std::ios::binary);
-        const auto&   stored = mediaBytes.emplace(std::string{reference}, std::vector<std::uint8_t>{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()}).first->second;
+        const auto& stored = mediaBytes.emplace(std::string{reference}, fileContents<std::vector<std::uint8_t>>(std::string{GR4_PRESENT_PACKAGE_DIRECTORY} + "/" + std::string{reference})).first->second;
         return std::span<const std::uint8_t>{stored};
     };
     mediaFigures.clock = scenario.clock;
@@ -1152,8 +1149,7 @@ const boost::ut::suite<"DocumentView"> documentViewTests = [] {
     };
 
     "a master layout reports named areas the renderer can place content into"_test = [] {
-        std::ifstream                   file(std::string{GR4_PRESENT_PACKAGE_DIRECTORY} + "/figures/master.svg", std::ios::binary);
-        const std::vector<std::uint8_t> source{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+        const std::vector<std::uint8_t> source = fileContents<std::vector<std::uint8_t>>(std::string{GR4_PRESENT_PACKAGE_DIRECTORY} + "/figures/master.svg");
         const auto                      parsed = layoutOfSvg(source);
         expect(parsed.has_value()) << "the demo layout did not parse";
         if (parsed.has_value()) {
@@ -1163,8 +1159,7 @@ const boost::ut::suite<"DocumentView"> documentViewTests = [] {
     };
 
     "a layout with a title area takes the heading out of the body flow"_test = [] {
-        std::ifstream                   file(std::string{GR4_PRESENT_PACKAGE_DIRECTORY} + "/figures/master.svg", std::ios::binary);
-        const std::vector<std::uint8_t> source{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
+        const std::vector<std::uint8_t> source = fileContents<std::vector<std::uint8_t>>(std::string{GR4_PRESENT_PACKAGE_DIRECTORY} + "/figures/master.svg");
         const auto                      parsed = layoutOfSvg(source);
         expect(parsed.has_value());
         if (!parsed.has_value()) {
