@@ -1,0 +1,2 @@
+commit,date,pr,tool,total,patch,core,app,export,devtools,regions,functions,branches,instantiations
+bf425235e438b24a2d4ffe63f8da1403a7269242,2026-10-12T17:01:11+02:00,,627837fa19,76.9,77.2,74.3,73.6,91.7,88.6,76.8,82.3,65.0,82.1
