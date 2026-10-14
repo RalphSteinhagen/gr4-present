@@ -1,0 +1,430 @@
+translation units parsed: 29 of 29
+translation units with parse errors (their figures are incomplete): 0
+(1) composition: how far a change can reach (includes, calls, ambient dependencies)
+composition
+  components: 30
+  include edges: 43
+    1 | FallbackScene -> Fonts | removing it alone lowers CCD by 1
+    1 | FallbackScene -> ImGuiScoped | removing it alone lowers CCD by 1
+    1 | FallbackScene -> Texture | removing it alone lowers CCD by 2
+    1 | LoadingScreen -> ImGuiScoped | removing it alone lowers CCD by 2
+    1 | LoadingScreen -> Theme | removing it alone lowers CCD by 1
+    1 | PresentationLoader -> Manifest | removing it alone lowers CCD by 4
+    1 | RegionGeometry -> LiveRegion | removing it alone lowers CCD by 2
+    1 | SideMenu -> Fonts | removing it alone lowers CCD by 1
+    1 | SideMenu -> ImGuiScoped | removing it alone lowers CCD by 1
+    1 | SideMenu -> Theme | removing it alone lowers CCD by 1
+    1 | Texture -> Theme | removing it alone lowers CCD by 3
+    1 | ViewScene -> Fonts | removing it alone lowers CCD by 1
+    1 | ViewScene -> ImGuiScoped | removing it alone lowers CCD by 1
+    1 | ViewScene -> Texture | removing it alone lowers CCD by 2
+    1 | WindowModeControl -> LaunchOptions | removing it alone lowers CCD by 2
+    1 | main -> FallbackScene | removing it alone lowers CCD by 1
+    1 | main -> Fonts | removing it alone lowers CCD by 0
+    1 | main -> ImGuiScoped | removing it alone lowers CCD by 0
+    1 | main -> LoadingScreen | removing it alone lowers CCD by 1
+    1 | main -> Navigation | removing it alone lowers CCD by 1
+    1 | main -> PresentationLoader | removing it alone lowers CCD by 2
+    1 | main -> SideMenu | removing it alone lowers CCD by 1
+    1 | main -> ViewScene | removing it alone lowers CCD by 1
+    1 | main -> WindowModeControl | removing it alone lowers CCD by 2
+    1 | qa_LaunchOptions -> LaunchOptions | removing it alone lowers CCD by 1
+    1 | qa_LaunchScreen -> ImGuiTestHarness | removing it alone lowers CCD by 1
+    1 | qa_LaunchScreen -> LoadingScreen | removing it alone lowers CCD by 2
+    1 | qa_LaunchScreen -> ScreenshotDiff | removing it alone lowers CCD by 1
+    1 | qa_LaunchScreen -> Texture | removing it alone lowers CCD by 1
+    1 | qa_LiveRegion -> LiveRegion | removing it alone lowers CCD by 1
+    1 | qa_MainScreen -> FallbackScene | removing it alone lowers CCD by 1
+    1 | qa_MainScreen -> Fonts | removing it alone lowers CCD by 0
+    1 | qa_MainScreen -> ImGuiTestHarness | removing it alone lowers CCD by 1
+    1 | qa_MainScreen -> PresentationLoader | removing it alone lowers CCD by 2
+    1 | qa_MainScreen -> ScreenshotDiff | removing it alone lowers CCD by 1
+    1 | qa_MainScreen -> SideMenu | removing it alone lowers CCD by 1
+    1 | qa_MainScreen -> ViewScene | removing it alone lowers CCD by 1
+    1 | qa_Manifest -> Manifest | removing it alone lowers CCD by 1
+    1 | qa_Navigation -> Navigation | removing it alone lowers CCD by 1
+    1 | qa_PackagePath -> PackagePath | removing it alone lowers CCD by 1
+    1 | qa_PresentationLoader -> PresentationLoader | removing it alone lowers CCD by 2
+    1 | qa_RegionGeometry -> RegionGeometry | removing it alone lowers CCD by 2
+    1 | qa_ScreenshotDiff -> ScreenshotDiff | removing it alone lowers CCD by 1
+  components in a cycle: 0
+  CCD: 87 (the places behind it are the include edges)
+  NCCD: 0.70
+  widest reach (other components a component's #includes reach): main 13, qa_MainScreen 11, qa_LaunchScreen 6
+  translation units under src/ reaching each library (29 units): cpr 1, gnuradio4 6, imgui 11, imgui_test_engine 3, opendigitizer 5, other 3, stb 3, std 29, system 29, ut 10, vir-simd 6
+locality
+  calls across components: 51.9 % (108 of 208 calls to own functions)
+    15 | main -> PresentationLoader | calls from the first component into the second
+    10 | FallbackScene -> Fonts | calls from the first component into the second
+    7 | main -> LoadingScreen | calls from the first component into the second
+    7 | main -> Texture | calls from the first component into the second
+    6 | qa_MainScreen -> Texture | calls from the first component into the second
+    5 | main -> Theme | calls from the first component into the second
+    5 | qa_LaunchScreen -> Texture | calls from the first component into the second
+    5 | qa_MainScreen -> PresentationLoader | calls from the first component into the second
+    4 | ViewScene -> Fonts | calls from the first component into the second
+    4 | qa_LaunchScreen -> ImGuiTestHarness | calls from the first component into the second
+    4 | qa_MainScreen -> ImGuiTestHarness | calls from the first component into the second
+    3 | main -> LaunchOptions | calls from the first component into the second
+    3 | main -> Navigation | calls from the first component into the second
+    3 | main -> WindowModeControl | calls from the first component into the second
+    3 | qa_PresentationLoader -> PresentationLoader | calls from the first component into the second
+    2 | PresentationLoader -> Manifest | calls from the first component into the second
+    2 | SideMenu -> Fonts | calls from the first component into the second
+    2 | main -> Fonts | calls from the first component into the second
+    2 | qa_LaunchScreen -> LoadingScreen | calls from the first component into the second
+    2 | qa_LaunchScreen -> Theme | calls from the first component into the second
+    2 | qa_MainScreen -> Fonts | calls from the first component into the second
+    2 | qa_MainScreen -> Theme | calls from the first component into the second
+    1 | FallbackScene -> Texture | calls from the first component into the second
+    1 | ViewScene -> Texture | calls from the first component into the second
+    1 | main -> FallbackScene | calls from the first component into the second
+    1 | main -> SideMenu | calls from the first component into the second
+    1 | main -> ViewScene | calls from the first component into the second
+    1 | qa_LaunchOptions -> LaunchOptions | calls from the first component into the second
+    1 | qa_MainScreen -> FallbackScene | calls from the first component into the second
+    1 | qa_MainScreen -> SideMenu | calls from the first component into the second
+    1 | qa_MainScreen -> ViewScene | calls from the first component into the second
+    1 | qa_ScreenshotDiff -> ScreenshotDiff | calls from the first component into the second
+  lone callees: 19 (one call site, in another component, no test)
+    1 | src/app/LoadingScreen.cpp gr::present::LoadingScreen::finished() <- main | line 30, 3 lines
+    1 | src/app/LoadingScreen.hpp gr::present::LoadingScreen::setStatus(std::string) <- qa_LaunchScreen | line 30, 1 lines
+    1 | src/app/WindowModeControl.cpp gr::present::WindowModeControl::onUserGesture() <- main | line 45, 14 lines
+    1 | src/app/WindowModeControl.cpp gr::present::WindowModeControl::toggle() <- main | line 60, 1 lines
+    1 | src/app/test/ScreenshotDiff.cpp gr::present::test::writePng(const std::filesystem::path &, std::span<const unsigned char>, int, int) <- qa_ScreenshotDiff | line 108, 1 lines
+    1 | src/app/test/qa_LaunchScreen.cpp (anonymous)::drawScenario(const Scenario &) <- qa_LaunchOptions | line 41, 20 lines
+    1 | src/app/test/qa_MainScreen.cpp (anonymous)::drawScenario(const Scenario &) <- qa_LaunchOptions | line 41, 35 lines
+    1 | src/core/LaunchOptions.cpp gr::present::LaunchOptions::windowMode() <- main | line 75, 4 lines
+    1 | src/core/Manifest.cpp gr::present::ManifestError::message() <- PresentationLoader | line 81, 9 lines
+    1 | src/core/Manifest.cpp gr::present::parseManifest(std::string_view) <- PresentationLoader | line 91, 26 lines
+    1 | src/core/Navigation.cpp gr::present::Navigator::jumpTo(std::string_view) <- main | line 78, 8 lines
+    1 | src/core/Navigation.cpp gr::present::Navigator::next() <- main | line 50, 18 lines
+    1 | src/core/Navigation.cpp gr::present::Navigator::previous() <- main | line 69, 8 lines
+    1 | src/core/PresentationLoader.cpp gr::present::PresentationLoader::PresentationLoader() <- qa_MainScreen | line 27, 1 lines
+    1 | src/core/PresentationLoader.cpp gr::present::PresentationLoader::untilRetry() <- main | line 48, 7 lines
+    1 | src/core/include/gr4-present/PresentationLoader.hpp gr::present::PresentationLoader::attempts() <- main | line 57, 1 lines
+    1 | src/core/include/gr4-present/PresentationLoader.hpp gr::present::PresentationLoader::baseUri() <- main | line 52, 1 lines
+    1 | src/core/include/gr4-present/PresentationLoader.hpp gr::present::PresentationLoader::diagnostic() <- main | line 51, 1 lines
+    1 | src/core/include/gr4-present/PresentationLoader.hpp gr::present::PresentationLoader::progress() <- main | line 49, 1 lines
+  unused functions: 5 (defined under src/, named by no own code, tests included)
+    1 | src/app/LoadingScreen.hpp gr::present::LoadingScreen::clearStatus() | line 31, 1 lines
+    1 | src/app/LoadingScreen.hpp gr::present::LoadingScreen::progressOf(LoadStage) | line 33, 1 lines
+    1 | src/app/WindowModeControl.hpp gr::present::WindowModeControl::pending() | line 28, 1 lines
+    1 | src/core/include/gr4-present/Navigation.hpp gr::present::message(NavigationError) | line 34, 10 lines
+    1 | src/core/include/gr4-present/PackagePath.hpp gr::present::message(PathError) | line 17, 8 lines
+ambient reach (src/; write-only logging excluded; indirect calls not resolved, so a lower bound)
+  functions without ambient reach: 65.9 % (89 of 135; the places are the 46 that reach something)
+    1 | src/app/FallbackScene.cpp gr::present::(anonymous)::drawCentred(ImDrawList *, std::string_view, float, float, ImU32) | line 30: drawing context (directly: CalcTextSize, GetFont, GetFontSize)
+    1 | src/app/FallbackScene.cpp gr::present::(anonymous)::elided(std::string_view, float) | line 19: drawing context (directly: CalcTextSize)
+    1 | src/app/FallbackScene.cpp gr::present::FallbackScene::draw(const Texture &, const Theme &) | line 36: drawing context, global (directly: GetFontSize, GetMainViewport, GetWindowDrawList, SetNextWindowPos, SetNextWindowSize, c_resource)
+    1 | src/app/Fonts.cpp gr::present::Fonts::instance() | line 7: global (directly: fonts)
+    1 | src/app/Fonts.cpp gr::present::Fonts::load() | line 12: drawing context (directly: GetIO)
+    1 | src/app/Fonts.hpp gr::present::ScopedFont::ScopedFont(float) | line 27: drawing context, global (directly: PushFont)
+    1 | src/app/Fonts.hpp gr::present::ScopedFont::~ScopedFont() | line 30: drawing context (directly: PopFont)
+    1 | src/app/LoadingScreen.cpp gr::present::LoadingScreen::draw(ImTextureID, ImVec2, const Theme &) | line 41: drawing context (directly: CalcTextSize, GetMainViewport, GetTextLineHeight, GetWindowDrawList, SetNextWindowPos, SetNextWindowSize, c_resource)
+    1 | src/app/SideMenu.cpp gr::present::SideMenu::draw(const Theme &) | line 17: drawing context, global (directly: Dummy, GetIO, GetMainViewport, PopStyleColor, PopStyleVar, PushStyleColor, PushStyleVar, Selectable, Separator, SetNextWindowPos, SetNextWindowSize, c_resource)
+    1 | src/app/Texture.cpp gr::present::Texture::load(std::span<const unsigned char>) | line 20: drawing context (directly: glBindTexture, glGenTextures, glPixelStorei, glTexImage2D, glTexParameteri)
+    1 | src/app/Texture.cpp gr::present::Texture::loadLogo(ColourScheme) | line 18: drawing context
+    1 | src/app/Texture.cpp gr::present::Texture::release() | line 53: drawing context (directly: glDeleteTextures)
+    1 | src/app/Texture.hpp gr::present::Texture::~Texture() | line 24: drawing context
+    1 | src/app/Theme.cpp gr::present::detectColourScheme() | line 18: drawing context, environment (directly: SDL_GetSystemTheme, getenv)
+    1 | src/app/Theme.hpp gr::present::Theme::backgroundColour() | line 21: drawing context (directly: ColorConvertU32ToFloat4)
+    1 | src/app/ViewScene.cpp gr::present::ViewScene::draw(const Texture &, const Theme &) | line 13: drawing context, global (directly: CalcTextSize, GetFont, GetFontSize, GetMainViewport, GetWindowDrawList, SetNextWindowPos, SetNextWindowSize, c_resource)
+    1 | src/app/WindowModeControl.cpp gr::present::WindowModeControl::apply(WindowMode) | line 28: drawing context (directly: SDL_SetWindowFullscreen)
+    1 | src/app/WindowModeControl.cpp gr::present::WindowModeControl::isFullscreen() | line 20: drawing context (directly: SDL_GetWindowFlags)
+    1 | src/app/WindowModeControl.cpp gr::present::WindowModeControl::toggle() | line 60: drawing context
+    1 | src/app/main.cpp (anonymous)::advanceLoading(Viewer &) | line 110: clock, drawing context
+    1 | src/app/main.cpp (anonymous)::applyTheme(Viewer &, ColourScheme) | line 137: drawing context (directly: ColorConvertU32ToFloat4, GetStyle)
+    1 | src/app/main.cpp (anonymous)::buildSideMenu(Viewer &) | line 150: drawing context
+    1 | src/app/main.cpp (anonymous)::defaultPresentationBase(std::string_view) | line 82: io (directly: current_path, operator/, weakly_canonical)
+    1 | src/app/main.cpp (anonymous)::renderFrame(Viewer &) | line 160: clock, drawing context, environment, global (directly: GetDrawData, GetMainViewport, NewFrame, Render, SDL_GL_SwapWindow, SDL_GetWindowSizeInPixels, SDL_PollEvent, glClear, glClearColor, glViewport)
+    1 | src/app/main.cpp main(int, char **) | line 217: clock, drawing context, environment, global, io (directly: CreateContext, DebugCheckVersionAndDataLayout, DestroyContext, SDL_CreateWindow, SDL_DestroyWindow, SDL_GL_CreateContext, SDL_GL_DestroyContext, SDL_GL_MakeCurrent, SDL_GL_SetAttribute, SDL_GL_SetSwapInterval, SDL_GetError, SDL_Init, SDL_Quit, StyleColorsDark, viewer)
+    1 | src/app/test/ImGuiTestHarness.cpp gr::present::test::(anonymous)::captureFramebuffer(ImGuiID, int, int, int, int, unsigned int *, void *) | line 34: drawing context (directly: GetIO, glPixelStorei, glReadBuffer, glReadPixels)
+    1 | src/app/test/ImGuiTestHarness.cpp gr::present::test::Harness::addTest(const std::string &, std::function<void (ImGuiTestContext *)>, std::function<void (ImGuiTestContext *)>) | line 67: drawing context, environment
+    1 | src/app/test/ImGuiTestHarness.cpp gr::present::test::Harness::captureDirectory() | line 45: io (directly: create_directories, operator/)
+    1 | src/app/test/ImGuiTestHarness.cpp gr::present::test::Harness::captureTo(ImGuiTestContext *, const std::string &) | line 53: drawing context, io (directly: GetMainViewport)
+    1 | src/app/test/ImGuiTestHarness.cpp gr::present::test::Harness::createOffscreenTarget() | line 141: drawing context (directly: glBindFramebuffer, glBindRenderbuffer, glCheckFramebufferStatus, glFramebufferRenderbuffer, glGenFramebuffers, glGenRenderbuffers, glRenderbufferStorage)
+    1 | src/app/test/ImGuiTestHarness.cpp gr::present::test::Harness::initialise() | line 90: drawing context, environment (directly: CreateContext, DebugCheckVersionAndDataLayout, GetCurrentContext, GetIO, SDL_CreateWindow, SDL_GL_CreateContext, SDL_GL_MakeCurrent, SDL_GL_SetAttribute, SDL_GL_SetSwapInterval, SDL_GetError, SDL_Init)
+    1 | src/app/test/ImGuiTestHarness.cpp gr::present::test::Harness::run() | line 160: drawing context, environment (directly: GetDrawData, NewFrame, Render, SDL_PollEvent, glBindFramebuffer, glClear, glClearColor, glFinish, glViewport)
+    1 | src/app/test/ImGuiTestHarness.cpp gr::present::test::Harness::~Harness() | line 195: drawing context (directly: DestroyContext, GetCurrentContext, SDL_DestroyWindow, SDL_GL_DestroyContext, SDL_Quit, glDeleteFramebuffers, glDeleteRenderbuffers)
+    1 | src/app/test/ImGuiTestHarness.cpp gr::present::test::preferOffscreenVideoDriverUnlessOverridden() | line 84: drawing context, environment (directly: SDL_SetHint, getenv)
+    1 | src/app/test/ScreenshotDiff.cpp gr::present::test::compareScreenshot(const std::filesystem::path &, const std::filesystem::path &, const ImageTolerance &) | line 115: io (directly: readImage, writeDiffImage)
+    1 | src/app/test/ScreenshotDiff.cpp gr::present::test::updatingReferences() | line 110: environment (directly: getenv)
+    1 | src/app/test/qa_LaunchScreen.cpp (anonymous)::drawScenario(const Scenario &) | line 41: drawing context, global (directly: ColorConvertFloat4ToU32, GetBackgroundDrawList, GetMainViewport, loaded, logo)
+    1 | src/app/test/qa_MainScreen.cpp (anonymous)::drawScenario(const Scenario &) | line 41: clock, drawing context, global (directly: ColorConvertFloat4ToU32, GetBackgroundDrawList, GetIO, GetMainViewport, artwork, mark, menu)
+    1 | src/app/test/qa_ScreenshotDiff.cpp (anonymous)::Canvas::writeTo(const std::string &) | line 37: io (directly: operator/, temp_directory_path, writePng)
+    1 | src/core/PresentationLoader.cpp gr::present::PresentationLoader::advance() | line 78: clock (directly: now)
+    1 | src/core/PresentationLoader.cpp gr::present::PresentationLoader::begin(std::string_view) | line 65: clock
+    1 | src/core/PresentationLoader.cpp gr::present::PresentationLoader::fail(std::string_view) | line 32: clock (directly: now)
+    1 | src/core/PresentationLoader.cpp gr::present::PresentationLoader::startRequest(std::string_view) | line 56: clock
+    1 | src/core/PresentationLoader.cpp gr::present::PresentationLoader::untilRetry() | line 48: clock (directly: now)
+    1 | src/core/test/qa_LaunchOptions.cpp main() | line 90: clock, drawing context, environment, global, io (directly: gEngineSucceeded)
+    1 | src/core/test/qa_PresentationLoader.cpp (anonymous)::settle(PresentationLoader &, std::chrono::milliseconds) | line 17: clock (directly: now)
+  functions reaching each: clock 11, drawing context 34, environment 9, global 10, io 7
+  src/core functions with ambient reach: 7
+    1 | src/core/PresentationLoader.cpp gr::present::PresentationLoader::advance() | line 78: clock (directly: now)
+    1 | src/core/PresentationLoader.cpp gr::present::PresentationLoader::begin(std::string_view) | line 65: clock
+    1 | src/core/PresentationLoader.cpp gr::present::PresentationLoader::fail(std::string_view) | line 32: clock (directly: now)
+    1 | src/core/PresentationLoader.cpp gr::present::PresentationLoader::startRequest(std::string_view) | line 56: clock
+    1 | src/core/PresentationLoader.cpp gr::present::PresentationLoader::untilRetry() | line 48: clock (directly: now)
+    1 | src/core/test/qa_LaunchOptions.cpp main() | line 90: clock, drawing context, environment, global, io (directly: gEngineSucceeded)
+    1 | src/core/test/qa_PresentationLoader.cpp (anonymous)::settle(PresentationLoader &, std::chrono::milliseconds) | line 17: clock (directly: now)
+(2) cognitive complexity: how much a reader must hold
+complexity (src/; code-metrics.sh --cognitive)
+  cognitive complexity: 270 (79 functions scored)
+    21 | src/core/PresentationLoader.cpp gr::present::PresentationLoader::advance() | line 78
+    19 | src/app/test/ScreenshotDiff.cpp gr::present::test::(anonymous)::largestConnectedCluster(const std::vector<char> &, int, int) | line 51
+    14 | src/core/LaunchOptions.cpp gr::present::LaunchOptions::parseCommandLine(LaunchOptions &, std::span<const std::string_view>) | line 44
+    12 | src/app/main.cpp (anonymous)::renderFrame(Viewer &) | line 160
+    12 | src/app/test/ScreenshotDiff.cpp gr::present::test::compareScreenshot(const std::filesystem::path &, const std::filesystem::path &, const ImageTolerance &) | line 115
+    9 | src/core/PackagePath.cpp gr::present::(anonymous)::normalise(std::string_view) | line 43
+    8 | src/app/SideMenu.cpp gr::present::SideMenu::draw(const Theme &) | line 17
+    8 | src/app/test/ImGuiTestHarness.cpp gr::present::test::Harness::~Harness() | line 195
+    8 | src/app/test/qa_MainScreen.cpp (anonymous)::drawScenario(const Scenario &) | line 41
+    8 | src/core/PackagePath.cpp gr::present::resolvePackagePath(std::string_view, std::string_view) | line 64
+    7 | src/app/test/ScreenshotDiff.cpp gr::present::test::(anonymous)::writeDiffImage(const std::filesystem::path &, const Image &, const Image &, const std::vector<char> &) | line 88
+    6 | src/app/Theme.cpp gr::present::detectColourScheme() | line 18
+    6 | src/core/LaunchOptions.cpp gr::present::LaunchOptions::parseUrlParameters(LaunchOptions &, std::string_view) | line 29
+    5 | src/app/FallbackScene.cpp gr::present::FallbackScene::draw(const Texture &, const Theme &) | line 36
+    5 | src/app/main.cpp (anonymous)::advanceLoading(Viewer &) | line 110
+    5 | src/app/main.cpp main(int, char **) | line 217
+    5 | src/app/test/ImGuiTestHarness.cpp gr::present::test::Harness::run() | line 160
+    5 | src/core/Navigation.cpp gr::present::NavigationGraph::validate() | line 26
+    5 | src/core/PackagePath.cpp gr::present::(anonymous)::uriScheme(std::string_view) | line 13
+    4 | src/app/main.cpp (anonymous)::headingOf(std::string_view) | line 101
+    4 | src/app/test/ImGuiTestHarness.cpp gr::present::test::Harness::initialise() | line 90
+    4 | src/core/Manifest.cpp gr::present::(anonymous)::viewsField(const gr::property_map &) | line 56
+    4 | src/core/Manifest.cpp gr::present::parseManifest(std::string_view) | line 91
+    4 | src/core/Navigation.cpp gr::present::Navigator::next() | line 50
+    3 | src/app/FallbackScene.cpp gr::present::(anonymous)::elided(std::string_view, float) | line 19
+    3 | src/app/LoadingScreen.cpp gr::present::LoadingScreen::draw(ImTextureID, ImVec2, const Theme &) | line 41
+    3 | src/app/ViewScene.cpp gr::present::ViewScene::draw(const Texture &, const Theme &) | line 13
+    3 | src/app/test/qa_LaunchScreen.cpp (anonymous)::drawScenario(const Scenario &) | line 41
+    3 | src/app/test/qa_ScreenshotDiff.cpp (anonymous)::Canvas::fillRectangle(int, int, int, int, unsigned char) | line 29
+    3 | src/core/Manifest.cpp gr::present::(anonymous)::scalarToString(const gr::Value &) | line 16
+    3 | src/core/Navigation.cpp gr::present::NavigationGraph::defaultNext(std::string_view) | line 14
+    3 | src/core/PackagePath.cpp gr::present::(anonymous)::joinWithSlash(const std::vector<std::string_view> &) | line 32
+    3 | src/core/PresentationLoader.cpp gr::present::PresentationLoader::fail(std::string_view) | line 32
+    2 | src/app/WindowModeControl.cpp gr::present::WindowModeControl::toggle() | line 60
+    2 | src/app/main.cpp (anonymous)::applyTheme(Viewer &, ColourScheme) | line 137
+    2 | src/app/test/ImGuiTestHarness.cpp gr::present::test::Harness::addTest(const std::string &, std::function<void (ImGuiTestContext *)>, std::function<void (ImGuiTestContext *)>) | line 67
+    2 | src/core/LaunchOptions.cpp gr::present::(anonymous)::withoutLeading(std::string_view, std::string_view) | line 17
+    2 | src/core/LaunchOptions.cpp gr::present::LaunchOptions::windowMode() | line 75
+    2 | src/core/Manifest.cpp gr::present::(anonymous)::mapField(const gr::property_map &, std::string_view) | line 34
+    2 | src/core/PresentationLoader.cpp gr::present::(anonymous)::withScheme(std::string_view) | line 14
+    2 | src/core/PresentationLoader.cpp gr::present::PresentationLoader::untilRetry() | line 48
+    2 | src/core/test/qa_PresentationLoader.cpp (anonymous)::settle(PresentationLoader &, std::chrono::milliseconds) | line 17
+    1 | src/app/LoadingScreen.cpp gr::present::LoadingScreen::activeStage() | line 34
+    1 | src/app/LoadingScreen.cpp gr::present::LoadingScreen::statusText() | line 39
+    1 | src/app/LoadingScreen.cpp gr::present::defaultStatus(LoadStage) | line 19
+    1 | src/app/Texture.cpp gr::present::Texture::load(std::span<const unsigned char>) | line 20
+    1 | src/app/Texture.cpp gr::present::Texture::loadLogo(ColourScheme) | line 18
+    1 | src/app/Texture.cpp gr::present::Texture::release() | line 53
+    1 | src/app/Texture.hpp gr::present::Texture::scaledToWidth(float) | line 31
+    1 | src/app/Theme.cpp gr::present::themeFor(ColourScheme) | line 37
+    1 | src/app/WindowModeControl.cpp gr::present::WindowModeControl::apply(WindowMode) | line 28
+    1 | src/app/WindowModeControl.cpp gr::present::WindowModeControl::isFullscreen() | line 20
+    1 | src/app/main.cpp (anonymous)::buildSideMenu(Viewer &) | line 150
+    1 | src/app/main.cpp (anonymous)::defaultPresentationBase(std::string_view) | line 82
+    1 | src/app/test/ImGuiTestHarness.cpp gr::present::test::(anonymous)::reverseRowOrder(unsigned char *, int, int) | line 23
+    1 | src/app/test/ImGuiTestHarness.cpp gr::present::test::Harness::createOffscreenTarget() | line 141
+    1 | src/app/test/ImGuiTestHarness.cpp gr::present::test::preferOffscreenVideoDriverUnlessOverridden() | line 84
+    1 | src/app/test/ScreenshotDiff.cpp gr::present::test::(anonymous)::readImage(const std::filesystem::path &) | line 36
+    1 | src/app/test/ScreenshotDiff.cpp gr::present::test::updatingReferences() | line 110
+    1 | src/core/LaunchOptions.cpp gr::present::LaunchOptions::value(std::string_view) | line 23
+    1 | src/core/LiveRegion.cpp gr::present::(anonymous)::valueNamed(const std::array<std::pair<Enum, std::string_view>, nEntries> &, std::string_view) | line 22
+    1 | src/core/LiveRegion.cpp gr::present::name(LifecyclePolicy) | line 30
+    1 | src/core/Manifest.cpp gr::present::(anonymous)::stringField(const gr::property_map &, std::string_view) | line 29
+    1 | src/core/Manifest.cpp gr::present::(anonymous)::stringListField(const gr::property_map &, std::string_view) | line 46
+    1 | src/core/Manifest.cpp gr::present::Manifest::findView(std::string_view) | line 76
+    1 | src/core/Manifest.cpp gr::present::ManifestError::message() | line 81
+    1 | src/core/Navigation.cpp gr::present::NavigationGraph::find(std::string_view) | line 9
+    1 | src/core/Navigation.cpp gr::present::Navigator::jumpTo(std::string_view) | line 78
+    1 | src/core/Navigation.cpp gr::present::Navigator::previous() | line 69
+    1 | src/core/PackagePath.cpp gr::present::(anonymous)::directoryOf(std::string_view) | line 26
+    1 | src/core/PresentationLoader.cpp gr::present::(anonymous)::withoutTrailingSlash(std::string_view) | line 16
+    1 | src/core/PresentationLoader.cpp gr::present::PresentationLoader::startRequest(std::string_view) | line 56
+    1 | src/core/include/gr4-present/Navigation.hpp gr::present::message(NavigationError) | line 34
+    1 | src/core/include/gr4-present/PackagePath.hpp gr::present::message(PathError) | line 17
+    1 | src/viewer/RegionGeometry.cpp gr::present::RegionRegistry::bind(std::string, LiveRegion) | line 7
+    1 | src/viewer/RegionGeometry.cpp gr::present::RegionRegistry::updateGeometry(std::string_view, const RegionGeometry &) | line 15
+    1 | src/viewer/RegionGeometry.hpp gr::present::RegionRegistry::find(Self &&, std::string_view) | line 50
+  highest: advance 21, largestConnectedCluster 19, parseCommandLine 14, renderFrame 12, compareScreenshot 12
+  split-invariant complexity: 329 (49 single-use callees folded in at their call depth)
+    48 | src/app/main.cpp main(int, char **) | line 217, 5 before folding
+    44 | src/app/test/ScreenshotDiff.cpp gr::present::test::compareScreenshot(const std::filesystem::path &, const std::filesystem::path &, const ImageTolerance &) | line 115, 12 before folding
+    41 | src/core/PresentationLoader.cpp gr::present::PresentationLoader::advance() | line 78, 21 before folding
+    30 | src/core/PackagePath.cpp gr::present::resolvePackagePath(std::string_view, std::string_view) | line 64, 8 before folding
+    25 | src/core/test/qa_LaunchOptions.cpp main() | line 90, 0 before folding
+    14 | src/app/main.cpp (anonymous)::advanceLoading(Viewer &) | line 110, 5 before folding
+    14 | src/core/LaunchOptions.cpp gr::present::LaunchOptions::from(std::string_view, std::string_view, std::span<const std::string_view>) | line 67, 0 before folding
+    9 | src/core/LaunchOptions.cpp gr::present::LaunchOptions::parseUrlParameters(LaunchOptions &, std::string_view) | line 29, 6 before folding
+    8 | src/app/LoadingScreen.cpp gr::present::LoadingScreen::draw(ImTextureID, ImVec2, const Theme &) | line 41, 3 before folding
+    8 | src/app/SideMenu.cpp gr::present::SideMenu::draw(const Theme &) | line 17, 8 before folding
+    8 | src/app/test/ImGuiTestHarness.cpp gr::present::test::Harness::~Harness() | line 195, 8 before folding
+    7 | src/app/test/ImGuiTestHarness.cpp gr::present::test::Harness::initialise() | line 90, 4 before folding
+    7 | src/core/Manifest.cpp gr::present::(anonymous)::stringField(const gr::property_map &, std::string_view) | line 29, 1 before folding
+    6 | src/app/Theme.cpp gr::present::detectColourScheme() | line 18, 6 before folding
+    5 | src/app/FallbackScene.cpp gr::present::FallbackScene::draw(const Texture &, const Theme &) | line 36, 5 before folding
+    5 | src/app/test/ImGuiTestHarness.cpp gr::present::test::Harness::run() | line 160, 5 before folding
+    5 | src/core/Navigation.cpp gr::present::NavigationGraph::validate() | line 26, 5 before folding
+    3 | src/app/FallbackScene.cpp gr::present::(anonymous)::elided(std::string_view, float) | line 19, 3 before folding
+    3 | src/app/ViewScene.cpp gr::present::ViewScene::draw(const Texture &, const Theme &) | line 13, 3 before folding
+    3 | src/app/test/qa_ScreenshotDiff.cpp (anonymous)::Canvas::fillRectangle(int, int, int, int, unsigned char) | line 29, 3 before folding
+    3 | src/core/PresentationLoader.cpp gr::present::PresentationLoader::fail(std::string_view) | line 32, 3 before folding
+    3 | src/core/PresentationLoader.cpp gr::present::PresentationLoader::startRequest(std::string_view) | line 56, 1 before folding
+    2 | src/app/main.cpp (anonymous)::applyTheme(Viewer &, ColourScheme) | line 137, 2 before folding
+    2 | src/app/test/ImGuiTestHarness.cpp gr::present::test::Harness::addTest(const std::string &, std::function<void (ImGuiTestContext *)>, std::function<void (ImGuiTestContext *)>) | line 67, 2 before folding
+    2 | src/core/Manifest.cpp gr::present::(anonymous)::mapField(const gr::property_map &, std::string_view) | line 34, 2 before folding
+    2 | src/core/test/qa_PresentationLoader.cpp (anonymous)::settle(PresentationLoader &, std::chrono::milliseconds) | line 17, 2 before folding
+    1 | src/app/Texture.cpp gr::present::Texture::load(std::span<const unsigned char>) | line 20, 1 before folding
+    1 | src/app/Texture.cpp gr::present::Texture::loadLogo(ColourScheme) | line 18, 1 before folding
+    1 | src/app/Texture.cpp gr::present::Texture::release() | line 53, 1 before folding
+    1 | src/app/Texture.hpp gr::present::Texture::scaledToWidth(float) | line 31, 1 before folding
+    1 | src/app/Theme.cpp gr::present::themeFor(ColourScheme) | line 37, 1 before folding
+    1 | src/app/WindowModeControl.cpp gr::present::WindowModeControl::apply(WindowMode) | line 28, 1 before folding
+    1 | src/app/test/ImGuiTestHarness.cpp gr::present::test::(anonymous)::captureFramebuffer(ImGuiID, int, int, int, int, unsigned int *, void *) | line 34, 0 before folding
+    1 | src/app/test/ScreenshotDiff.cpp gr::present::test::(anonymous)::readImage(const std::filesystem::path &) | line 36, 1 before folding
+    1 | src/app/test/ScreenshotDiff.cpp gr::present::test::updatingReferences() | line 110, 1 before folding
+    1 | src/core/LaunchOptions.cpp gr::present::LaunchOptions::value(std::string_view) | line 23, 1 before folding
+    1 | src/core/LiveRegion.cpp gr::present::(anonymous)::valueNamed(const std::array<std::pair<Enum, std::string_view>, nEntries> &, std::string_view) | line 22, 1 before folding
+    1 | src/core/LiveRegion.cpp gr::present::name(LifecyclePolicy) | line 30, 1 before folding
+    1 | src/core/Manifest.cpp gr::present::Manifest::findView(std::string_view) | line 76, 1 before folding
+    1 | src/core/Navigation.cpp gr::present::NavigationGraph::find(std::string_view) | line 9, 1 before folding
+    1 | src/core/PresentationLoader.cpp gr::present::PresentationLoader::resolve(std::string_view) | line 30, 0 before folding
+    1 | src/core/include/gr4-present/Navigation.hpp gr::present::message(NavigationError) | line 34, 1 before folding
+    1 | src/core/include/gr4-present/PackagePath.hpp gr::present::message(PathError) | line 17, 1 before folding
+    1 | src/viewer/RegionGeometry.cpp gr::present::RegionRegistry::bind(std::string, LiveRegion) | line 7, 1 before folding
+    1 | src/viewer/RegionGeometry.cpp gr::present::RegionRegistry::updateGeometry(std::string_view, const RegionGeometry &) | line 15, 1 before folding
+    1 | src/viewer/RegionGeometry.hpp gr::present::RegionRegistry::find(Self &&, std::string_view) | line 50, 1 before folding
+  highest split-invariant: main 48, compareScreenshot 44, advance 41, resolvePackagePath 30, main 25
+  scored functions without a definition found: 2
+    without a definition: /__w/gr4-present/gr4-present/src/app/test/qa_LaunchScreen.cpp:87 main
+    without a definition: /__w/gr4-present/gr4-present/src/app/test/qa_MainScreen.cpp:102 main
+shape
+  live mutable locals: 7 (locals written in more than one top-level statement)
+    1 | src/app/FallbackScene.cpp: draw: blockHeight | line 36, written in 4 statements
+    1 | src/app/FallbackScene.cpp: draw: cursorY | line 36, written in 3 statements
+    1 | src/app/LoadingScreen.cpp: draw: cursorY | line 41, written in 3 statements
+    1 | src/app/Texture.cpp: load: loaded | line 20, written in 3 statements
+    1 | src/app/main.cpp: renderFrame: viewer | line 160, written in 2 statements
+    1 | src/app/test/ImGuiTestHarness.cpp: addTest: entry | line 67, written in 3 statements
+    1 | src/app/test/ImGuiTestHarness.cpp: initialise: engineIo | line 90, written in 7 statements
+  write-only fields: 4 (fields under src/ that no own code reads, tests included)
+    1 | src/app/WindowModeControl.hpp: WindowModeControl::desired | line 19, never read
+    1 | src/app/test/ScreenshotDiff.hpp: ComparisonResult::differingShare | line 27, never read
+    1 | src/core/include/gr4-present/LiveRegion.hpp: LiveRegion::fallback | line 33, never read
+    1 | src/core/include/gr4-present/LiveRegion.hpp: LiveRegion::step | line 34, never read
+  nested ternaries: 0 (a ?: holding another in the same expression)
+  flag arguments: 0 (parameters some call fills with a literal true or false)
+  same argument everywhere: 2 (parameters every call passes the same constant)
+    1 | src/core/LaunchOptions.cpp gr::present::LaunchOptions::from(std::string_view, std::string_view, std::span<const std::string_view>): fragment | always "", at 2 calls
+    1 | src/core/LaunchOptions.cpp gr::present::LaunchOptions::from(std::string_view, std::string_view, std::span<const std::string_view>): query | always "", at 2 calls
+  unscoped pairs: 2 (2 pairs opened and closed by hand in one function; +1 per exit or branch that could skip the closing)
+    1 | src/app/SideMenu.cpp: draw: PushStyleColor…PopStyleColor #1 | line 17, 0 exits between
+    1 | src/app/SideMenu.cpp: draw: PushStyleVar…PopStyleVar #1 | line 17, 0 exits between
+(3) reading volume: how much there is to read
+volume
+  tokens + comment words: 26891 (24835 tokens and 2056 comment words in 47 files; 265 comment lines)
+    2183 | src/app/main.cpp | 2116 tokens, 67 comment words, 252 SLOC
+    1589 | src/app/test/ImGuiTestHarness.cpp | 1409 tokens, 180 comment words, 185 SLOC
+    1505 | src/app/test/ScreenshotDiff.cpp | 1454 tokens, 51 comment words, 140 SLOC
+    1317 | src/core/test/qa_Navigation.cpp | 1316 tokens, 1 comment words, 107 SLOC
+    1083 | src/core/test/qa_PresentationLoader.cpp | 1049 tokens, 34 comment words, 101 SLOC
+    1071 | src/core/Manifest.cpp | 1034 tokens, 37 comment words, 100 SLOC
+    1050 | src/app/test/qa_ScreenshotDiff.cpp | 1026 tokens, 24 comment words, 106 SLOC
+    1049 | src/core/PresentationLoader.cpp | 1012 tokens, 37 comment words, 121 SLOC
+    883 | src/app/test/qa_MainScreen.cpp | 875 tokens, 8 comment words, 95 SLOC
+    875 | src/app/FallbackScene.cpp | 840 tokens, 35 comment words, 69 SLOC
+    828 | src/core/test/qa_LaunchOptions.cpp | 827 tokens, 1 comment words, 72 SLOC
+    800 | src/core/test/qa_Manifest.cpp | 800 tokens, 0 comment words, 96 SLOC
+    750 | src/app/test/qa_LaunchScreen.cpp | 735 tokens, 15 comment words, 79 SLOC
+    749 | src/core/LaunchOptions.cpp | 732 tokens, 17 comment words, 65 SLOC
+    711 | src/app/LoadingScreen.cpp | 707 tokens, 4 comment words, 60 SLOC
+    693 | src/viewer/test/qa_RegionGeometry.cpp | 692 tokens, 1 comment words, 63 SLOC
+    689 | src/core/PackagePath.cpp | 670 tokens, 19 comment words, 69 SLOC
+    674 | src/core/Navigation.cpp | 671 tokens, 3 comment words, 76 SLOC
+    606 | src/core/include/gr4-present/PresentationLoader.hpp | 459 tokens, 147 comment words, 55 SLOC
+    562 | src/core/test/qa_PackagePath.cpp | 562 tokens, 0 comment words, 66 SLOC
+    499 | src/core/test/qa_LiveRegion.cpp | 499 tokens, 0 comment words, 42 SLOC
+    457 | src/app/SideMenu.cpp | 439 tokens, 18 comment words, 47 SLOC
+    441 | src/app/ViewScene.cpp | 434 tokens, 7 comment words, 33 SLOC
+    399 | src/app/Texture.cpp | 396 tokens, 3 comment words, 49 SLOC
+    377 | src/core/include/gr4-present/Navigation.hpp | 292 tokens, 85 comment words, 46 SLOC
+    374 | src/app/test/ImGuiTestHarness.hpp | 320 tokens, 54 comment words, 44 SLOC
+    372 | src/app/Theme.cpp | 336 tokens, 36 comment words, 50 SLOC
+    365 | src/viewer/RegionGeometry.hpp | 236 tokens, 129 comment words, 39 SLOC
+    362 | src/core/include/gr4-present/LaunchOptions.hpp | 217 tokens, 145 comment words, 22 SLOC
+    350 | src/core/LiveRegion.cpp | 346 tokens, 4 comment words, 29 SLOC
+    309 | src/app/test/ScreenshotDiff.hpp | 184 tokens, 125 comment words, 25 SLOC
+    288 | src/app/LoadingScreen.hpp | 242 tokens, 46 comment words, 27 SLOC
+    285 | src/app/WindowModeControl.cpp | 264 tokens, 21 comment words, 52 SLOC
+    278 | src/core/include/gr4-present/LiveRegion.hpp | 200 tokens, 78 comment words, 26 SLOC
+    263 | src/core/include/gr4-present/Manifest.hpp | 208 tokens, 55 comment words, 33 SLOC
+    244 | src/app/Fonts.hpp | 170 tokens, 74 comment words, 20 SLOC
+    220 | src/core/include/gr4-present/PackagePath.hpp | 143 tokens, 77 comment words, 23 SLOC
+    219 | src/app/Texture.hpp | 199 tokens, 20 comment words, 27 SLOC
+    181 | src/app/WindowModeControl.hpp | 98 tokens, 83 comment words, 18 SLOC
+    179 | src/app/FallbackScene.hpp | 76 tokens, 103 comment words, 16 SLOC
+    153 | src/app/SideMenu.hpp | 84 tokens, 69 comment words, 19 SLOC
+    142 | src/viewer/RegionGeometry.cpp | 139 tokens, 3 comment words, 19 SLOC
+    141 | src/app/Theme.hpp | 117 tokens, 24 comment words, 19 SLOC
+    103 | src/app/Fonts.cpp | 89 tokens, 14 comment words, 13 SLOC
+    102 | src/app/ImGuiScoped.hpp | 53 tokens, 49 comment words, 9 SLOC
+    91 | src/app/ViewScene.hpp | 55 tokens, 36 comment words, 13 SLOC
+    30 | src/app/StbImage.cpp | 13 tokens, 17 comment words, 3 SLOC
+  SLOC: 2740 (lines holding code)
+  lines over 160 characters: 33
+    3 | src/app/FallbackScene.cpp | lines in this file
+    3 | src/app/test/qa_MainScreen.cpp | lines in this file
+    3 | src/core/test/qa_LiveRegion.cpp | lines in this file
+    3 | src/viewer/test/qa_RegionGeometry.cpp | lines in this file
+    2 | src/app/LoadingScreen.cpp | lines in this file
+    2 | src/app/SideMenu.cpp | lines in this file
+    2 | src/app/ViewScene.cpp | lines in this file
+    2 | src/app/test/ScreenshotDiff.cpp | lines in this file
+    2 | src/core/test/qa_PresentationLoader.cpp | lines in this file
+    1 | src/app/Fonts.cpp | lines in this file
+    1 | src/app/Texture.cpp | lines in this file
+    1 | src/app/main.cpp | lines in this file
+    1 | src/app/test/ScreenshotDiff.hpp | lines in this file
+    1 | src/app/test/qa_LaunchScreen.cpp | lines in this file
+    1 | src/app/test/qa_ScreenshotDiff.cpp | lines in this file
+    1 | src/core/LaunchOptions.cpp | lines in this file
+    1 | src/core/LiveRegion.cpp | lines in this file
+    1 | src/core/Manifest.cpp | lines in this file
+    1 | src/core/PresentationLoader.cpp | lines in this file
+    1 | src/core/test/qa_LaunchOptions.cpp | lines in this file
+  lines over 250 characters: 3
+    1 | src/app/test/qa_MainScreen.cpp | lines in this file
+    1 | src/core/test/qa_LiveRegion.cpp | lines in this file
+    1 | src/viewer/test/qa_RegionGeometry.cpp | lines in this file
+  repeated expressions: 77 (23 expressions of 8 tokens or more written 3 times or more in one file; counted beyond the first writing)
+    8 | src/core/test/qa_Manifest.cpp: manifest.error().message() | written 8 times
+    8 | src/core/test/qa_Navigation.cpp: expect(navigator.next()) | written 8 times
+    7 | src/core/test/qa_PackagePath.cpp: expect(resolved.has_value()) | written 7 times
+    5 | src/core/test/qa_Manifest.cpp: expect(!manifest.has_value()) | written 5 times
+    5 | src/core/test/qa_Manifest.cpp: expect(manifest.has_value()) | written 5 times
+    5 | src/core/test/qa_Navigation.cpp: Cursor{.viewId="demo",.step=0UZ} | written 5 times
+    5 | src/core/test/qa_Navigation.cpp: expect(!result.has_value()) | written 5 times
+    4 | src/app/test/ScreenshotDiff.cpp: static_cast<std::size_t>(width) | written 4 times
+    4 | src/app/test/qa_ScreenshotDiff.cpp: reference.fillRectangle(10,10,40,30,0x20) | written 4 times
+    4 | src/core/test/qa_Manifest.cpp: expect(manifest.has_value())<<(manifest?std::string{}:manifest.error().message()) | written 4 times
+    4 | src/core/test/qa_Manifest.cpp: manifest.error().message().contains | written 4 times
+    4 | src/core/test/qa_Navigation.cpp: Cursor{.viewId="intro",.step=0UZ} | written 4 times
+    4 | src/core/test/qa_Navigation.cpp: expect(navigator.cursor==Cursor{.viewId="demo",.step=0UZ}) | written 4 times
+    4 | src/core/test/qa_PackagePath.cpp: expect(!resolved.has_value()) | written 4 times
+    4 | src/core/test/qa_PresentationLoader.cpp: std::chrono::steady_clock::now() | written 4 times
+    4 | src/viewer/test/qa_RegionGeometry.cpp: registry.bind("#spectrum",spectrumBinding()) | written 4 times
+    3 | src/app/FallbackScene.cpp: Fonts::statusSize(viewport->Size.y) | written 3 times
+    3 | src/app/FallbackScene.cpp: text.data()+text.size() | written 3 times
+    3 | src/app/test/qa_ScreenshotDiff.cpp: expect(result.matches)<<result.message | written 3 times
+    3 | src/core/PresentationLoader.cpp: std::chrono::steady_clock::now() | written 3 times
+    3 | src/core/test/qa_PresentationLoader.cpp: expect(settle(loader)==LoadState::failed) | written 3 times
+    3 | src/core/test/qa_PresentationLoader.cpp: loader.imageBytes().empty() | written 3 times
+    3 | src/core/test/qa_PresentationLoader.cpp: loader.manifest().views.empty() | written 3 times
+comments
+  restating comments: 0
+(4) naming and API consistency: devtools/naming-check
+(5) hot paths: instructions per item, binary and .wasm size: devtools/code-metrics.sh --hot-paths
+(6) compile time: not measured yet
