@@ -15,9 +15,14 @@ set(_core_tests
     qa_LiveRegion
     qa_RegionGeometry
     qa_Slice
+    qa_Tar
     qa_TypeSize)
 if(EMSCRIPTEN)
-  list(REMOVE_ITEM _core_tests qa_PresentationLoader) # reads a real filesystem; MEMFS has no package staged
+  list(
+    REMOVE_ITEM
+    _core_tests
+    qa_PresentationLoader
+    qa_Tar) # read a real filesystem; MEMFS has no fixtures staged
 endif()
 
 foreach(_test IN LISTS _core_tests)
@@ -29,6 +34,7 @@ foreach(_test IN LISTS _core_tests)
 endforeach()
 
 if(NOT EMSCRIPTEN)
+  target_compile_definitions(qa_Tar PRIVATE GR4_PRESENT_TAR_FIXTURES="${CMAKE_SOURCE_DIR}/test/fixtures/tar")
   # a deck the viewer does not bundle, fetched from a local HTTP server as GR4's own fileio tests fetch theirs
   target_link_libraries(qa_PresentationLoader PRIVATE httplib::httplib)
   target_compile_definitions(qa_PresentationLoader
