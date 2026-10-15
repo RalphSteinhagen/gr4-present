@@ -1,11 +1,11 @@
 name: Record a quality bot's figures
 description: >-
   Adds a main commit's figures, as its bot uploaded them, to that bot's history on the ci-metrics branch
-  (devtools/ci/qualitybot.py record: a rerun replaces its row, a writer that lost a race retries). Needs a full checkout
+  (devtools/qualitybot.cpp record: a rerun replaces its row, a writer that lost a race retries). Needs a full checkout
   and `contents: write`, which only this job of a workflow has.
 inputs:
   artifact:
-    description: the artifact holding the bot's figures.json
+    description: the artifact holding the bot's figures.csv
     required: true
   report:
     description: the bot's full report in the artifact, kept beside the history for comparing, if any
@@ -21,4 +21,7 @@ runs:
     - shell: bash
       env:
         REPORT: ${{ inputs.report }}
-      run: python3 devtools/ci/qualitybot.py record --figures recorded/figures.json --out record ${REPORT:+--report "recorded/$REPORT"}
+      # the runner's own compiler: this job runs on the bare runner, not in the project's image
+      run: |
+        g++-14 -std=c++23 -O2 -o "$RUNNER_TEMP/qualitybot" "$PWD/devtools/qualitybot.cpp"
+        "$RUNNER_TEMP/qualitybot" record --figures recorded/figures.csv --out record ${REPORT:+--report "recorded/$REPORT"}

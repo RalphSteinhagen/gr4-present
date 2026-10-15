@@ -1,11 +1,11 @@
 name: Report a quality bot
 description: >-
-  Posts what devtools/ci/qualitybot.py wrote: the status on the commit, the comment as the job summary, and on a pull
+  Posts what devtools/qualitybot.cpp wrote: the status on the commit, the comment as the job summary, and on a pull
   request from this repository the sticky comment, found by its first line's hidden marker and updated on every rerun.
   A pull request from a fork has a read-only token: it gets the summary only.
 inputs:
   directory:
-    description: where qualitybot.py wrote comment.md and status.json
+    description: where qualitybot wrote comment.md and status.json
     required: true
   fail-on-no-go:
     description: fail the job when the status is a failure; Coverage's job also builds and tests, so it reports by status only
