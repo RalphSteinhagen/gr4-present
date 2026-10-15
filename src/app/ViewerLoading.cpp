@@ -2,6 +2,7 @@
 
 #include <gr4-present/EffectSource.hpp>
 #include <gr4-present/Number.hpp>
+#include <gr4-present/PackagePath.hpp>
 
 #include <imgui.h>
 
@@ -69,6 +70,17 @@ void reportFontChoices(Viewer& viewer, std::string_view viewId, const Document& 
     }
 }
 
+/// Chrome's local network access: a page from the web reads this computer only once the reader allows it, and a refused
+/// read looks like any other that got no answer (status 0); nothing natively
+[[nodiscard]] std::string localNetworkHint([[maybe_unused]] std::string_view base) {
+#ifdef __EMSCRIPTEN__
+    if (isLoopbackAddress(base)) {
+        return "; a page from the web reads this computer only once the browser allows local network access, or use Load";
+    }
+#endif
+    return {};
+}
+
 } // namespace
 
 void advanceLoading(Viewer& viewer) {
@@ -78,7 +90,7 @@ void advanceLoading(Viewer& viewer) {
     switch (viewer.loader.state()) {
     case LoadState::failed:
         viewer.fallback.address    = std::string{viewer.loader.baseUri()};
-        viewer.fallback.reason     = std::string{viewer.loader.diagnostic()};
+        viewer.fallback.reason     = std::string{viewer.loader.diagnostic()} + localNetworkHint(viewer.loader.baseUri());
         viewer.fallback.attempt    = viewer.loader.attempts();
         viewer.fallback.untilRetry = viewer.loader.untilRetry(viewer.frameStart);
         viewer.launch.setProgress(LoadStage::content, 1.0f);

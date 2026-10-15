@@ -269,6 +269,8 @@ Pure arithmetic with an analytic ground truth MUST be a named function with its 
 reaching it through the whole application does not count.
 Numerical correctness is not visual plausibility:
 delay, scaling, normalisation, window and phase conventions and edge cases each get a numeric test a human can check.
+A `qa_` file whose suites only register runs them in `main` (`return boost::ut::cfg<>.run({.report_errors = true}) ? 1 : 0;`):
+run at exit, after llvm-cov wrote its profile, they would never be counted.
 Shared fixtures with RAII teardown so a device always stops;
 assert only on state the test's own thread owns;
 illustrative output (ImGraph) belongs in the unit test.

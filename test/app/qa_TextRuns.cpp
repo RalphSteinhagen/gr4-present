@@ -89,4 +89,4 @@ const suite<"TextRuns"> textRunTests = [] {
     };
 };
 
-int main() { return 0; }
+int main() { return boost::ut::cfg<>.run({.report_errors = true}) ? 1 : 0; }

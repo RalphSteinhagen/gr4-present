@@ -75,6 +75,19 @@ const suite<"PackagePath"> packagePathTests = [] {
         expect(resolved.has_value());
         expect(eq(resolved->path, std::string{"workflows/demo.grc"}));
     };
+
+    "an address on this computer is localhost, 127.0.0.0/8 or [::1], over http or https"_test = [] {
+        expect(isLoopbackAddress("http://localhost:8000/deck"));
+        expect(isLoopbackAddress("http://localhost"));
+        expect(isLoopbackAddress("https://127.0.0.1/talks"));
+        expect(isLoopbackAddress("http://127.1.2.3:9"));
+        expect(isLoopbackAddress("http://[::1]:8443/"));
+        expect(!isLoopbackAddress("http://localhost.example.org/deck")) << "a name that only starts like it";
+        expect(!isLoopbackAddress("https://example.org/localhost"));
+        expect(!isLoopbackAddress("http://10.0.0.1/"));
+        expect(!isLoopbackAddress("/home/me/talks/tour")) << "a folder is no address";
+        expect(!isLoopbackAddress("file://localhost/tmp"));
+    };
 };
 
-int main() { return 0; }
+int main() { return boost::ut::cfg<>.run({.report_errors = true}) ? 1 : 0; }

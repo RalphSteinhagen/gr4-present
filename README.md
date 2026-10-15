@@ -43,6 +43,7 @@ node devtools/serve.mjs --directory cmake-build-WASM-Release/viewer-web   # then
 The browser needs the COOP/COEP headers `devtools/serve.mjs` sets.
 `--presentation=<directory or URL>` (or `?presentation=` in the address) opens another deck;
 without it the demo in `presentations/default` is shown.
+A page from the web reads a deck served on this computer (`node devtools/serve.mjs --cors`) only once Chrome is allowed local network access.
 
 ## License and Copyright
 
