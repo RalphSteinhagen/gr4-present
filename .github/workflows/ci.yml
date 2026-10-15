@@ -236,7 +236,9 @@ jobs:
 
       - name: Coverage
         if: ${{ !cancelled() && matrix.preset == 'Clang22-Debug' }}
-        run: python3 devtools/ci/qualitybot.py coverage --build "cmake-build-$PRESET" --profiles coverage-profiles --out coverage-report
+        run: |
+          g++-15 -std=c++23 -O2 -o "$RUNNER_TEMP/qualitybot" "$PWD/devtools/qualitybot.cpp"
+          "$RUNNER_TEMP/qualitybot" coverage --build "cmake-build-$PRESET" --profiles coverage-profiles --out coverage-report
 
       - name: Keep the coverage figures and report
         if: ${{ !cancelled() && matrix.preset == 'Clang22-Debug' }}
@@ -244,8 +246,9 @@ jobs:
         with:
           name: coverage-figures
           path: |
-            coverage-report/figures.json
+            coverage-report/figures.csv
             coverage-report/coverage.lcov
+            coverage-report/coverage-skipped.txt
 
       # llvm-cov's annotated sources: this run's artefact, and on main the report /metrics/coverage/ shows
       - name: Keep the coverage report
@@ -355,14 +358,16 @@ jobs:
 
       - name: WASM size
         if: github.ref == 'refs/heads/main'
-        run: python3 devtools/ci/qualitybot.py wasm-size --build "cmake-build-$PRESET" --out wasm-size
+        run: |
+          g++-15 -std=c++23 -O2 -o "$RUNNER_TEMP/qualitybot" "$PWD/devtools/qualitybot.cpp"
+          "$RUNNER_TEMP/qualitybot" wasm-size --build "cmake-build-$PRESET" --out wasm-size
 
       - name: Keep the WASM size
         if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v7
         with:
           name: wasm-size-figures
-          path: wasm-size/figures.json
+          path: wasm-size/figures.csv
 
       # /metrics/ reads the bots' histories from ci-metrics when opened; the copies here are its fallback, one main
       # commit behind, as the bots record after this deploys

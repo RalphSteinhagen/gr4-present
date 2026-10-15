@@ -10,6 +10,13 @@ foreach(_tool IN ITEMS code-metrics naming-check)
   target_link_libraries(${_tool} PRIVATE gr4-present-options ${GR4_PRESENT_LIBCLANG})
 endforeach()
 
+# the quality bots' reports (.github/workflows): reporting coverage, the bot is not itself measured by it, so the
+# instrumented build leaves it out and CI compiles it alone (g++-15 "$PWD/devtools/qualitybot.cpp")
+if(NOT GR4_PRESENT_COVERAGE)
+  add_executable(qualitybot qualitybot.cpp)
+  target_link_libraries(qualitybot PRIVATE gr4-present-options)
+endif()
+
 find_program(GR4_PRESENT_CLANG_TIDY NAMES clang-tidy-22 clang-tidy)
 if(GR4_PRESENT_CLANG_TIDY AND CMAKE_CXX_COMPILER_ID MATCHES "Clang") # the fixture is parsed as the Clang build parses
                                                                      # its code
@@ -25,7 +32,7 @@ endif()
 
 # the tools' pure parts against their ground truths; the fixtures above check them end to end
 if(TARGET ut)
-  foreach(_test IN ITEMS qa_NamingCheck qa_CodeMetrics)
+  foreach(_test IN ITEMS qa_NamingCheck qa_CodeMetrics qa_QualityBot)
     add_executable(${_test} test/${_test}.cpp)
     target_include_directories(${_test} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(${_test} PRIVATE ut gr4-present-options)

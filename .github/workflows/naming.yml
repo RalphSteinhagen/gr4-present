@@ -66,13 +66,15 @@ jobs:
         run: git fetch --no-tags --depth=1 origin ci-metrics:refs/remotes/origin/ci-metrics || echo "no history yet"
 
       - name: Check
-        run: python3 devtools/ci/qualitybot.py naming --build cmake-build-Clang22-Debug --out report
+        run: |
+          g++-15 -std=c++23 -O2 -o "$RUNNER_TEMP/qualitybot" "$PWD/devtools/qualitybot.cpp"
+          "$RUNNER_TEMP/qualitybot" naming --build cmake-build-Clang22-Debug --out report
 
       - name: Keep the figures
         uses: actions/upload-artifact@v7
         with:
           name: naming-figures
-          path: report/figures.json
+          path: report/figures.csv
 
       - uses: ./.github/actions/report
         with:

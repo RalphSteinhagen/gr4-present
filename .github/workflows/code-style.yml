@@ -68,14 +68,16 @@ jobs:
           git fetch --no-tags origin main:refs/remotes/origin/main || true
 
       - name: Measure
-        run: python3 devtools/ci/qualitybot.py code-style --build cmake-build-Clang22-Debug --out report
+        run: |
+          g++-15 -std=c++23 -O2 -o "$RUNNER_TEMP/qualitybot" "$PWD/devtools/qualitybot.cpp"
+          "$RUNNER_TEMP/qualitybot" code-style --build cmake-build-Clang22-Debug --out report
 
       - name: Keep the figures and the report
         uses: actions/upload-artifact@v7
         with:
           name: code-style-figures
           path: |
-            report/figures.json
+            report/figures.csv
             report/code-style-list.txt
 
       - uses: ./.github/actions/report
