@@ -30,6 +30,9 @@ struct ResolvedPath {
 /// an empty `referrer` denotes the package root
 [[nodiscard]] std::expected<ResolvedPath, PathError> resolvePackagePath(std::string_view referrer, std::string_view reference);
 
+/// whether an http(s) address names this computer: `localhost`, 127.0.0.0/8 or `[::1]`, with any port and path
+[[nodiscard]] bool isLoopbackAddress(std::string_view uri) noexcept;
+
 } // namespace gr::present
 
 #endif // GR4_PRESENT_PACKAGE_PATH_HPP

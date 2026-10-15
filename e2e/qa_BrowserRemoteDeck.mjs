@@ -58,6 +58,22 @@ try {
     await page.press(...kRight);
     expect(await page.waitFor("(globalThis.gr4Location || '').includes('view=second&step=0')"), "and the next press reaches the second slide");
 
+    // the presenter's window opens on the same deck: its address keeps `presentation`
+    const targetsBefore = await (await fetch(`${browser.endpoint}/json/list`)).json();
+    await page.press("s", "KeyS", 83);
+    let presenterTarget = null;
+    for (let attempt = 0; attempt < 100 && !presenterTarget; ++attempt) {
+      const targets = await (await fetch(`${browser.endpoint}/json/list`)).json();
+      presenterTarget = targets.find((target) => target.url.includes("presenter") && !targetsBefore.some((before) => before.id === target.id));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    expect(!!presenterTarget && presenterTarget.url.includes("presentation="), `S opens the presenter's window on this deck (${presenterTarget?.url ?? "none"})`);
+    if (presenterTarget) {
+      const presenter = await openPage(browser, presenterTarget.url);
+      expect(await presenter.waitFor("(globalThis.gr4Location || '').includes('view=second')", 60_000), "and it shows the deck's slide, not the built-in deck's");
+      await presenter.close();
+    }
+
     if (failures.length > 0) {
       console.error("console output:\n  " + page.consoleLines.join("\n  "));
     }

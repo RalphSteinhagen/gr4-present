@@ -205,7 +205,7 @@ void buildSideMenu(Viewer& viewer) {
         const std::string label = std::string{Fonts::kPdf} + (mode == "slides" ? "  PDF, slides" : "  PDF, every step");
 #ifdef __EMSCRIPTEN__
         // a tab of its own walks the deck, so this one stays where the presenter left it
-        viewer.menu.utilities.push_back({.label = label, .activate = [mode] { SDL_OpenURL(std::format("?export={}", mode).c_str()); }, .separatorBefore = mode == "slides", .mnemonic = {}});
+        viewer.menu.utilities.push_back({.label = label, .activate = [mode] { openExportTab(std::string{mode}.c_str()); }, .separatorBefore = mode == "slides", .mnemonic = {}});
 #else
         viewer.menu.utilities.push_back({.label = label, .activate = [&viewer, mode] { startExport(viewer, mode, false); }, .separatorBefore = mode == "slides", .mnemonic = {}});
 #endif

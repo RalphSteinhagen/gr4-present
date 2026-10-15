@@ -33,4 +33,4 @@ const boost::ut::suite<"DocumentHtml"> tests = [] {
     "an empty deck gives no sections"_test = [] { expect(documentHtml({}).empty()); };
 };
 
-int main() { return 0; }
+int main() { return boost::ut::cfg<>.run({.report_errors = true}) ? 1 : 0; }

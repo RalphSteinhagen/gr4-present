@@ -248,6 +248,7 @@ void followAddressBar();
 void passBrowserKeys();
 void publishExport(int pages, const char* outcome);
 void openPresenterWindow();
+void openExportTab(const char* mode);
 }
 #endif
 

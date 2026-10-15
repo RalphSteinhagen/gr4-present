@@ -180,4 +180,4 @@ const suite<"Navigation"> navigationTests = [] {
     "a valid linear presentation validates"_test = [] { expect(linearGraph().validate().has_value()); };
 };
 
-int main() { return 0; }
+int main() { return boost::ut::cfg<>.run({.report_errors = true}) ? 1 : 0; }

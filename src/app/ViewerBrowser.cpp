@@ -122,7 +122,19 @@ EM_JS(void, joinRelay, (), {
     }).catch(() => {});
 });
 EM_JS(void, publishExport, (int pages, const char* outcome), { globalThis.gr4Export = { pages: pages, outcome: UTF8ToString(outcome) }; });
-EM_JS(void, openPresenterWindow, (), { window.open(location.pathname + "?presenter" + location.hash, "gr4-present-presenter", "popup"); });
+// clang-format off
+// a window or tab this one opens shows the same deck: the address's `presentation` stays in its query
+EM_JS(void, openPresenterWindow, (), {
+    const query = new URLSearchParams(location.search);
+    query.set("presenter", "");
+    window.open(location.pathname + "?" + query.toString() + location.hash, "gr4-present-presenter", "popup");
+});
+EM_JS(void, openExportTab, (const char* mode), {
+    const query = new URLSearchParams(location.search);
+    query.set("export", UTF8ToString(mode));
+    window.open(location.pathname + "?" + query.toString(), "_blank");
+});
+// clang-format on
 // clang-format on
 #endif
 

@@ -44,4 +44,4 @@ const suite<"SwipeNavigation"> swipeTests = [] {
     "a viewport with no width cannot be swiped"_test = [] { expect(swipeActionOf(flick(600.0f, 200.0f), 0.0f) == SwipeAction::none); };
 };
 
-int main() { return 0; }
+int main() { return boost::ut::cfg<>.run({.report_errors = true}) ? 1 : 0; }

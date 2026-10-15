@@ -81,4 +81,24 @@ std::expected<ResolvedPath, PathError> resolvePackagePath(std::string_view refer
     return normalise(combined).transform([](std::string path) { return ResolvedPath{.path = std::move(path), .external = false}; });
 }
 
+bool isLoopbackAddress(std::string_view uri) noexcept {
+    const std::string_view scheme = uri.starts_with("https://") ? "https://" : "http://";
+    if (!uri.starts_with(scheme)) {
+        return false;
+    }
+    // shortened in place: substr may throw, which this noexcept function must not
+    const auto upTo = [](std::string_view text, char end) noexcept {
+        text.remove_suffix(text.size() - std::min(text.find(end), text.size()));
+        return text;
+    };
+    std::string_view rest = uri;
+    rest.remove_prefix(scheme.size());
+    const std::string_view authority = upTo(rest, '/');
+    if (authority.starts_with("[::1]")) {
+        return true;
+    }
+    const std::string_view host = upTo(authority, ':');
+    return host == "localhost" || host.starts_with("127.");
+}
+
 } // namespace gr::present
