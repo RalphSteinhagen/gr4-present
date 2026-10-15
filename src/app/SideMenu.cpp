@@ -4,6 +4,7 @@
 #include "ScopedWindow.hpp"
 
 #include <algorithm>
+#include <span>
 
 #include <imgui_internal.h>
 
@@ -13,6 +14,12 @@ namespace {
 constexpr float kProximityMarginWidthShare = 0.035f; // inside the slide's text margin, so a line's first word stays selectable
 constexpr float kRevealPerSecond           = 6.0f;
 constexpr float kItemPadding               = 0.012f;
+
+[[nodiscard]] Rectangle drawnRectangle() {
+    const ImVec2 low  = ImGui::GetItemRectMin();
+    const ImVec2 high = ImGui::GetItemRectMax();
+    return Rectangle{.x = low.x, .y = low.y, .width = high.x - low.x, .height = high.y - low.y};
+}
 
 } // namespace
 
@@ -31,7 +38,9 @@ SideMenu::ListSizes SideMenu::listSizes(std::size_t entries, float roomPoints) n
 void SideMenu::draw(const Theme& theme, float interfacePixelsPerPoint) {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     drawnEntries.clear();
-    drawnPanel = {};
+    drawnFiles.clear();
+    drawnFollowEdits = {};
+    drawnPanel       = {};
 
     const float pixelsPerPoint = interfacePixelsPerPoint;
     const float utilityPixels  = Fonts::kInterfacePoints * pixelsPerPoint;
@@ -65,6 +74,44 @@ void SideMenu::draw(const Theme& theme, float interfacePixelsPerPoint) {
         const ScopedWindow menu("##side-menu", nullptr, kWindowFlags);
         // the slide is drawn in a window of its own and would otherwise cover the menu
         ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
+
+        const float columnGap = ImGui::GetStyle().ItemSpacing.x;
+        // one control, drawn as every entry above and below the slides is: a narrow panel (a phone held upright) cuts the
+        // label with an ellipsis, as it does a slide's name; the key sits in a right-aligned column, as legible as the label
+        const auto control = [&](const std::string& label, const std::string& key, bool selected) {
+            const float keyWidth   = key.empty() ? 0.0f : ImGui::CalcTextSize(key.c_str()).x;
+            const float labelWidth = ImGui::GetContentRegionAvail().x - (keyWidth > 0.0f ? keyWidth + columnGap : 0.0f);
+            const bool  pressed    = ImGui::Selectable(Fonts::fitted(label, labelWidth).c_str(), selected);
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            }
+            if (keyWidth > 0.0f) {
+                const ImVec2 keyAt{ImGui::GetItemRectMax().x - keyWidth, ImGui::GetItemRectMin().y};
+                ImGui::GetWindowDrawList()->AddText(keyAt, dimmed(theme.text, 0.8f), key.c_str());
+            }
+            return pressed;
+        };
+        if (!files.empty()) { // the deck's files: Load, follow edits, then Save
+            const ScopedFont face(utilityPixels);
+            const auto       file = [&](std::size_t index) {
+                const ScopedIndexId perEntry{static_cast<int>(index) + 1000};
+                if (control(files[index].label, files[index].mnemonic, false)) {
+                    files[index].activate();
+                }
+                drawnFiles.emplace_back(index, drawnRectangle());
+            };
+            file(0UZ);
+            if (followEdits != nullptr) {
+                if (control(std::string{*followEdits ? Fonts::kChecked : Fonts::kUnchecked} + "  follow edits", {}, false)) {
+                    *followEdits = !*followEdits;
+                }
+                drawnFollowEdits = drawnRectangle();
+            }
+            for (std::size_t index = 1UZ; index < files.size(); ++index) {
+                file(index);
+            }
+            ImGui::Separator();
+        }
 
         // what is drawn below the list: its end, a separator, the air, a separator before each group, then the rows
         const float foot = [&] {
@@ -102,9 +149,7 @@ void SideMenu::draw(const Theme& theme, float interfacePixelsPerPoint) {
                     ImGui::SetScrollHereY(0.5f);
                     scrolledTo = shown;
                 }
-                const ImVec2 low  = ImGui::GetItemRectMin();
-                const ImVec2 high = ImGui::GetItemRectMax();
-                drawnEntries.emplace_back(index, Rectangle{.x = low.x, .y = low.y, .width = high.x - low.x, .height = high.y - low.y});
+                drawnEntries.emplace_back(index, drawnRectangle());
             }
         }
         ImGui::Separator();
@@ -115,17 +160,8 @@ void SideMenu::draw(const Theme& theme, float interfacePixelsPerPoint) {
             if (item.separatorBefore) {
                 ImGui::Separator();
             }
-            // a narrow panel (a phone held upright) cuts a label with an ellipsis, as it does a slide's name
-            const float       keyWidth = item.mnemonic.empty() ? 0.0f : ImGui::CalcTextSize(item.mnemonic.c_str()).x;
-            const std::string label    = Fonts::fitted(item.label, ImGui::GetContentRegionAvail().x - (keyWidth > 0.0f ? keyWidth + ImGui::GetStyle().ItemSpacing.x : 0.0f));
-            if (ImGui::Selectable(label.c_str())) {
+            if (control(item.label, item.mnemonic, false)) {
                 item.activate();
-            }
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-            }
-            if (keyWidth > 0.0f) { // a right-aligned column, as legible as the label it belongs to
-                ImGui::GetWindowDrawList()->AddText(ImVec2{ImGui::GetItemRectMax().x - keyWidth, ImGui::GetItemRectMin().y}, dimmed(theme.text, 0.8f), item.mnemonic.c_str());
             }
         }
     }

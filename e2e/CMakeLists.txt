@@ -86,7 +86,12 @@ if(GR4_PRESENT_WITH_OPENDIGITIZER
     gr4-present-native-display
     PUBLIC X11::X11 X11::Xtst
     PRIVATE gr4-present-options)
-  foreach(_native_test IN ITEMS qa_NativeToolbar qa_NativePresenter)
+  foreach(
+    _native_test IN
+    ITEMS qa_NativeFollowEdits
+          qa_NativeLoadSave
+          qa_NativeToolbar
+          qa_NativePresenter)
     add_executable(${_native_test} ${_native_test}.cpp)
     target_link_libraries(${_native_test} PRIVATE ut gr4-present-native-display gr4-present-options)
     add_test(NAME ${_native_test} COMMAND ${_native_test} $<TARGET_FILE:gr4-present>)
@@ -99,6 +104,10 @@ if(GR4_PRESENT_WITH_OPENDIGITIZER
                  RUN_SERIAL
                  TRUE)
   endforeach()
+  foreach(_test IN ITEMS qa_NativeFollowEdits qa_NativeLoadSave)
+    target_compile_definitions(${_test} PRIVATE GR4_PRESENT_REMOTE_DECK="${CMAKE_SOURCE_DIR}/test/fixtures/remote-deck")
+  endforeach()
+  target_include_directories(qa_NativeLoadSave PRIVATE ${CMAKE_SOURCE_DIR}/test) # FileContents.hpp
 else()
   message(STATUS "native GUI tests disabled (Xvfb: ${GR4_PRESENT_XVFB}, XTest found: ${X11_Xtst_FOUND})")
 endif()

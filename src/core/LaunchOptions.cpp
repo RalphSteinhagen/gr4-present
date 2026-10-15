@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <charconv>
+#include <format>
 #include <ranges>
 #include <string>
 
@@ -48,9 +49,27 @@ std::optional<std::string_view> LaunchOptions::value(std::string_view key) const
     return entry == (entries | std::views::reverse).end() ? std::nullopt : std::optional{std::string_view{entry->second}};
 }
 
+std::optional<std::string> localPathOf(std::string_view address) {
+    std::string_view path = address;
+    if (path.starts_with("file:")) {
+        path.remove_prefix(5UZ);
+        if (path.starts_with("//localhost/")) {
+            path.remove_prefix(11UZ);
+        } else if (path.starts_with("///")) {
+            path.remove_prefix(2UZ);
+        }
+    }
+    return path.starts_with('/') && !path.starts_with("//") ? std::optional<std::string>{std::string{path}} : std::nullopt;
+}
+
 std::optional<std::string_view> LaunchOptions::presentationBase() const noexcept {
     const auto explicitName = value("presentation");
-    return explicitName.has_value() ? explicitName : value("load");
+    auto       name         = explicitName.has_value() ? explicitName : value("load");
+    if (name.has_value() && name->size() >= 2UZ && name->front() == name->back() && (name->front() == '"' || name->front() == '\'')) {
+        name->remove_prefix(1UZ);
+        name->remove_suffix(1UZ);
+    }
+    return name;
 }
 
 void LaunchOptions::parseUrlParameters(LaunchOptions& into, std::string_view parameters) {

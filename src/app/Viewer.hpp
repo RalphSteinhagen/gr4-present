@@ -38,8 +38,10 @@
 
 #include <chrono>
 #include <ctime>
+#include <filesystem>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -113,6 +115,10 @@ struct TextSelection {
     bool                       inNotes  = false;
 };
 
+/// how the deck being loaded was asked for, which says where it opens: a launch at the address's deep link, a Load at
+/// its first view, a reload (its files changed) where it was
+enum class DeckOpening { launch, load, reload };
+
 struct Viewer {
     SDL_Window*   window    = nullptr;
     SDL_GLContext context   = nullptr;
@@ -122,10 +128,12 @@ struct Viewer {
     std::chrono::steady_clock::time_point frameStart     = {};
     std::time_t                           frameWallClock = 0; // the local clock, for the presenter's time of day and an effect's date
 
-    Theme         theme;
-    Texture       logo;
-    LoadingScreen launch;
-    bool          launchComplete = false;
+    Theme                                 theme;
+    Texture                               logo;
+    LoadingScreen                         launch;
+    bool                                  launchComplete = false;
+    std::chrono::steady_clock::time_point launchFinishedAt{}; // the deck blends in from `frameBefore`, else the splash, after it
+    Texture                               frameBefore;        // the replaced deck's last frame: held while the next one loads, then blended out
 
     LaunchOptions      options;
     PresentationLoader loader;
@@ -188,6 +196,27 @@ struct Viewer {
         bool                                  phoneCodeShown  = false; // for a test to read
         std::chrono::steady_clock::time_point openedAt        = std::chrono::steady_clock::now();
     } presenterTools;
+
+    struct {              // owned by ViewerDeckFiles.cpp
+        std::string base; // what the loader was asked for: a folder, a URL or a .md
+        DeckOpening opening        = DeckOpening::launch;
+        std::size_t problemsInMenu = 0UZ; // the diagnostics the side menu last counted
+#ifdef __EMSCRIPTEN__
+        bool following   = false; // the menu's "follow edits": a browser asks first
+        bool keptHandles = false; // the deck shown came through file handles the browser keeps (Chromium)
+#else
+        bool following = true; // the menu's "follow edits": a deck on this computer is its presenter's own
+#endif
+        std::optional<std::pair<std::string, DeckOpening>> replacing;   // a deck to load over the one shown once this frame is kept
+        std::vector<std::string>                           viewsBefore; // a reloaded deck's views and cursor, to resume on
+        Cursor                                             cursorBefore;
+        // natively, the package's files as they were when it loaded, compared every 2 s
+        std::vector<std::pair<std::filesystem::path, std::filesystem::file_time_type>> watched;
+        std::chrono::steady_clock::time_point                                          checkedAt{};
+        // a native dialog answers on a thread of SDL's, so its answer waits here for the frame
+        std::mutex                 answerLock;
+        std::optional<std::string> loadFrom;
+    } deckFiles;
 
     // built for the shown slide and its neighbours, released once the cursor settles; see `tendLiveGraphs`
     struct { // owned by ViewerLive.cpp
@@ -317,6 +346,30 @@ void drawCurrentSection(Viewer& viewer);
 void               tendLiveGraphs(Viewer& viewer);
 
 void advanceLoading(Viewer& viewer);
+
+/// the deck at `base` replaces the one shown: what was read from it is dropped and the launch screen shows the new one
+/// load; over a deck on screen the load waits for the frame's end, so its last frame can be kept and blended from
+void loadDeck(Viewer& viewer, std::string_view base, DeckOpening opening);
+/// at a frame's end, the deck `loadDeck` deferred starts loading, `lastFrame` held in its place
+void replaceShownDeck(Viewer& viewer, Texture lastFrame);
+/// Load: natively one dialog for a deck's folder, its index.yml, a lone .md or a .tar.gz; in a browser a deck's folder,
+/// copied into the in-memory file system (a .md or a .tar.gz is dropped onto the window instead)
+void chooseDeck(Viewer& viewer);
+/// a file or folder dropped onto the window (`SDL_EVENT_DROP_FILE`), loaded as Load would; in a browser a copy SDL made
+/// in the in-memory file system, which is removed (Chromium hands its file handle to the page's own listener instead)
+void loadDroppedPath(Viewer& viewer, std::string_view path);
+/// Save: the shown deck's package as <deck name>.tar.gz, in a browser a download, natively into the downloads folder
+void saveDeck(Viewer& viewer);
+#ifdef __EMSCRIPTEN__
+/// `?presentation=local:<name>` or a path on this computer (`localPathOf`), by its last name: the kept handle when it has
+/// that name, else one chosen in the picker; the deck at `builtIn` if it cannot
+void reopenLocalDeck(Viewer& viewer, std::string_view address, std::string_view builtIn);
+#endif
+/// whether the deck shown can follow edits to its files: one from this computer, in a browser through kept handles
+[[nodiscard]] bool followableDeck(const Viewer& viewer);
+/// once a frame: Ctrl+O and Ctrl+S, the answers of dialogs and pickers, a download finishing, and a changed file of the
+/// deck reloading it
+void tendDeckFiles(Viewer& viewer);
 void applyTheme(Viewer& viewer, ColourScheme scheme);
 
 void                      drawPhoneLink(Viewer& viewer);

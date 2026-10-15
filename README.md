@@ -43,6 +43,11 @@ node devtools/serve.mjs --directory cmake-build-WASM-Release/viewer-web   # then
 The browser needs the COOP/COEP headers `devtools/serve.mjs` sets.
 `--presentation=<directory or URL>` (or `?presentation=` in the address) opens another deck;
 without it the demo in `presentations/default` is shown.
+Load at the top of the side menu (`Ctrl+O`) opens a deck from this computer without a server: natively its `index.yml`, a lone `.md` or a `.tar.gz`, in a browser its folder; a `.md` or a `.tar.gz` dropped onto the window opens as well, and a deck's folder natively and in Chromium.
+A folder without `index.yml` opens its least nested `.md`.
+Save (`Ctrl+S`) writes the deck shown as `<deck name>.tar.gz` into the downloads folder.
+A deck on this computer is named by its path, `file:` before it optional as `http://` or `https://` before a remote one: natively `--presentation=file:/home/me/talks/tour`; in Chromium `?presentation=file:/home/me/talks/tour` is chosen once in the picker, whose folder (or `.md`) must carry the path's last name, and F5 reopens it.
+"Follow edits" reloads the deck when one of its files changes (natively on by default; in Chromium, whose file handles also let F5 reopen `?presentation=local:<name>`).
 A page from the web reads a deck served on this computer (`node devtools/serve.mjs --cors`) only once Chrome is allowed local network access.
 
 ## License and Copyright

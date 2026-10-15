@@ -46,7 +46,7 @@ void applyNavigationKeys(Viewer& viewer) {
         viewer.videos.toggle();
     }
 #ifdef __EMSCRIPTEN__
-    if (ImGui::IsKeyPressed(ImGuiKey_S, false) && !viewer.presenter) {
+    if (ImGui::IsKeyPressed(ImGuiKey_S, false) && !ImGui::GetIO().KeyCtrl && !viewer.presenter) { // Ctrl+S saves
         openPresenterWindow();
     }
     if (ImGui::IsKeyPressed(ImGuiKey_Q, false) && !phoneLink().empty()) {

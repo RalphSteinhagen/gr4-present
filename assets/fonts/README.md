@@ -37,7 +37,7 @@ Font Awesome is embedded as a subset of the icons the viewer actually draws: the
 
 ```sh
 pyftsubset assets/fontawesome/fa-solid-900.otf --output-file=assets/fonts/fa-solid-900.subset.otf \
-  --unicodes=U+E53D,U+F00C,U+F00D,U+F015,U+F03A,U+F053,U+F054,U+F060,U+F061,U+F062,U+F063,U+F065,U+F066,U+F06A,U+F071,U+F085,U+F0C9,U+F0E7,U+F1C1,U+F249,U+F601
+  --unicodes=U+E53D,U+F00C,U+F00D,U+F015,U+F03A,U+F053,U+F054,U+F060,U+F061,U+F062,U+F063,U+F065,U+F066,U+F06A,U+F071,U+F07C,U+F085,U+F0C7,U+F0C8,U+F0C9,U+F0E7,U+F14A,U+F1C1,U+F249,U+F601
 ```
 
 A new icon is added to that list and to `Fonts::k…`, whose test checks the code point against the published one.

@@ -28,7 +28,7 @@ struct LaunchOptions {
 
     [[nodiscard]] std::optional<std::string_view> value(std::string_view key) const noexcept;
 
-    /// the package to open: `presentation=` or `load=`
+    /// the package to open: `presentation=` or `load=`, a pair of quotes around it dropped
     [[nodiscard]] std::optional<std::string_view> presentationBase() const noexcept;
     [[nodiscard]] bool                            contains(std::string_view key) const noexcept { return value(key).has_value(); }
     void                                          set(std::string_view key, std::string_view value);
@@ -36,6 +36,10 @@ struct LaunchOptions {
     /// `mode=windowed|fullscreen`; fullscreen unless the viewer asked otherwise
     [[nodiscard]] WindowMode windowMode() const noexcept;
 };
+
+/// the path a deck's address names on this computer: `/home/…`, or `file:` before it as in `file:/home/…`,
+/// `file:///home/…` and `file://localhost/home/…` (RFC 8089); none for a URL or a relative path
+[[nodiscard]] std::optional<std::string> localPathOf(std::string_view address);
 
 } // namespace gr::present
 

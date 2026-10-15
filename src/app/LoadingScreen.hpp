@@ -3,6 +3,7 @@
 
 #include "Theme.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <string_view>
@@ -24,7 +25,13 @@ struct LoadingScreen {
     [[nodiscard]] bool      finished() const noexcept;
     [[nodiscard]] LoadStage activeStage() const noexcept; // first stage that is not complete
 
-    void draw(ImTextureID logo, ImVec2 logoSize, const Theme& theme) const;
+    /// seconds the splash, or the replaced deck's last frame, takes to fade once loading is done, the deck showing through it
+    static constexpr float kFadeSeconds = 1.0f;
+    /// the splash's opacity `seconds` after loading finished: 1 then, 0 from `kFadeSeconds` on
+    [[nodiscard]] static constexpr float fadeOpacity(float seconds) noexcept { return std::clamp(1.0f - seconds / kFadeSeconds, 0.0f, 1.0f); }
+
+    /// below an `opacity` of 1 the splash lies over the deck already drawn, in the background colour at that opacity
+    void draw(ImTextureID logo, ImVec2 logoSize, const Theme& theme, float opacity) const;
 };
 
 } // namespace gr::present

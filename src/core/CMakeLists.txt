@@ -2,6 +2,7 @@
 # buildable and testable without OpenDigitizer, ImGui or a browser.
 add_library(
   gr4-present-core STATIC
+  DeckFiles.cpp
   Diagnostics.cpp
   EffectShaderText.cpp
   EffectSource.cpp

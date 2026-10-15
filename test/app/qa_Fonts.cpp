@@ -41,6 +41,10 @@ const std::vector<Icon> kIcons{
     {.name = "note-sticky", .constant = Fonts::kNotes, .published = 0xf249},
     {.name = "person-chalkboard", .constant = Fonts::kPresenter, .published = 0xe53d},
     {.name = "file-pdf", .constant = Fonts::kPdf, .published = 0xf1c1},
+    {.name = "folder-open", .constant = Fonts::kFolder, .published = 0xf07c},
+    {.name = "floppy-disk", .constant = Fonts::kSave, .published = 0xf0c7},
+    {.name = "square-check", .constant = Fonts::kChecked, .published = 0xf14a},
+    {.name = "square", .constant = Fonts::kUnchecked, .published = 0xf0c8},
 };
 
 /// the three bytes UTF-8 spends on a codepoint in Font Awesome's private-use range

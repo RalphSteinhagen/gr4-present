@@ -51,13 +51,23 @@ void drawScenario(const Scenario& scenario) {
 
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::GetBackgroundDrawList()->AddRectFilled(viewport->Pos, ImVec2{viewport->Pos.x + viewport->Size.x, viewport->Pos.y + viewport->Size.y}, ImGui::ColorConvertFloat4ToU32(theme.backgroundColour()));
-    screen.draw(logo.id, logo.scaledToWidth(kLogoWidth), theme);
+    screen.draw(logo.id, logo.scaledToWidth(kLogoWidth), theme, 1.0f);
 }
 
 } // namespace
 
 const boost::ut::suite<"LaunchScreen"> launchScreenTests = [] {
     "the ImGui test engine ran every launch-screen scenario"_test = [] { expect(gEngineSucceeded); };
+
+    // Ground truth: a linear fade over kFadeSeconds = 1 s, from opaque when loading finishes to gone
+    "the splash fades linearly from opaque to gone over one second after loading, then stays gone"_test = [] {
+        expect(eq(LoadingScreen::fadeOpacity(0.0f), 1.0f));
+        expect(eq(LoadingScreen::fadeOpacity(0.25f), 0.75f));
+        expect(eq(LoadingScreen::fadeOpacity(0.5f), 0.5f));
+        expect(eq(LoadingScreen::fadeOpacity(1.0f), 0.0f));
+        expect(eq(LoadingScreen::fadeOpacity(30.0f), 0.0f)) << "a deck shown long ago has no splash over it";
+        expect(eq(LoadingScreen::fadeOpacity(-1.0f), 1.0f)) << "a clock read before the end of loading is not more than opaque";
+    };
 
     for (const Scenario& scenario : kScenarios) {
         const std::filesystem::path captured  = Harness::captureDirectory() / (scenario.name + ".png");

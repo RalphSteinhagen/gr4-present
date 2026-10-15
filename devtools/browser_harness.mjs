@@ -116,6 +116,7 @@ export const openPage = async (browser, url) => {
   const socket = new WebSocket(target.webSocketDebuggerUrl);
   const pending = new Map();
   const consoleLines = [];
+  const events = []; // every protocol event, for a test that waits on one (a file chooser opening, a download)
   let nextId = 0;
 
   socket.onmessage = (event) => {
@@ -123,6 +124,9 @@ export const openPage = async (browser, url) => {
     if (message.id && pending.has(message.id)) {
       pending.get(message.id)(message);
       pending.delete(message.id);
+    }
+    if (message.method) {
+      events.push(message);
     }
     if (message.method === "Runtime.consoleAPICalled") {
       consoleLines.push(`${message.params.type}: ${message.params.args.map((a) => a.value ?? a.description ?? "").join(" ")}`);
@@ -159,6 +163,10 @@ export const openPage = async (browser, url) => {
     command,
     consoleLines,
     waitFor: (expression, timeoutMs = kDefaultTimeoutMs) => untilReachable(() => evaluate(expression), expression, timeoutMs),
+    /// the first event named `method` from index `from` of the events seen, as it arrives
+    waitForEvent: (method, from = 0, timeoutMs = kDefaultTimeoutMs) =>
+      untilReachable(() => events.slice(from).find((event) => event.method === method), method, timeoutMs),
+    eventCount: () => events.length,
     press: async (key, code, windowsVirtualKeyCode) => {
       for (const type of ["rawKeyDown", "keyUp"]) {
         await command("Input.dispatchKeyEvent", { type, key, code, windowsVirtualKeyCode, nativeVirtualKeyCode: windowsVirtualKeyCode });

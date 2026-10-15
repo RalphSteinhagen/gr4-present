@@ -188,6 +188,15 @@ void buildSideMenu(Viewer& viewer) {
             .separatorBefore = false,
             .mnemonic        = {}});
     }
+    // the deck's files, at the top; the presenter's window follows the audience's deck, so it has none
+    viewer.menu.files.clear();
+    if (!viewer.presenter) {
+        viewer.menu.files.push_back({.label = std::string{Fonts::kFolder} + "  Load", .activate = [&viewer] { chooseDeck(viewer); }, .separatorBefore = false, .mnemonic = "Ctrl+O"});
+        viewer.menu.files.push_back({.label = std::string{Fonts::kSave} + "  Save", .activate = [&viewer] { saveDeck(viewer); }, .separatorBefore = false, .mnemonic = "Ctrl+S"});
+    }
+    const bool followable   = !viewer.presenter && followableDeck(viewer); // the presenter's window follows the audience's
+    viewer.menu.followEdits = followable ? &viewer.deckFiles.following : nullptr;
+
     // what the menu can do, rather than where it can go: kept at its foot, out of the scrolling list
     viewer.menu.utilities.clear();
     const std::string diagnosticsLabel  = viewer.diagnostics.empty() ? std::string{"no problems"} : std::string{Fonts::kWarning} + std::format("  problems ({})", viewer.diagnostics.entries.size());

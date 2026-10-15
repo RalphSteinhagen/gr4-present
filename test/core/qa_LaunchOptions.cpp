@@ -16,6 +16,18 @@ namespace {
 } // namespace
 
 const suite<"LaunchOptions"> launchOptionTests = [] {
+    "a package named in quotes is the name inside them; an unmatched quote stays"_test = [] {
+        const auto named = [](std::string_view parameter) {
+            LaunchOptions options;
+            LaunchOptions::parseUrlParameters(options, parameter);
+            return std::string{options.presentationBase().value_or("")};
+        };
+        expect(eq(named(R"(presentation="file:/home/me/tour/")"), std::string{"file:/home/me/tour/"}));
+        expect(eq(named("presentation=%22/home/me/tour%22"), std::string{"/home/me/tour"})) << "as a browser sends it";
+        expect(eq(named("presentation='local:tour'"), std::string{"local:tour"}));
+        expect(eq(named(R"(presentation="talks/demo)"), std::string{R"("talks/demo)"}));
+    };
+
     "presentation and load name the same package, whichever case they are written in"_test = [] {
         for (const std::string_view spelling : {"presentation", "load", "PRESENTATION", "Load"}) {
             LaunchOptions options;
@@ -29,6 +41,17 @@ const suite<"LaunchOptions"> launchOptionTests = [] {
         LaunchOptions options;
         LaunchOptions::parseUrlParameters(options, "load=old/package&presentation=new/package");
         expect(eq(options.presentationBase().value_or(""), std::string_view{"new/package"}));
+    };
+
+    "file: is optional before a deck's path on this computer, in each of its spellings (RFC 8089)"_test = [] {
+        expect(localPathOf("/home/me/tour") == std::optional<std::string>{"/home/me/tour"});
+        expect(localPathOf("file:/home/me/tour/") == std::optional<std::string>{"/home/me/tour/"});
+        expect(localPathOf("file:///home/me/tour") == std::optional<std::string>{"/home/me/tour"});
+        expect(localPathOf("file://localhost/home/me/tour") == std::optional<std::string>{"/home/me/tour"});
+        expect(!localPathOf("file://otherhost/home/me/tour").has_value()) << "another computer's file";
+        expect(!localPathOf("https://example.org/tour").has_value());
+        expect(!localPathOf("talks/tour").has_value()) << "a relative path";
+        expect(!localPathOf("local:tour").has_value());
     };
 
     "no package named means none reported"_test = [] {

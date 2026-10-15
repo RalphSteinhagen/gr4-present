@@ -5,10 +5,12 @@
 #include <X11/extensions/XTest.h>
 
 #include <algorithm>
+#include <array>
 #include <csignal>
 #include <cstdlib>
 #include <fcntl.h>
 #include <format>
+#include <limits>
 #include <spawn.h>
 #include <string>
 #include <sys/wait.h>
@@ -150,6 +152,55 @@ void Screen::key(std::string_view keysym) {
     XTestFakeKeyEvent(_display, code, False, 0);
     XFlush(_display);
     std::this_thread::sleep_for(1500ms);
+}
+
+void Screen::chord(std::string_view held, std::string_view keysym) {
+    const KeyCode modifier = XKeysymToKeycode(_display, XStringToKeysym(std::string{held}.c_str()));
+    XTestFakeKeyEvent(_display, modifier, True, 0);
+    XFlush(_display);
+    std::this_thread::sleep_for(100ms);
+    const KeyCode code = XKeysymToKeycode(_display, XStringToKeysym(std::string{keysym}.c_str()));
+    XTestFakeKeyEvent(_display, code, True, 0);
+    XFlush(_display);
+    std::this_thread::sleep_for(100ms);
+    XTestFakeKeyEvent(_display, code, False, 0);
+    XTestFakeKeyEvent(_display, modifier, False, 0);
+    XFlush(_display);
+    std::this_thread::sleep_for(1500ms);
+}
+
+std::string pixelsOutsideBlend(const Pixels& frame, const Pixels& before, const Pixels& after) {
+    const auto channel = [](std::uint32_t pixel, int shift) { return static_cast<int>((pixel >> shift) & 0xFFU); };
+    const auto outside = [&](std::uint32_t seen, std::uint32_t from, std::uint32_t to) {
+        return std::ranges::any_of(std::array{0, 8, 16}, [&](int shift) {
+            const int low  = std::min(channel(from, shift), channel(to, shift)) - kBlendRoundingSteps;
+            const int high = std::max(channel(from, shift), channel(to, shift)) + kBlendRoundingSteps;
+            return channel(seen, shift) < low || channel(seen, shift) > high;
+        });
+    };
+    std::size_t count  = 0UZ;
+    int         left   = std::numeric_limits<int>::max();
+    int         top    = std::numeric_limits<int>::max();
+    int         right  = -1;
+    int         bottom = -1;
+    std::string example;
+    for (std::size_t row = 0UZ; row < frame.size(); ++row) {
+        for (std::size_t column = 0UZ; column < frame[row].size(); ++column) {
+            if (!outside(frame[row][column], before[row][column], after[row][column])) {
+                continue;
+            }
+            const int x = static_cast<int>(column);
+            const int y = static_cast<int>(row);
+            left        = std::min(left, x);
+            top         = std::min(top, y);
+            right       = std::max(right, x);
+            bottom      = std::max(bottom, y);
+            if (count++ == 0UZ) {
+                example = std::format("({}, {}) {:06x}, between {:06x} and {:06x}", x, y, frame[row][column], before[row][column], after[row][column]);
+            }
+        }
+    }
+    return count == 0UZ ? std::string{} : std::format("{} pixels in {}x{} at ({}, {}), e.g. {}", count, right - left + 1, bottom - top + 1, left, top, example);
 }
 
 Pixels Screen::pixels(Box box, int stride) const {
