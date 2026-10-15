@@ -123,7 +123,7 @@ EM_JS(void, joinRelay, (), {
 });
 EM_JS(void, publishExport, (int pages, const char* outcome), { globalThis.gr4Export = { pages: pages, outcome: UTF8ToString(outcome) }; });
 // clang-format off
-// a window or tab this one opens shows the same deck: the address's `presentation` stays in its query
+// a window or tab this one opens shows the same deck: the address's `presentation` (a kept deck it reopens itself)
 EM_JS(void, openPresenterWindow, (), {
     const query = new URLSearchParams(location.search);
     query.set("presenter", "");
@@ -280,6 +280,17 @@ void publishRegionBounds(const Viewer& viewer) {
     for (const auto& [index, entry] : viewer.menu.drawnEntries) {
         menuEntries += std::format("{}[{},{},{},{},{}]", menuEntries.empty() ? "" : ",", index, std::lround(entry.x), std::lround(entry.y), std::lround(entry.width), std::lround(entry.height));
     }
+    std::string fileEntries; // ["file", 0, x, y, w, h] for Load, ["follow", 0, …] for its check box
+    const auto  addFileEntry = [&fileEntries](std::string_view kind, std::size_t index, const Rectangle& box) {
+        const std::string at = std::format("{},{},{},{}", std::lround(box.x), std::lround(box.y), std::lround(box.width), std::lround(box.height));
+        fileEntries += std::format("{}[\"{}\",{},{}]", fileEntries.empty() ? "" : ",", kind, index, at);
+    };
+    for (const auto& [index, entry] : viewer.menu.drawnFiles) {
+        addFileEntry("file", index, entry);
+    }
+    if (const Rectangle& follow = viewer.menu.drawnFollowEdits; follow.width > 0.0f) {
+        addFileEntry("follow", 0UZ, follow);
+    }
     const auto quoted = [](std::string_view text) {
         std::string json = "\"";
         for (const char letter : text) {
@@ -303,7 +314,7 @@ void publishRegionBounds(const Viewer& viewer) {
             links += std::format("{}[{},{},{},{},{}]", links.empty() ? "" : ",", std::lround(link.area.x), std::lround(link.area.y), std::lround(link.area.width), std::lround(link.area.height), quoted(link.target));
         }
     }
-    const std::string  script = std::format("window.gr4TextRuns = [{}]; window.gr4Links = [{}]; window.gr4Regions = {{{}}}; window.gr4ChartType = [{:.2f}, {:.4f}, {:.4f}]; window.gr4Zoom = [{:.3f}, {:.1f}, {:.1f}]; window.gr4VideoButtons = [{}]; window.gr4VideoPosition = {:.2f}; window.gr4InfoBox = [{}]; window.gr4CameraFrame = [{:.3f},{:.3f},{:.3f},{:.3f}]; window.gr4CameraRotation = {:.1f}; window.gr4PhoneCode = {}; window.gr4NotesButtons = [{}]; window.gr4MenuEntries = [{}]; window.gr4NotesArea = [{}]; window.gr4LiveSource = {{{}}}; window.gr4Toolbars = {{{}}}; window.gr4Graphs = {{{}}}; window.gr4Miniatures = [{}];", textRuns, links, regions, chartBodyPixels(), small, tiny, viewer.zoom.scale, viewer.zoom.offsetX, viewer.zoom.offsetY, buttons, clipPosition, infoBox, frameDrawn.x, frameDrawn.y, frameDrawn.width, frameDrawn.height, viewer.documentView.cameraRotation, viewer.presenterTools.phoneCodeShown ? "true" : "false", notesButtons, menuEntries, notesArea, liveSources, toolbars, graphs, miniatures);
+    const std::string  script = std::format("window.gr4TextRuns = [{}]; window.gr4Links = [{}]; window.gr4Regions = {{{}}}; window.gr4ChartType = [{:.2f}, {:.4f}, {:.4f}]; window.gr4Zoom = [{:.3f}, {:.1f}, {:.1f}]; window.gr4VideoButtons = [{}]; window.gr4VideoPosition = {:.2f}; window.gr4InfoBox = [{}]; window.gr4CameraFrame = [{:.3f},{:.3f},{:.3f},{:.3f}]; window.gr4CameraRotation = {:.1f}; window.gr4PhoneCode = {}; window.gr4NotesButtons = [{}]; window.gr4MenuEntries = [{}]; window.gr4FileEntries = [{}]; window.gr4NotesArea = [{}]; window.gr4LiveSource = {{{}}}; window.gr4Toolbars = {{{}}}; window.gr4Graphs = {{{}}}; window.gr4Miniatures = [{}];", textRuns, links, regions, chartBodyPixels(), small, tiny, viewer.zoom.scale, viewer.zoom.offsetX, viewer.zoom.offsetY, buttons, clipPosition, infoBox, frameDrawn.x, frameDrawn.y, frameDrawn.width, frameDrawn.height, viewer.documentView.cameraRotation, viewer.presenterTools.phoneCodeShown ? "true" : "false", notesButtons, menuEntries, fileEntries, notesArea, liveSources, toolbars, graphs, miniatures);
     static std::string published;
     if (script != published) {
         published = script;

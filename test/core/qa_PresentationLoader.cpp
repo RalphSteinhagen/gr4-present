@@ -414,6 +414,46 @@ const suite<"PresentationLoader"> presentationLoaderTests = [] {
         expect(!loader.diagnostics.anyFatal());
     };
 
+    "a lone Markdown file loads as a deck of its own: its folder the package, a manifest written for it"_test = [] {
+        const auto directory = std::filesystem::temp_directory_path() / "gr4-present-lone-md";
+        std::filesystem::create_directories(directory / "figures");
+        std::ofstream{directory / "solo.md"} << "## alone\n\n![beside](figures/beside.svg)\n";
+        std::ofstream{directory / "figures" / "beside.svg"} << "<svg xmlns='http://www.w3.org/2000/svg'/>";
+
+        PresentationLoader loader;
+        loader.retryPolicy.enabled = false;
+        loader.begin((directory / "solo.md").string(), kFrame);
+        expect(settle(loader) == LoadState::ready) << loader.diagnostic();
+        expect(eq(loader.manifest().entry, std::string{"solo.md"}));
+        expect(eq(loader.manifest().title, std::string{"solo"}));
+        expect(eq(loader.baseUri(), directory.string())) << "the package is the file's folder";
+        expect(loader.documentSource().contains("alone"));
+        expect(!loader.figureBytes("figures/beside.svg").empty()) << "a figure beside the file is part of its package";
+        const auto written = parseManifest(loader.manifestSource());
+        expect(written.has_value() && written->entry == "solo.md") << "a saved copy would not open: " << loader.manifestSource();
+    };
+
+    "the package's files are the manifest, the entry and each figure once, by its package path, none from the web"_test = [] {
+        const auto directory = std::filesystem::temp_directory_path() / "gr4-present-package-files";
+        std::filesystem::create_directories(directory / "figures");
+        std::ofstream{directory / "index.yml"} << "format: gr4-presentation/1\ntitle: files\nentry: talk.md\n";
+        std::ofstream{directory / "talk.md"} << "## files\n\n![one](figures/a.svg) ![again](./figures/a.svg) ![web](https://example.invalid/b.png)\n";
+        std::ofstream{directory / "figures" / "a.svg"} << "<svg xmlns='http://www.w3.org/2000/svg'/>";
+
+        PresentationLoader loader;
+        loader.retryPolicy.enabled = false;
+        loader.begin(directory.string(), kFrame);
+        expect(fatal(settle(loader) == LoadState::ready)) << loader.diagnostic();
+        const std::vector<PackageFile> files = loader.packageFiles();
+        const auto                     paths = files | std::views::transform(&PackageFile::path) | std::ranges::to<std::vector<std::string>>();
+        expect(paths == std::vector<std::string>{"index.yml", "talk.md", "figures/a.svg"}) << "got " << paths.size() << " files";
+        const auto textOf = [](std::span<const std::uint8_t> bytes) { return std::string{reinterpret_cast<const char*>(bytes.data()), bytes.size()}; };
+        expect(fatal(eq(files.size(), 3UZ)));
+        expect(eq(textOf(files[0].bytes), std::string{"format: gr4-presentation/1\ntitle: files\nentry: talk.md\n"})) << "the manifest as read";
+        expect(textOf(files[1].bytes).starts_with("## files"));
+        expect(eq(textOf(files[2].bytes), std::string{"<svg xmlns='http://www.w3.org/2000/svg'/>"}));
+    };
+
     "references resolve against the base, whatever the scheme"_test = [] {
         PresentationLoader loader;
         loader.begin("https://example.invalid/talks/demo", kFrame);

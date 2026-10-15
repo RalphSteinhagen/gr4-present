@@ -18,6 +18,7 @@ enum class DiagnosticKind {
     unsupportedBlock,
     crossOriginFailure,
     archiveError,
+    saveFailed,
     invalidNavigationTarget,
     versionMismatch,
     clippedContent,

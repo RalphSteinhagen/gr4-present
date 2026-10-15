@@ -59,6 +59,10 @@ struct Fonts {
     static constexpr std::string_view kNotes     = "\xef\x89\x89"; // note-sticky
     static constexpr std::string_view kPresenter = "\xee\x94\xbd"; // person-chalkboard
     static constexpr std::string_view kPdf       = "\xef\x87\x81"; // file-pdf
+    static constexpr std::string_view kFolder    = "\xef\x81\xbc"; // folder-open
+    static constexpr std::string_view kSave      = "\xef\x83\x87"; // floppy-disk
+    static constexpr std::string_view kChecked   = "\xef\x85\x8a"; // square-check
+    static constexpr std::string_view kUnchecked = "\xef\x83\x88"; // square
     static constexpr std::string_view kEllipsis  = "\xe2\x80\xa6";
 
     [[nodiscard]] static Fonts& instance() {

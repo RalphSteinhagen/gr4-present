@@ -14,7 +14,9 @@
 #include <boost/ut.hpp>
 
 #include <chrono>
+#include <cmath>
 #include <filesystem>
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -42,6 +44,68 @@ const std::vector<Scenario> kScenarios{
 };
 
 bool gEngineSucceeded = false;
+
+// the deck's file row, driven by the test engine's pointer: what each press reached
+struct FileRowPresses {
+    int  loads       = 0;
+    int  saves       = 0;
+    bool stacked     = false; // Load, follow edits and Save beneath each other, as wide and high as each other
+    bool following   = true;  // the "follow edits" check box's flag, ticked to begin with
+    bool followShown = false; // the check box drawn under the row
+} gFileRow;
+
+SideMenu& fileRowMenu() {
+    static SideMenu menu = [] {
+        const auto entry = [](std::string label, std::function<void()> activate, std::string key) { return SideMenu::Item{.label = std::move(label), .activate = std::move(activate), .separatorBefore = false, .mnemonic = std::move(key)}; };
+        SideMenu   built;
+        built.items       = {entry("intro", [] {}, {})};
+        built.utilities   = {entry("notes", [] {}, "N")};
+        built.files       = {entry(std::string{Fonts::kFolder} + "  Load", [] { ++gFileRow.loads; }, "Ctrl+O"), entry(std::string{Fonts::kSave} + "  Save", [] { ++gFileRow.saves; }, "Ctrl+S")};
+        built.followEdits = &gFileRow.following;
+        return built;
+    }();
+    return menu;
+}
+
+void drawFileRow() {
+    Fonts::instance().load();
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    SideMenu&            menu     = fileRowMenu();
+    if (ImGui::GetIO().MousePos.x > 300.0f || ImGui::GetIO().MousePos.x < 0.0f) {
+        ImGui::GetIO().MousePos = ImVec2{4.0f, viewport->Size.y * 0.5f}; // inside the margin that opens the menu
+    }
+    menu.revealed = 1.0f;
+    menu.draw(themeFor(ColourScheme::dark), Fonts::kPixelsPerPoint);
+}
+
+[[nodiscard]] ImVec2 centreOf(const Rectangle& box) { return ImVec2{box.x + box.width * 0.5f, box.y + box.height * 0.5f}; }
+
+void pressFileRow(ImGuiTestContext* context) {
+    SideMenu& menu = fileRowMenu();
+    context->Yield(3);
+    const auto&      row    = menu.drawnFiles;
+    const Rectangle& follow = menu.drawnFollowEdits;
+    if (row.size() != 2UZ) {
+        return;
+    }
+    // the panel's first item sits a fraction of a pixel further in: the same size is the same to a pixel
+    const auto sameSize  = [](const Rectangle& one, const Rectangle& other) { return std::abs(one.width - other.width) <= 1.0f && std::abs(one.height - other.height) <= 1.0f; };
+    gFileRow.stacked     = row[0].second.y < follow.y && follow.y < row[1].second.y && sameSize(row[0].second, follow) && sameSize(follow, row[1].second);
+    const Rectangle load = row[0].second;
+    const Rectangle save = row[1].second;
+    context->MouseMoveToPos(centreOf(load));
+    context->MouseClick(0);
+    context->Yield(2);
+    context->MouseMoveToPos(centreOf(save));
+    context->MouseClick(0);
+    context->Yield(2);
+    gFileRow.followShown = menu.drawnFollowEdits.width > 0.0f;
+    if (gFileRow.followShown) {
+        context->MouseMoveToPos(centreOf(menu.drawnFollowEdits));
+        context->MouseClick(0);
+        context->Yield(2);
+    }
+}
 
 void drawScenario(const Scenario& scenario) {
     // the real default package, loaded the way the application loads it
@@ -98,6 +162,14 @@ void drawScenario(const Scenario& scenario) {
 const boost::ut::suite<"MainScreen"> mainScreenTests = [] {
     "the ImGui test engine ran every main-screen scenario"_test = [] { expect(gEngineSucceeded); };
 
+    "the deck's files: Load, follow edits and Save beneath each other, each pressed once"_test = [] {
+        expect(gFileRow.stacked) << "Load, follow edits and Save are not beneath each other, each as wide and high";
+        expect(eq(gFileRow.loads, 1)) << "Load ran once";
+        expect(eq(gFileRow.saves, 1)) << "Save ran once";
+        expect(gFileRow.followShown) << "a deck that can be followed shows follow edits";
+        expect(!gFileRow.following) << "a click on follow edits, while on, turns it off";
+    };
+
     for (const Scenario& scenario : kScenarios) {
         const std::filesystem::path captured  = Harness::captureDirectory() / (scenario.name + ".png");
         const std::filesystem::path reference = Harness::referenceDirectory() / (scenario.name + ".png");
@@ -126,6 +198,7 @@ int main() {
             [&scenario](ImGuiTestContext*) { drawScenario(scenario); }, //
             [&scenario](ImGuiTestContext* context) { Harness::captureTo(context, scenario.name); });
     }
+    harness.addTest("file-row", [](ImGuiTestContext*) { drawFileRow(); }, pressFileRow);
     gEngineSucceeded = harness.run();
     return 0;
 }

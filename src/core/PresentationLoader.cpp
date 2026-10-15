@@ -94,12 +94,14 @@ void PresentationLoader::startRequest(std::string_view uri, std::chrono::steady_
 }
 
 void PresentationLoader::begin(std::string_view baseUri, std::chrono::steady_clock::time_point now) {
-    _baseUri  = std::string{baseUri};
-    _state    = LoadState::loading;
-    _step     = Step::manifest;
-    _progress = 0.0f;
+    _requestedUri = std::string{baseUri};
+    _baseUri      = std::string{baseUri};
+    _state        = LoadState::loading;
+    _step         = Step::manifest;
+    _progress     = 0.0f;
     _diagnostic.clear();
     _manifest = {};
+    _manifestSource.clear();
     _documentSource.clear();
     _pendingFigures.clear();
     _optionalFigures.clear();
@@ -107,13 +109,28 @@ void PresentationLoader::begin(std::string_view baseUri, std::chrono::steady_clo
     _figureCount = 0UZ;
     _figures.clear();
     ++_attempts;
+    if (baseUri.ends_with(".md")) {
+        const auto        slash = baseUri.rfind('/');
+        const std::string entry{slash == std::string_view::npos ? baseUri : baseUri.substr(slash + 1UZ)};
+        const auto        escaped     = [](char c) { return c == '"' || c == '\\' ? std::string{'\\', c} : std::string{c}; };
+        const std::string quotedEntry = entry | std::views::transform(escaped) | std::views::join | std::ranges::to<std::string>();
+        _baseUri                      = slash == std::string_view::npos ? std::string{"."} : std::string{baseUri.substr(0UZ, slash)};
+        _manifestSource               = std::format("format: {}\nentry: \"{}\"\n", kSupportedManifestFormat, quotedEntry); // what a saved copy opens with
+        _manifest.format              = kSupportedManifestFormat;
+        _manifest.title               = entry.substr(0UZ, entry.size() - 3UZ);
+        _manifest.entry               = entry;
+        _progress                     = 0.5f;
+        _step                         = Step::document;
+        startRequest(resolve(entry), now);
+        return;
+    }
     startRequest(resolve(kManifestName), now);
 }
 
 void PresentationLoader::advance(std::chrono::steady_clock::time_point now) {
     if (_state == LoadState::failed && retryPolicy.enabled && now >= _nextAttempt) {
         const std::size_t attempts = _attempts;
-        begin(_baseUri, now);
+        begin(std::string{_requestedUri}, now);
         _attempts = attempts + 1UZ;
         return;
     }
@@ -150,7 +167,8 @@ void PresentationLoader::advance(std::chrono::steady_clock::time_point now) {
 
     if (_step == Step::manifest) {
         const std::string_view text{reinterpret_cast<const char*>(_request->bytes.data()), _request->bytes.size()};
-        const auto             parsed = parseManifest(text);
+        _manifestSource   = std::string{text};
+        const auto parsed = parseManifest(text);
         if (!parsed) {
             const bool tooOld = parsed.error().kind == ManifestError::Kind::viewerTooOld;
             diagnostics.report(tooOld ? DiagnosticKind::versionMismatch : DiagnosticKind::missingManifest, _baseUri, parsed.error().message(), true);
@@ -338,6 +356,21 @@ void PresentationLoader::pollFigures() {
     const std::size_t done = _figureCount - _pendingFigures.size() - _inFlight.size();
     _progress              = _figureCount == 0UZ ? 1.0f : 0.75f + 0.25f * static_cast<float>(done) / static_cast<float>(_figureCount);
     fillRequests();
+}
+
+std::vector<PackageFile> PresentationLoader::packageFiles() const {
+    const auto               bytesOf = [](std::string_view text) { return std::span{reinterpret_cast<const std::uint8_t*>(text.data()), text.size()}; };
+    std::vector<PackageFile> files{{.path = std::string{kManifestName}, .bytes = bytesOf(_manifestSource)}};
+    if (const auto entry = resolvePackagePath({}, _manifest.entry); entry && !entry->external) {
+        files.push_back({.path = entry->path, .bytes = bytesOf(_documentSource)});
+    }
+    for (const auto& [reference, bytes] : _figures) {
+        const auto resolved = resolvePackagePath({}, reference);
+        if (resolved && !resolved->external && !std::ranges::contains(files, resolved->path, &PackageFile::path)) {
+            files.push_back({.path = resolved->path, .bytes = bytes});
+        }
+    }
+    return files;
 }
 
 std::span<const std::uint8_t> PresentationLoader::figureBytes(std::string_view reference) const noexcept {

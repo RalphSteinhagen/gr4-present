@@ -37,6 +37,12 @@ struct FilesToFetch {
 };
 [[nodiscard]] FilesToFetch filesToFetch(const Document& document, const Manifest& manifest, std::span<const std::string> builtInEffects);
 
+/// one file of a loaded package, by its package-relative path; the bytes are the loader's
+struct PackageFile {
+    std::string                   path;
+    std::span<const std::uint8_t> bytes;
+};
+
 class PresentationLoader {
 public:
     static constexpr std::string_view kManifestName = "index.yml";
@@ -51,7 +57,8 @@ public:
     Diagnostics              diagnostics;
     std::vector<std::string> builtInEffects; // effect names the viewer has itself: a bare one is never looked for in the deck
 
-    // `now` is the frame's time: a failed load is retried once `now` reaches the end of its back-off
+    // `now` is the frame's time: a failed load is retried once `now` reaches the end of its back-off; a base ending in
+    // `.md` is a deck of its own, that document the entry, its directory the package and the manifest's defaults its own
     void begin(std::string_view baseUri, std::chrono::steady_clock::time_point now);
     void advance(std::chrono::steady_clock::time_point now);
 
@@ -60,8 +67,12 @@ public:
     [[nodiscard]] const Manifest&  manifest() const noexcept { return _manifest; }
     [[nodiscard]] std::string_view diagnostic() const noexcept { return _diagnostic; }
     [[nodiscard]] std::string_view baseUri() const noexcept { return _baseUri; }
-    /// the entry document's source, as named by the manifest
     [[nodiscard]] std::string_view documentSource() const noexcept { return _documentSource; }
+    /// the manifest as read, or as written for a lone `.md`
+    [[nodiscard]] std::string_view manifestSource() const noexcept { return _manifestSource; }
+
+    /// every file of the loaded package: manifest, entry document and each figure read from inside the package, once each
+    [[nodiscard]] std::vector<PackageFile> packageFiles() const;
 
     /// bytes of a figure the entry document referenced, empty when it was not fetched or could not be read
     [[nodiscard]] std::span<const std::uint8_t> figureBytes(std::string_view reference) const noexcept;
@@ -79,7 +90,9 @@ private:
     LoadState                                                     _state    = LoadState::idle;
     Step                                                          _step     = Step::manifest;
     float                                                         _progress = 0.0f;
+    std::string                                                   _requestedUri; // what `begin` was given, which a retry asks for again
     std::string                                                   _baseUri;
+    std::string                                                   _manifestSource;
     std::string                                                   _diagnostic;
     Manifest                                                      _manifest;
     std::string                                                   _documentSource;

@@ -127,6 +127,7 @@ add_executable(
   main.cpp
   Viewer.hpp
   ViewerBrowser.cpp
+  ViewerDeckFiles.cpp
   ViewerEffects.cpp
   ViewerStage.cpp
   ViewerExport.cpp

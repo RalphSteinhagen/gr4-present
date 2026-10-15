@@ -265,6 +265,7 @@ Ground truth is independent — a specification, an analytic result, a second im
 each `qa_` file SHOULD hold at least one such scenario.
 Reference images are regression oracles, not ground truth.
 Never weaken an assertion, loosen a tolerance or drop a case to pass: a failing test is right until proven otherwise.
+Recorded counter-example (2026-10-15): the end-to-end check of a blend between two pictures allows one step of 255 (`kBlendRoundingSteps`), as Mesa's llvmpipe in CI's image rounds alpha blending; exact composition would need a shader pass for a difference no one sees.
 Pure arithmetic with an analytic ground truth MUST be a named function with its own scenario, however small;
 reaching it through the whole application does not count.
 Numerical correctness is not visual plausibility:

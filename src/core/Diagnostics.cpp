@@ -16,6 +16,7 @@ std::string_view describe(DiagnosticKind kind) noexcept {
     case DiagnosticKind::unsupportedBlock: return "unsupported block";
     case DiagnosticKind::crossOriginFailure: return "cross-origin fetch refused";
     case DiagnosticKind::archiveError: return "archive could not be read";
+    case DiagnosticKind::saveFailed: return "deck could not be saved";
     case DiagnosticKind::invalidNavigationTarget: return "navigation target does not exist";
     case DiagnosticKind::versionMismatch: return "presentation needs a newer viewer";
     case DiagnosticKind::clippedContent: return "content does not fit its box";

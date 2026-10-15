@@ -1,5 +1,6 @@
 #include "Viewer.hpp"
 
+#include <gr4-present/DeckFiles.hpp>
 #include <gr4-present/EffectSource.hpp>
 #include <gr4-present/Number.hpp>
 #include <gr4-present/PackagePath.hpp>
@@ -148,16 +149,21 @@ void advanceLoading(Viewer& viewer) {
         viewer.diagnostics.report(DiagnosticKind::invalidNavigationTarget, "the deck's views", std::string{message(valid.error())});
     }
     viewer.navigator.cursor = Cursor{.viewId = viewer.navigator.graph.views.front().id, .step = 0UZ};
-    // a deep link names where to start; an unknown view id does not fail the load
-    if (const auto requested = viewer.options.value("view"); requested.has_value()) {
-        if (!viewer.navigator.jumpTo(viewNamed(viewer, *requested))) {
-            viewer.diagnostics.report(DiagnosticKind::invalidNavigationTarget, std::string{*requested}, "the link names a view this presentation does not have");
+    switch (viewer.deckFiles.opening) {
+    case DeckOpening::launch: // a deep link names where to start; an unknown view id does not fail the load
+        if (const auto requested = viewer.options.value("view"); requested.has_value()) {
+            if (!viewer.navigator.jumpTo(viewNamed(viewer, *requested))) {
+                viewer.diagnostics.report(DiagnosticKind::invalidNavigationTarget, std::string{*requested}, "the link names a view this presentation does not have");
+            }
         }
-    }
-    if (const auto requested = viewer.options.value("step"); requested.has_value()) {
-        if (const auto parsed = parseNumber<std::size_t>(*requested); parsed) {
-            viewer.navigator.cursor.step = *parsed;
+        if (const auto requested = viewer.options.value("step"); requested.has_value()) {
+            if (const auto parsed = parseNumber<std::size_t>(*requested); parsed) {
+                viewer.navigator.cursor.step = *parsed;
+            }
         }
+        break;
+    case DeckOpening::load: break;
+    case DeckOpening::reload: viewer.navigator.cursor = cursorAfterReload(viewer.deckFiles.viewsBefore, viewer.deckFiles.cursorBefore, viewer.navigator.graph); break;
     }
     for (const std::string& warning : whole.warnings) {
         viewer.diagnostics.report(DiagnosticKind::unsupportedBlock, viewer.loader.manifest().entry, warning);

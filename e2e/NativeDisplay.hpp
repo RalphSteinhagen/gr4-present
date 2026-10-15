@@ -22,6 +22,14 @@ struct Box {
 
 using Pixels = std::vector<std::vector<std::uint32_t>>; // rows of 0xRRGGBB
 
+/// the pixels of `frame`, read while `before` turned into `after`, with a channel outside the range of its two values,
+/// widened by `kBlendRoundingSteps`: how many, the box they lie in (in `Pixels` cells) and one of them; empty when there
+/// are none. A pixel both pictures share keeps its value
+[[nodiscard]] std::string pixelsOutsideBlend(const Pixels& frame, const Pixels& before, const Pixels& after);
+
+/// one step of 255: Mesa's llvmpipe in CI's Ubuntu image rounds `x * a + x * (1 - a)` to x - 1 for some greys
+inline constexpr int kBlendRoundingSteps = 1;
+
 /// an Xvfb server of its own, 1280 x 720, for as long as this lives
 class VirtualDisplay {
 public:
@@ -66,6 +74,8 @@ public:
     void tap(int x, int y);
     /// pressed and released, then 1.5 s for the deck to follow
     void key(std::string_view keysym);
+    /// `keysym` pressed and released while `held` is down (`Control_L`, `o`), then 1.5 s for the deck to follow
+    void chord(std::string_view held, std::string_view keysym);
     /// every `stride`-th pixel of `box`, row by row
     [[nodiscard]] Pixels pixels(Box box, int stride = 1) const;
 

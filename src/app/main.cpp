@@ -103,10 +103,19 @@ void renderFrame(Viewer& viewer) {
 #ifdef GR4_PRESENT_HAS_OPENDIGITIZER
         DigitizerUi::TouchHandler<>::processSDLEvent(event);
 #endif
-        // a browser grants a touch its activation as the finger lifts, a click and a key as they go down
-        const bool gesture = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_FINGER_UP;
+        // a browser grants a touch its activation as the finger lifts, a click and a key as they go down; a click on the
+        // side menu is the menu's: going full screen would use its activation up, and Load's picker needs it
+        const Rectangle& menu       = viewer.menu.drawnPanel;
+        const bool       pressed    = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
+        const bool       acrossMenu = event.button.x >= menu.x && event.button.x < menu.x + menu.width;
+        const bool       alongMenu  = event.button.y >= menu.y && event.button.y < menu.y + menu.height;
+        const bool       onMenu     = pressed && acrossMenu && alongMenu;
+        const bool       gesture    = (pressed && !onMenu) || event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_FINGER_UP;
         if (gesture) {
             viewer.windowMode.onUserGesture();
+        }
+        if (event.type == SDL_EVENT_DROP_FILE && event.drop.data != nullptr && !viewer.presenter && !viewer.exporting) {
+            loadDroppedPath(viewer, event.drop.data);
         }
     }
 
@@ -142,10 +151,26 @@ void renderFrame(Viewer& viewer) {
     }
 #endif
 
+    tendDeckFiles(viewer);
+    // over everything drawn, the side menu included, so a pixel the old and the new frame share stays as it is
+    const auto drawFrameBefore = [&viewer](float opacity) {
+        const ImGuiViewport* viewport = ImGui::GetMainViewport();
+        const ImVec2         corner{viewport->Pos.x + viewport->Size.x, viewport->Pos.y + viewport->Size.y};
+        const ImU32          seenThrough = dimmed(IM_COL32_WHITE, opacity);
+        ImGui::GetForegroundDrawList()->AddImage(viewer.frameBefore.id, viewport->Pos, corner, ImVec2{0.0f, 0.0f}, ImVec2{1.0f, 1.0f}, seenThrough);
+    };
+    const ImVec2 splashLogo = viewer.logo.scaledToWidth(ImGui::GetMainViewport()->Size.x * kSplashLogoWidthFraction);
     if (!viewer.launchComplete) {
         advanceLoading(viewer);
         viewer.launchComplete = viewer.launch.finished();
-        viewer.launch.draw(viewer.logo.id, viewer.logo.scaledToWidth(ImGui::GetMainViewport()->Size.x * kSplashLogoWidthFraction), viewer.theme);
+        if (viewer.launchComplete) {
+            viewer.launchFinishedAt = viewer.frameStart;
+        }
+        if (viewer.frameBefore.id != 0) {
+            drawFrameBefore(1.0f);
+        } else {
+            viewer.launch.draw(viewer.logo.id, splashLogo, viewer.theme, 1.0f);
+        }
     } else {
         advanceLoading(viewer);
         beginExport(viewer);
@@ -175,6 +200,16 @@ void renderFrame(Viewer& viewer) {
             finishExportPage(viewer);
         }
         if (!viewer.exporting) {
+            // a deck blends in from the one it replaced, or at launch and after F5 fades in from the splash
+            const float sinceLoaded = std::chrono::duration<float>(viewer.frameStart - viewer.launchFinishedAt).count();
+            const float before      = LoadingScreen::fadeOpacity(sinceLoaded);
+            if (viewer.frameBefore.id != 0 && before == 0.0f) {
+                viewer.frameBefore.release();
+            } else if (viewer.frameBefore.id != 0) {
+                drawFrameBefore(before);
+            } else if (before > 0.0f) {
+                viewer.launch.draw(viewer.logo.id, splashLogo, viewer.theme, before);
+            }
             viewer.menu.draw(viewer.theme, interfacePixelsPerPoint);
             viewer.diagnosticsPanel.draw(viewer.diagnostics, viewer.theme, interfacePixelsPerPoint);
             drawNotes(viewer, interfacePixelsPerPoint);
@@ -195,6 +230,15 @@ void renderFrame(Viewer& viewer) {
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     if (viewer.exporting) {
         captureExportPixels(viewer); // before the swap: a browser's buffer is not kept past it
+    }
+    if (viewer.deckFiles.replacing.has_value()) {
+        const std::size_t rgbaBytes = static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4UZ;
+        const auto        wide      = static_cast<std::uint32_t>(width);
+        const auto        tall      = static_cast<std::uint32_t>(height);
+        RecordedPixels    shown{.width = wide, .height = tall, .rgba = std::vector<std::uint8_t>(rgbaBytes)};
+        glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, shown.rgba.data());
+        uprightOpaqueFromReadBack(shown);
+        replaceShownDeck(viewer, Texture::loadRgba(shown.rgba, width, height));
     }
     SDL_GL_SwapWindow(viewer.window);
 }
@@ -317,7 +361,20 @@ int main(int argc, char** argv) {
     applyTheme(viewer, detectColourScheme());
     viewer.navigator             = placeholderNavigatorUntilPackagesLoad();
     viewer.loader.builtInEffects = EffectLibrary::bundledNames() | std::ranges::to<std::vector<std::string>>();
-    viewer.loader.begin(viewer.options.presentationBase().value_or(defaultPresentationBase(argc > 0 ? argv[0] : "")), std::chrono::steady_clock::now());
+    viewer.frameStart            = std::chrono::steady_clock::now();
+    const std::string builtIn    = defaultPresentationBase(argc > 0 ? argv[0] : "");
+#ifdef __EMSCRIPTEN__
+    const std::string address = std::string{viewer.options.presentationBase().value_or(builtIn)};
+    // `local:<name>` or a path: a deck from this computer, reopened through the file handle the browser kept (Chromium)
+    if (address.starts_with("local:") || localPathOf(address).has_value()) {
+        reopenLocalDeck(viewer, address, builtIn);
+    } else {
+        loadDeck(viewer, address, DeckOpening::launch);
+    }
+#else
+    const std::string address = std::string{viewer.options.presentationBase().value_or(builtIn)};
+    loadDeck(viewer, localPathOf(address).value_or(address), DeckOpening::launch); // `file:` or not, the path from here on
+#endif
     buildSideMenu(viewer);
 
     viewer.windowMode.window = viewer.window;
