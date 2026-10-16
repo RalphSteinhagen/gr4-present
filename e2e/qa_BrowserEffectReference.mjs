@@ -1,6 +1,6 @@
-// Third-party effects against a minimal WebGL 2 page sharing none of the viewer's code (D23, D30), plus analytic ones
+// Third-party effects against a minimal WebGL 2 page sharing none of the viewer's code, plus analytic ones
 // Ground truth: that reference page renders the file at the viewport's size with `iTime` 0 and `iMouse` 0
-// tolerance (D30): mean absolute error <= 2/255 and maximum <= 8/255 per channel
+// tolerance: mean absolute error <= 2/255 and maximum <= 8/255 per channel
 // the viewport's position is measured with a solid magenta effect in the same box, not assumed
 
 import { openPage, withViewer } from "../devtools/browser_harness.mjs";
@@ -157,12 +157,12 @@ try {
     );
   });
 
-  // analytic effects (D23): float to 8 bits rounds to nearest, which GL ES lets an implementation miss by one level
+  // analytic effects: float to 8 bits rounds to nearest, which GL ES lets an implementation miss by one level
   writeFileSync(
     join(copy, "default", "effects", "ramp.glsl"),
     "void mainImage(out vec4 colour, in vec2 fragCoord) { colour = vec4(fragCoord / iResolution.xy, 0.0, 1.0); }\n",
   );
-  // Ground truth: at `@still 0.5` a frozen page renders 30 frames after the first at dt 1/60 (D25): iFrame 30
+  // Ground truth: at `@still 0.5` a frozen page renders 30 frames after the first at dt 1/60: iFrame 30
   writeFileSync(
     join(copy, "default", "effects", "clock.glsl"),
     [
@@ -200,7 +200,7 @@ try {
     expect(Math.abs(time - 64) <= 1, `clock: at iTime 0.5 s, round(0.25 * 255) = 64: ${time}`);
   });
 
-  // `aspect:` keeps its shape, as large as the region allows, centred (FR-12)
+  // `aspect:` keeps its shape, as large as the region allows, centred
   writeFileSync(deck, deckWith("magenta", "aspect: 2:1\n"));
   await withViewer(copy, async ({ server, browser }) => {
     const shaped = magentaBox(await settled(browser, server, "?frozen"));

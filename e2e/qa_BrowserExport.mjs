@@ -164,7 +164,7 @@ try {
       );
       const videoPage = pageTitled("Video");
       expect(videoPage > 0 && imagesOn(videoPage).length === 1, `the Video page embeds the clip's frame: ${videoPage ? imagesOn(videoPage).length : 0}`);
-      // effects are pictures of what they rendered, read back from their own textures (D44): one picture each
+      // effects are pictures of what they rendered, read back from their own textures: one picture each
       for (const [title, words] of [
         ["Background", ["background runs on"]],
         ["Viewport", []],

@@ -76,7 +76,7 @@ struct EffectInstance {
     int                             rendered     = 0;    // its `iFrame`
     std::optional<double>           renderedAt   = {};   // ImGui time, for an `fps` cap
     bool                            slowReported = false;
-    int                             stillFrames  = 0; // export: frames rendered from cleared buffers to reach the still time (D25)
+    int                             stillFrames  = 0; // export: frames rendered from cleared buffers to reach the still time
 };
 
 /// a `:::stage`: the two slides it moves between, captured each frame, and where its current step began

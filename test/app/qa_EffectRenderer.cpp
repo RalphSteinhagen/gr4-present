@@ -87,7 +87,7 @@ using Files = std::map<std::string, std::vector<std::uint8_t>, std::less<>>;
     return pixels;
 }
 
-/// a 2 × 2 × 2 single-channel volume (FR-5), voxels with x running fastest, little-endian
+/// a 2 × 2 × 2 single-channel volume, voxels with x running fastest, little-endian
 template<typename T>
 [[nodiscard]] std::vector<std::uint8_t> volume(std::uint16_t format, const std::array<T, 8>& voxels) {
     std::vector<std::uint8_t> bytes{'B', 'I', 'N', 0U};
@@ -176,7 +176,7 @@ int main() {
         expect(eq(problems.size(), 1UZ) && problems.front().contains("cloud.bin")) << (problems.empty() ? std::string{"nothing reported"} : problems.front());
         expect(renderer.takeProblems().empty()) << "reported once";
     };
-    // Ground truth: the line the author typed the mistake on, counted in the effect file (FR-9); not the driver's text
+    // Ground truth: the line the author typed the mistake on, counted in the effect file; not the driver's text
     "a shader that does not compile says which pass and which line of the file"_test = [] {
         auto parsed = parseEffect("fx", "// @name fx\n\nvoid mainImage(out vec4 colour, in vec2 fragCoord) {\n    colour = vec4(undeclared);\n}\n");
         expect(fatal(parsed.has_value()));

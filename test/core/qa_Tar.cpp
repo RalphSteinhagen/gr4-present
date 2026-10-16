@@ -109,13 +109,13 @@ const suite<"Tar"> tarTests = [] {
     "a damaged header, a cut-off file or a file outside the archive is refused"_test = [] {
         const auto packed = packTar(std::vector<TarEntry>{{.path = "aa/x", .bytes = {}}});
         expect(fatal(packed.has_value()));
-        auto damaged = *packed;
-        damaged[0]   = std::byte{'X'}; // the name changes, the checksum does not
+        auto damaged    = *packed;
+        damaged.at(0UZ) = std::byte{'X'}; // the name changes, the checksum does not
         expect(!unpackTar(damaged).has_value());
 
-        auto escaping = *packed; // `aa/x` becomes `../x`, with a checksum that matches again
-        escaping[0] = escaping[1] = std::byte{'.'};
-        std::size_t sum           = 0UZ;
+        auto escaping    = *packed; // `aa/x` becomes `../x`, with a checksum that matches again
+        escaping.at(0UZ) = escaping.at(1UZ) = std::byte{'.'};
+        std::size_t sum                     = 0UZ;
         for (std::size_t index = 0UZ; index < 512UZ; ++index) {
             sum += index >= 148UZ && index < 156UZ ? 32UZ : std::to_integer<std::size_t>(escaping[index]);
         }

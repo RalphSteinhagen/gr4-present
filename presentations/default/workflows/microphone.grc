@@ -161,14 +161,14 @@ dashboard:
       type: XYChart
       parameters:
         show_legend: true
-        # qFix 2026-10-07: history_seconds: 2 removed, pinned OD 9a16a942 rejects it; restore after the OD re-pin
-        n_history: 4000 # 2 s of minimum-maximum pairs at 2000 a second
+        history_seconds: 2 # at the rate the chart receives; n_history follows
+        n_history: 4000 # until the rate is known: 2 s of minimum-maximum pairs at 2000 a second
       axes:
         - axis: Y
           min: -1
           max: 1
           scale: SymLog
-          # qFix 2026-10-07: linear_threshold: 0.001 removed, not in pinned OD 9a16a942; restore after the OD re-pin
+          linear_threshold: 0.001 # linear within ±1 mFS (-60 dBFS), logarithmic beyond
       sources:
         - lastL
         - lastR

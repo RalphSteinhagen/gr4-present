@@ -9,7 +9,7 @@
 namespace gr::present {
 
 /// the deck as semantic HTML for the page's `<main>`, one `<section>` per view: what a crawler, a screen reader or
-/// Find reads; covers headings and paragraphs so far; lists, tables, code, formulas, figures and notes follow (spec F)
+/// Find reads
 [[nodiscard]] std::string documentHtml(std::span<const Section> sections);
 
 } // namespace gr::present

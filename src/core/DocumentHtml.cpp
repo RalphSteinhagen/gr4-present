@@ -34,7 +34,7 @@ void appendSpans(std::string& html, std::span<const InlineSpan> spans) {
         case InlineKind::code: wrapped("code", span.text); break;
         case InlineKind::math: wrapped("code", span.text); break; // its LaTeX, as a reader copies it
         case InlineKind::lineBreak: html += "<br>"; break;
-        case InlineKind::footnote: break; // footnotes follow with notes (spec F)
+        case InlineKind::footnote: break;
         case InlineKind::link:
             html += "<a href=\"";
             appendEscaped(html, span.target);

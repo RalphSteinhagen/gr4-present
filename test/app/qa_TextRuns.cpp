@@ -13,7 +13,7 @@ namespace {
 
 } // namespace
 
-// Ground truth: spec D's copied-text rule by hand -- a space at a wrap, a tab per cell, a line break per block
+// Ground truth: the copied-text rule by hand -- a space at a wrap, a tab per cell, a line break per block
 const suite<"TextRuns"> textRunTests = [] {
     "words drawn with their spaces copy as they read"_test = [] {
         TextRuns frame;
