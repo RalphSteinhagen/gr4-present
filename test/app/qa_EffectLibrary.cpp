@@ -45,7 +45,7 @@ const suite<"EffectLibrary"> effectLibraryTests = [] {
         expect(diagnostics.empty()) << "a name nobody has is the caller's to report";
     };
 
-    // Ground truth: FR-16 -- values by declared type, clamped into [min, max] with a diagnostic; #rrggbb and #rrggbbaa
+    // Ground truth: values by declared type, clamped into [min, max] with a diagnostic; #rrggbb and #rrggbbaa
     "settings are read by their declared type, clamped into range, and what does not fit is reported"_test = [] {
         Diagnostics       diagnostics;
         EffectLibrary     library;
@@ -78,7 +78,7 @@ const suite<"EffectLibrary"> effectLibraryTests = [] {
 };
 
 const suite<"iMouse"> mouseTests = [] {
-    // Ground truth: FR-17 -- xy position while pressed, zw press position, z > 0 while down, w > 0 on the press frame
+    // Ground truth: xy position while pressed, zw press position, z > 0 while down, w > 0 on the press frame
     "a press inside sets both pairs, then the press frame's sign goes, then release turns both negative"_test = [] {
         MouseState state;
         state = nextMouse(state, PointerFrame{.x = 10.0f, .y = 20.0f, .inside = true, .clicked = true, .down = true});

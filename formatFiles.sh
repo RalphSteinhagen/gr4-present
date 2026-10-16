@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
 # Runs every formatter the project mandates over the working tree, or over the staged/modified files only.
-#
-# CLAUDE.md requires clang-format and cmake-format to have been run before committing, and forbids adjusting
-# whitespace by hand. Running them separately is easy to get half-right, so they live here together.
 
 set -euo pipefail
 

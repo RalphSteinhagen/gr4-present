@@ -916,7 +916,7 @@ const boost::ut::suite<"DocumentView"> documentViewTests = [] {
         expect(gt(firstInk, 20)) << "the table has no left margin, so this measures the wrong thing";
     };
 
-    // Ground truth: each scenario's Markdown above, read by hand under spec D: space for a wrap, break for a block
+    // Ground truth: each scenario's Markdown above, read by hand: space for a wrap, break for a block
     "what a reader copies from a slide is the text it was written as"_test = [] {
         const auto copies = [](std::string_view scenario, std::string_view expected) {
             const std::string& copied = gCopied[std::string{scenario}];
@@ -1406,7 +1406,7 @@ const boost::ut::suite<"DocumentView"> documentViewTests = [] {
         expect(le(gFormulaRasters, 4UZ)) << "the formula cache missed " << gFormulaRasters << " times for two formulas";
     };
 
-    // two slides shipped a character their face lacks, drawn as a box; the scan runs in `drawScenario`
+    // the scan runs in `drawScenario`
     "every character the deck uses exists in the face it is drawn with"_test = [] { expect(gMissingGlyphs.empty()) << "characters the deck draws as boxes: " << std::ranges::fold_left(gMissingGlyphs, std::string{}, [](std::string all, const std::string& one) { return all.empty() ? one : all + "; " + one; }); };
 
     // Ground truth: striped rows wash in translucent light grey and the header in stronger grey, as flat neutral bands

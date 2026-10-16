@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-readonly kDefaultQuality=7  # 0 (worst) to 10 (best), kept from the old scale and mapped to a libvpx CRF below
+readonly kDefaultQuality=7  # 0 (worst) to 10 (best), mapped to a libvpx CRF below
 readonly kDefaultAudioQuality=3
 readonly kDefaultWidth=1280
 

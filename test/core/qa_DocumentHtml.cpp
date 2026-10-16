@@ -30,6 +30,11 @@ const boost::ut::suite<"DocumentHtml"> tests = [] {
         expect(documentHtml(sectionsOf(deck)) == std::string{R"(<section id="e"><h1>A &lt; B &amp; C</h1><p>Use &quot;quotes&quot; and &lt;b&gt;tags&lt;/b&gt; as text.</p></section>)"}) << documentHtml(sectionsOf(deck));
     };
 
+    "a footnote reference leaves no text in the paragraph"_test = [] {
+        const Document deck = parseMarkdown("# Notes {#n}\n\nA claim[^src] stands.\n\n[^src]: The source.\n");
+        expect(documentHtml(sectionsOf(deck)) == std::string{R"(<section id="n"><h1>Notes</h1><p>A claim stands.</p></section>)"}) << documentHtml(sectionsOf(deck));
+    };
+
     "an empty deck gives no sections"_test = [] { expect(documentHtml({}).empty()); };
 };
 

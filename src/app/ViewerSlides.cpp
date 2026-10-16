@@ -335,14 +335,14 @@ void drawSection(Viewer& viewer, const SectionVisual& visual, std::size_t step, 
     viewer.documentView.cameraMove     = visual.image.empty() ? DocumentView::CameraMove{} : move;
     viewer.documentView.cameraRotation = rotation;
     viewer.documentView.infoBox        = DocumentView::InfoBox{.contents = visual.info, .aside = visual.infoAside, .region = visual.region, .side = visual.infoSide, .opacity = infoOpacity};
-    viewer.figures.clock               = ImGui::GetTime(); // one clock for every animation
+    viewer.figures.clock               = ImGui::GetTime();
     viewer.videos.clock                = ImGui::GetTime();
     viewer.documentView.afterBackdrop  = visual.background.empty() || visual.background == "none" ? std::function<void(ImDrawList&)>{} : [&viewer, &visual](ImDrawList& list) { drawBackgroundEffect(viewer, visual.background, list); };
     // an overlay takes the whole slide as a picture, inside whatever a transition takes it for
     const std::function<void(ImDrawList&)> before = viewer.documentView.beforeDrawing;
     const std::function<void(ImDrawList&)> after  = viewer.documentView.afterDrawing;
     const std::string                      key    = std::format("overlay:{}", visual.section->id);
-    if (!visual.overlay.empty() && visual.overlay != "none" && !viewer.exporting) { // an exported page has no overlay (D44)
+    if (!visual.overlay.empty() && visual.overlay != "none" && !viewer.exporting) { // an exported page has no overlay
         viewer.documentView.beforeDrawing = [&](ImDrawList& list) {
             if (before) {
                 before(list);
@@ -356,7 +356,7 @@ void drawSection(Viewer& viewer, const SectionVisual& visual, std::size_t step, 
             }
         };
     }
-    // `in=` and a box's `overlay=` name effects drawn through; an export shows the box as arrived (D44)
+    // `in=` and a box's `overlay=` name effects drawn through; an export shows the box as arrived
     viewer.documentView.throughEffect = [&viewer, &visual](ImDrawList& list, int firstCommand, std::string_view effect, std::string_view boxKey, float progress, ImVec2 low, ImVec2 high) {
         if (viewer.documentView.recording != nullptr) {
             return false;

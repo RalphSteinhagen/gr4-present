@@ -6,8 +6,7 @@ set(GR4_PRESENT_GIT_REF_GNURADIO4
                            # AudioWorkletProcessor): the trigger module, the StreamToDataSet hold-off and the Schmitt
                            # trigger's dead time. Not merged, and its history may be rewritten: re-find it by the
                            # subjects "feat(blocks): the trigger module, its event vocabulary, time base and shared
-                           # primitives" and "refactor(blocks): the Schmitt trigger moves to the trigger module". Back
-                           # to main once merged.
+                           # primitives" and "refactor(blocks): the Schmitt trigger moves to the trigger module".
 
 set(GIT_REF_OPENDIGITIZER
     907881b

@@ -1,8 +1,5 @@
-# minimal Dear ImGui viewer shell, built from one source for native and Emscripten. It deliberately links only the
-# presentation core and ImGui. The OpenDigitizer runtime joins the application later, filling the region rectangles the
-# layout already records when the live-region adapter lands. The target keeps its own name in every configuration:
-# OpenDigitizer's src/ui also defines an executable called `index`, and CMake target names are global. Only the output
-# file is called index, which is what Emscripten needs.
+# the target keeps its own name in every configuration: OpenDigitizer's src/ui also defines an executable called
+# `index`, and CMake target names are global. Only the output file is called index, which is what Emscripten needs.
 set(target_name "gr4-present")
 if(EMSCRIPTEN)
   set(CMAKE_EXECUTABLE_SUFFIX ".html")
@@ -159,10 +156,9 @@ target_link_libraries(
 
 # Touch comes from OpenDigitizer's TouchHandler rather than a second implementation of finger tracking. `ui-common` is
 # the layer that carries it and nothing of the dashboard: ImGui, ImPlot, SDL3 and the RAII wrapper, which is all the
-# header needs. The hand-built include paths and object list this replaced were what a consumer had to do before
-# OpenDigitizer published targets. ImGui and the RAII wrapper arrive through this layer rather than being named again
-# here: ImGui is an object library, and naming it twice puts every object on the link line twice and fails with several
-# hundred multiple definitions. Without OpenDigitizer the same two are taken directly.
+# header needs. ImGui and the RAII wrapper arrive through this layer rather than being named again here: ImGui is an
+# object library, and naming it twice puts every object on the link line twice and fails with several hundred multiple
+# definitions. Without OpenDigitizer the same two are taken directly.
 if(GR4_PRESENT_WITH_OPENDIGITIZER AND GR4_PRESENT_ENABLE_EXPORT)
   # writing a PDF needs GR4's fileio to deliver it, so the export comes with the runtime
   target_compile_definitions(${target_name} PRIVATE GR4_PRESENT_HAS_EXPORT)
@@ -201,8 +197,7 @@ if(EMSCRIPTEN)
     "SHELL:-s MINIFY_HTML=0"
     "-sFETCH=1" # gr::algorithm::fileio reads http(s) through emscripten_fetch
     # MicroTeX throws on a formula it cannot parse and the viewer catches it. Emscripten needs -fexceptions on the link
-    # as well as the compile, or the catch is not generated and the throw takes the whole thread with it -- which is
-    # what happened: one unsupported command froze the application on that slide.
+    # as well as the compile, or the catch is not generated and the throw takes the whole thread with it.
     -fexceptions
     "SHELL:-s PTHREAD_POOL_SIZE=${GR_MAX_WASM_THREAD_COUNT}"
     -pthread

@@ -164,7 +164,7 @@ try {
     }
   });
 
-  // the CPU is throttled so software GL falls behind even on a fast machine; resolution drops, said once (D26, D39)
+  // the CPU is throttled so software GL falls behind even on a fast machine; resolution drops, said once
   await withViewer(copy, async ({ server, browser }) => {
     const page = await openPage(browser, `${server.origin}/index.html#view=effect-background&step=0`);
     await page.command("Emulation.setDeviceMetricsOverride", { width: kWidth, height: kHeight, deviceScaleFactor: 1, mobile: false });
@@ -242,7 +242,7 @@ try {
     await through.page.close();
   });
 
-  // Ground truth: a page opened on the slide; the test effect inverts, so dark slides turn bright mid-move (D33)
+  // Ground truth: a page opened on the slide; the test effect inverts, so dark slides turn bright mid-move
   writeFileSync(
     join(copy, "default", "effects", "invert.glsl"),
     "void mainImage(out vec4 colour, in vec2 fragCoord) { colour = vec4(1.0 - texture(iContent, fragCoord / iResolution.xy).rgb, 1.0); }\n",

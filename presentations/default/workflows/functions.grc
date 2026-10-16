@@ -166,8 +166,8 @@ dashboard:
           min: NaN # enables auto-range for first axis
           max: NaN # enables auto-range for first axis
         - axis: Y
-          min: -100. # second axis min
-          max: NaN # second axis max
+          min: -100.
+          max: NaN
           format: Metric # options: Auto, Metric, MetricInline, Scientific, None, Default
       sources:
         - IntensitySink

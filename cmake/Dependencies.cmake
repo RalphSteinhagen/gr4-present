@@ -1,8 +1,8 @@
 include(FetchContent)
 include(${CMAKE_CURRENT_LIST_DIR}/DependenciesSHAs.cmake)
 
-# `source_subdirectory` empty takes the whole project, which its root now supports; naming one takes only that part.
-# SOURCE_SUBDIR cannot simply be given an empty value -- the keyword would swallow whatever follows it.
+# `source_subdirectory` empty takes the whole project; naming one takes only that part. SOURCE_SUBDIR cannot simply be
+# given an empty value -- the keyword would swallow whatever follows it.
 function(gr4_present_fetch_opendigitizer source_subdirectory)
   # following a branch means re-checking it on every configure; pinned dependencies do not need this and are not given
   # it, because refetching what cannot have moved is only slower
@@ -60,9 +60,8 @@ if(GR4_PRESENT_WITH_OPENDIGITIZER)
       OFF
       CACHE BOOL "Treat OpenDigitizer compiler warnings as errors" FORCE)
 
-  # OpenDigitizer's root is consumable now: taken whole, it skips its own tests, service, application and the WASM
-  # sub-build because it is not the top-level project, and publishes its user interface as layered targets. Adding
-  # src/ui by hand was only ever what worked while that was not true.
+  # taken whole, OpenDigitizer skips its own tests, service, application and the WASM sub-build because it is not the
+  # top-level project, and publishes its user interface as layered targets
   gr4_present_fetch_opendigitizer("")
 
 else()
@@ -392,8 +391,7 @@ if(NOT TARGET webp)
     SYSTEM EXCLUDE_FROM_ALL)
   FetchContent_MakeAvailable(libwebp)
   if(EMSCRIPTEN)
-    # the same trap lunasvg and libvpx sprang: a dependency compiled without -pthread cannot link against a target that
-    # was
+    # a dependency compiled without -pthread is rejected by wasm-ld (gr4-present-options, CMakeLists.txt)
     foreach(
       _webp_target IN
       ITEMS webp

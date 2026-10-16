@@ -46,7 +46,7 @@ void followPointer(const Viewer& viewer, EffectInstance& instance, ImVec2 min, I
     instance.pressed      = next.pressed;
 }
 
-constexpr float kStillFramesPerSecond = 60.0f; // an exported page steps an effect at this rate to its still time (D25)
+constexpr float kStillFramesPerSecond = 60.0f; // an exported page steps an effect at this rate to its still time
 
 void renderInstance(const ImDrawList*, const ImDrawCmd* command) {
     auto& instance = *static_cast<EffectInstance*>(command->UserCallbackData);
@@ -69,12 +69,12 @@ void renderInstance(const ImDrawList*, const ImDrawCmd* command) {
     }
 }
 
-constexpr float kSlowestScale   = 0.25f; // auto-halving stops here (D26)
-constexpr float kTouchScale     = 0.5f;  // where a background or viewport starts on a touch device (D26)
+constexpr float kSlowestScale   = 0.25f; // auto-halving stops here
+constexpr float kTouchScale     = 0.5f;  // where a background or viewport starts on a touch device
 constexpr float kSlowFrameShare = 0.9f;  // a frame rate under this share of the display's counts as too slow
 constexpr float kSlowSeconds    = 2.0f;
 
-/// an export, the presenter's window or a `?frozen` page: effects at their still time and given scale (D20, D25, D37)
+/// an export, the presenter's window or a `?frozen` page: effects at their still time and given scale
 [[nodiscard]] bool frozen(const Viewer& viewer) noexcept { return viewer.exporting || viewer.presenter || viewer.options.contains("frozen"); }
 
 [[nodiscard]] bool onTouchDevice() noexcept {
@@ -312,7 +312,7 @@ float revealSecondsOf(Viewer& viewer, std::string_view kind) {
 }
 
 void tendEffects(Viewer& viewer) {
-    // the frame rate is the only clock every platform has; only backgrounds and viewports give up resolution (D26)
+    // the frame rate is the only clock every platform has; only backgrounds and viewports give up resolution
     const float display  = onTouchDevice() ? 30.0f : 60.0f;
     const int   frame    = ImGui::GetFrameCount();
     const auto  halvable = [frame](const auto& entry) { return entry.second.lastFrame == frame && entry.second.renderer != nullptr && (entry.first.starts_with("background:") || entry.first.starts_with("viewport:")); };

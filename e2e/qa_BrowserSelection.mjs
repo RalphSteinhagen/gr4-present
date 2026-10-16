@@ -1,5 +1,5 @@
 // Selecting drawn text and copying it in the browser: a drag from a word selects, Ctrl+C copies, a finger never selects.
-// Ground truth: the demo deck's Markdown under spec D (functional_spec_wip.md), words as written, wrapped lines joined by a space.
+// Ground truth: the demo deck's Markdown, words as written, wrapped lines joined by a space.
 
 import { openPage, withViewer } from "../devtools/browser_harness.mjs";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -146,8 +146,7 @@ await withViewer(fixture, async ({ server, browser }) => {
     expect(line2 === "    start: float = 1e3   # Hz", `a drag along a code line copies it with its spaces: ${JSON.stringify(line2)}`);
     await page.close();
   }
-  // a link click is not asserted: headless Chrome's synthesised press reaches SDL3 without a position (native check:
-  // functional_task_list.md, task 29)
+  // a link click is not asserted: headless Chrome's synthesised press reaches SDL3 without a position
   {
     // Ground truth: stages.svg marks "acquire" and its note data-step="1", "transform" 2 and "display" 3
     const labelsAt = async (step) => {
