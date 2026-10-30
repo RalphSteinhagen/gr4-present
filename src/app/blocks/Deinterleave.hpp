@@ -49,7 +49,7 @@ struct Deinterleave : gr::Block<Deinterleave<T>, gr::Resampling<>, gr::NoTagProp
                 continue;
             }
             gr::property_map perChannel = tag.map;
-            for (const std::string_view channelCount : {std::string_view{gr::tag::NUM_CHANNELS.key()}, std::string_view{gr::tag::NUM_CHANNELS.shortKey()}}) {
+            for (const std::string_view channelCount : {std::string_view{gr::tag::kNumChannels.key()}, std::string_view{gr::tag::kNumChannels.shortKey()}}) {
                 if (perChannel.contains(channelCount)) {
                     perChannel.insert_or_assign(channelCount, gr::Size_t{1U});
                 }

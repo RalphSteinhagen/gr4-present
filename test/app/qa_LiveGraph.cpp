@@ -1,5 +1,7 @@
 #include "LiveGraph.hpp"
 
+#include <gnuradio-4.0/BlockRegistry.hpp>
+#include <gnuradio-4.0/YamlPmt.hpp>
 #include <gnuradio-4.0/thread/thread_pool.hpp>
 
 #include <boost/ut.hpp>
@@ -83,6 +85,37 @@ int main() {
             }
             expect(holds(charts, workflow.chart)) << workflow.file << " does not offer " << workflow.chart << "; it offers: [" << found << "]";
         }
+    };
+
+    // GNU Radio applies the parameters a block knows and drops the rest without a word, so a setting renamed upstream would fail silently
+    "every parameter a shipped workflow sets is a setting of its block"_test = [] {
+        std::size_t checked = 0UZ;
+        for (const auto& entry : std::filesystem::directory_iterator{std::filesystem::path{GR4_PRESENT_PACKAGE_DIRECTORY} / "workflows"}) {
+            const std::string file   = entry.path().filename().string();
+            const auto        parsed = gr::pmt::yaml::deserialize(contentsOf(file));
+            expect(fatal(parsed.has_value())) << file;
+            const auto blocksAt = parsed->find("blocks");
+            expect(fatal(blocksAt != parsed->end())) << file << " declares no blocks";
+            const gr::Value blocksValue = (*blocksAt).second; // an lvalue: the view below aliases its storage
+            const auto      blocks      = blocksValue.get_if<gr::TensorView<gr::Value>>();
+            expect(fatal(static_cast<bool>(blocks))) << file << ": blocks is not a list";
+            for (const gr::Value& blockValue : *blocks) {
+                const auto block = blockValue.get_if<gr::property_map>();
+                expect(fatal(static_cast<bool>(block))) << file << ": a block is not a map";
+                const std::string                     id    = std::string{block->get_if<std::string_view>("id").value_or("")};
+                const std::unique_ptr<gr::BlockModel> model = gr::globalBlockRegistry().create(id, {});
+                if (model == nullptr) {
+                    continue; // OpenDigitizer's own blocks; an id nobody knows is the loader's to report
+                }
+                model->settings().init(); // fills the table of defaults, one entry per setting, as a graph does before it starts
+                const gr::property_map& settings = model->settings().defaultParameters();
+                for (const auto& [key, value] : block->value_or<gr::property_map>("parameters", gr::property_map{})) {
+                    expect(settings.contains(key)) << file << ": " << id << " has no setting '" << key << "'";
+                    ++checked;
+                }
+            }
+        }
+        expect(gt(checked, 0UZ)) << "no parameter of any workflow was checked";
     };
 
     "the graph's own blocks are not offered as charts"_test = [] {

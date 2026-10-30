@@ -17,7 +17,7 @@ using gr::testing::ProcessFunction;
 using gr::testing::TagSink;
 using gr::testing::TagSource;
 
-gr::property_map triggerTag(std::string_view name) { return {{std::string(gr::tag::TRIGGER_NAME.key()), std::string(name)}}; }
+gr::property_map triggerTag(std::string_view name) { return {{std::string(gr::tag::kTriggerName.key()), std::string(name)}}; }
 } // namespace
 
 const suite<"DebounceTagBlock"> debounceTagBlockTests = [] {
@@ -53,7 +53,7 @@ const suite<"DebounceTagBlock"> debounceTagBlockTests = [] {
 
         std::vector<std::size_t> indices;
         for (const auto& logged : sink._tags) {
-            if (logged.map.contains(gr::tag::TRIGGER_NAME.key())) {
+            if (logged.map.contains(gr::tag::kTriggerName.key())) {
                 indices.push_back(logged.index);
             }
         }
@@ -70,7 +70,7 @@ const suite<"DebounceTagBlock"> debounceTagBlockTests = [] {
 
         gr::Graph graph;
         auto&     source  = graph.emplaceBlock<TagSource<float, ProcessFunction::USE_PROCESS_BULK>>({{"n_samples_max", gr::Size_t{32U}}, {"values", samples}, {"mark_tag", false}, {"verbose_console", false}});
-        auto&     trigger = graph.emplaceBlock<gr::blocks::trigger::SchmittTrigger<float, gr::trigger::InterpolationMethod::NO_INTERPOLATION>>({{"threshold", 2.f}, {"offset", 2.5f}, {"n_dead_time", gr::Size_t{6U}}});
+        auto&     trigger = graph.emplaceBlock<gr::blocks::trigger::SchmittTrigger<float, gr::trigger::InterpolationMethod::NO_INTERPOLATION>>({{"threshold", 2.5f}, {"hysteresis", 4.f}, {"dead_time", 6.}, {"trigger_name_rising", std::pmr::string{"RISING"}}});
         auto&     sink    = graph.emplaceBlock<TagSink<float, ProcessFunction::USE_PROCESS_BULK>>({{"log_samples", true}, {"log_tags", true}, {"verbose_console", false}});
         expect(fatal(graph.connect<"out", "in">(source, trigger).has_value()));
         expect(fatal(graph.connect<"out", "in">(trigger, sink).has_value()));
@@ -82,7 +82,7 @@ const suite<"DebounceTagBlock"> debounceTagBlockTests = [] {
 
         std::vector<std::size_t> risingEdges;
         for (const auto& logged : sink._tags) {
-            if (logged.map.template get_if<std::string_view>(gr::tag::TRIGGER_NAME.key()).value_or("") == "RISING") {
+            if (logged.map.template get_if<std::string_view>(gr::tag::kTriggerName.key()).value_or("") == "RISING") {
                 risingEdges.push_back(logged.index);
             }
         }
