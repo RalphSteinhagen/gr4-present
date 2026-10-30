@@ -26,6 +26,10 @@ env:
   # a flavour's own objects once saved; one entry per flavour is kept, from main only (ccache's other settings:
   # devtools/ci/ccache-env.sh, written into each job's environment from inside its container)
   OWN_CACHE_LIMIT: 1G
+  # GR4's quality bots run from GR4's devtools at the pinned GR4 revision (.github/actions/gr4-devtools), scoped by
+  # .github/qualitybot.conf; they post a sticky comment and a status but never gate a merge. A GR4 ref in place of the
+  # pin; empty: the GR4 pin in cmake/DependenciesSHAs.cmake
+  GR4_DEVTOOLS_REF: ""
 
 jobs:
   images:
@@ -228,39 +232,28 @@ jobs:
           DISPLAY=:99 LLVM_PROFILE_FILE="$GITHUB_WORKSPACE/coverage-profiles/%p-%m.profraw" ctest --test-dir "cmake-build-$PRESET" --output-on-failure
 
       # the coverage of what ran is reported even when a test failed
-      - name: History
+      - uses: ./.github/actions/gr4-devtools
         if: ${{ !cancelled() && matrix.preset == 'Clang22-Debug' }}
-        run: |
-          git fetch --no-tags --depth=1 origin ci-metrics:refs/remotes/origin/ci-metrics || echo "no history yet"
-          git fetch --no-tags origin main:refs/remotes/origin/main || true
+        with:
+          ref: ${{ env.GR4_DEVTOOLS_REF }}
 
       - name: Coverage
+        id: coverage
         if: ${{ !cancelled() && matrix.preset == 'Clang22-Debug' }}
         run: |
-          g++-15 -std=c++23 -O2 -o "$RUNNER_TEMP/qualitybot" "$PWD/devtools/qualitybot.cpp"
           "$RUNNER_TEMP/qualitybot" coverage --build "cmake-build-$PRESET" --profiles coverage-profiles --out coverage-report
-
-      - name: Keep the coverage figures and report
-        if: ${{ !cancelled() && matrix.preset == 'Clang22-Debug' }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-figures
-          path: |
-            coverage-report/figures.csv
-            coverage-report/coverage.lcov
-            coverage-report/coverage-skipped.txt
 
       # llvm-cov's annotated sources: this run's artefact, and on main the report /metrics/coverage/ shows
       - name: Keep the coverage report
-        if: ${{ !cancelled() && matrix.preset == 'Clang22-Debug' }}
+        if: ${{ !cancelled() && steps.coverage.outcome == 'success' }}
         uses: actions/upload-artifact@v7
         with:
           name: coverage-html
           path: coverage-report/html
 
-      - name: Report coverage
-        if: ${{ !cancelled() && matrix.preset == 'Clang22-Debug' }}
-        uses: ./.github/actions/report
+      - name: Report Coverage
+        if: ${{ !cancelled() && steps.coverage.outcome == 'success' }}
+        uses: ./.gr4-devtools/.github/actions/report
         with:
           directory: coverage-report
           fail-on-no-go: false
@@ -298,6 +291,9 @@ jobs:
       contents: read
       packages: read
       actions: write
+      # the WASM size bot's status on main
+      pull-requests: write
+      statuses: write
     env:
       # pull requests get the fast path; main publishes the full runtime, which needs GR4 and OpenDigitizer
       PRESET: ${{ github.event_name == 'pull_request' && 'WASM-Minimal' || inputs.wasmPreset || 'WASM-Release' }}
@@ -356,18 +352,23 @@ jobs:
               core.info(`deleted ${cache.key}`);
             }
 
+      - uses: ./.github/actions/gr4-devtools
+        if: github.ref == 'refs/heads/main'
+        with:
+          ref: ${{ env.GR4_DEVTOOLS_REF }}
+
       - name: WASM size
+        id: wasm-size
         if: github.ref == 'refs/heads/main'
         run: |
-          g++-15 -std=c++23 -O2 -o "$RUNNER_TEMP/qualitybot" "$PWD/devtools/qualitybot.cpp"
-          "$RUNNER_TEMP/qualitybot" wasm-size --build "cmake-build-$PRESET" --out wasm-size
+          "$RUNNER_TEMP/qualitybot" wasm-size --build "cmake-build-$PRESET" --out wasm-size-report
 
-      - name: Keep the WASM size
-        if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@v7
+      - name: Report WASM size
+        if: ${{ !cancelled() && steps.wasm-size.outcome == 'success' }}
+        uses: ./.gr4-devtools/.github/actions/report
         with:
-          name: wasm-size-figures
-          path: wasm-size/figures.csv
+          directory: wasm-size-report
+          fail-on-no-go: false
 
       # /metrics/ reads the bots' histories from ci-metrics when opened; the copies here are its fallback, one main
       # commit behind, as the bots record after this deploys
@@ -389,26 +390,38 @@ jobs:
 
   # main's coverage and WASM size join the history on the ci-metrics branch; the only job here that may write to it
   record:
-    name: record
-    needs: [native, wasm]
+    name: record the figures
+    needs: [images, native, wasm]
     if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.images.outputs.repository }}:${{ needs.images.outputs.toolchain }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     permissions:
       contents: write
+      packages: read
     steps:
       - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/gr4-devtools
         with:
-          fetch-depth: 0
-      - name: Coverage
-        if: needs.native.result == 'success'
-        uses: ./.github/actions/record
+          ref: ${{ env.GR4_DEVTOOLS_REF }}
+
+      - uses: actions/download-artifact@v8
         with:
-          artifact: coverage-figures
-      - name: WASM size
-        if: needs.wasm.result == 'success'
-        uses: ./.github/actions/record
-        with:
-          artifact: wasm-size-figures
+          pattern: "*-report"
+          path: reports
+
+      - name: Record
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          set -- reports/*
+          (($#)) || { echo "nothing to record"; exit 0; }
+          "$RUNNER_TEMP/qualitybot" record --out "$RUNNER_TEMP/record" "$@"
 
   # the presenter, /metrics/ and main's coverage report under /metrics/coverage/, deployed together
   pages:

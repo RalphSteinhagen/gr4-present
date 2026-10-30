@@ -1,7 +1,8 @@
 name: Hot Paths
 
-# Instructions of each bm_ benchmark (callgrind) and the release binaries' sizes, compared with main's; red when one
-# rose by more than 3 %, but never required for merging (CLAUDE.md, measured quality).
+# Instructions of each bm_ benchmark (callgrind) and the release binary's size, compared with main's by GR4's hot-paths
+# bot at the pinned GR4 revision (.github/actions/gr4-devtools, scoped by .github/qualitybot.conf); red when one rose by
+# more than 3 %, but never required for merging (CLAUDE.md, measured quality).
 on:
   pull_request:
   push:
@@ -13,6 +14,10 @@ concurrency:
 
 permissions:
   contents: read
+
+env:
+  # a GR4 ref in place of the pin; empty: the GR4 pin in cmake/DependenciesSHAs.cmake
+  GR4_DEVTOOLS_REF: ""
 
 jobs:
   image:
@@ -58,39 +63,57 @@ jobs:
           mkdir -p cmake-build-GCC15-Release/_deps && cp -a /opt/gr4-present/deps-src/. cmake-build-GCC15-Release/_deps/
           cmake --preset GCC15-Release -DGR_BUILD_PARALLEL_LEVEL=3 -DFETCHCONTENT_FULLY_DISCONNECTED=ON ${{ needs.image.outputs.configure }}
 
+      # the benchmarks the bot measures are the ones .github/qualitybot.conf lists
       - name: Build the benchmarks and the application
-        run: cmake --build cmake-build-GCC15-Release --target gr4-present $(cat devtools/ci/hot-path-benchmarks.txt)
+        run: cmake --build cmake-build-GCC15-Release --target gr4-present $(awk -F= '/^hotPathBenchmarks/ { print $2 }' .github/qualitybot.conf)
 
-      - name: History
-        run: git fetch --no-tags --depth=1 origin ci-metrics:refs/remotes/origin/ci-metrics || echo "no history yet"
+      - uses: ./.github/actions/gr4-devtools
+        with:
+          ref: ${{ env.GR4_DEVTOOLS_REF }}
 
-      - name: Measure
+      - name: Hot Paths
+        id: hot-paths
         run: |
-          g++-15 -std=c++23 -O2 -o "$RUNNER_TEMP/qualitybot" "$PWD/devtools/qualitybot.cpp"
-          "$RUNNER_TEMP/qualitybot" hot-paths --build cmake-build-GCC15-Release --out report
+          "$RUNNER_TEMP/qualitybot" hot-paths --build cmake-build-GCC15-Release --out hot-paths-report
 
-      - name: Keep the figures
-        uses: actions/upload-artifact@v7
+      - name: Report Hot Paths
+        if: ${{ !cancelled() && steps.hot-paths.outcome == 'success' }}
+        uses: ./.gr4-devtools/.github/actions/report
         with:
-          name: hot-paths-figures
-          path: report/figures.csv
-
-      - uses: ./.github/actions/report
-        with:
-          directory: report
+          directory: hot-paths-report
+          fail-on-no-go: false
 
   # main's figures join the history on the ci-metrics branch; the only job here that may write to the repository
   record:
-    name: record
-    needs: hot-paths
+    name: record the figures
+    needs: [image, hot-paths]
     if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.image.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     permissions:
       contents: write
+      packages: read
     steps:
       - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/gr4-devtools
         with:
-          fetch-depth: 0
-      - uses: ./.github/actions/record
+          ref: ${{ env.GR4_DEVTOOLS_REF }}
+
+      - uses: actions/download-artifact@v8
         with:
-          artifact: hot-paths-figures
+          pattern: "*-report"
+          path: reports
+
+      - name: Record
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          set -- reports/*
+          (($#)) || { echo "nothing to record"; exit 0; }
+          "$RUNNER_TEMP/qualitybot" record --out "$RUNNER_TEMP/record" "$@"

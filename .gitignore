@@ -73,3 +73,5 @@ cmake-build-*/
 
 # Dear ImGui window layout, written next to the running application
 imgui.ini
+# GR4's devtools, checked out by .github/actions/gr4-devtools at the pin
+.gr4-devtools/
