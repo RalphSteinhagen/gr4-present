@@ -119,11 +119,6 @@ if(GR4_PRESENT_ENABLE_TESTING)
   add_subdirectory(test) # unit tests
   add_subdirectory(e2e) # the viewer driven as a person would, natively and in a browser
 endif()
-option(GR4_PRESENT_BUILD_DEVTOOLS "Build devtools/code-metrics (needs libclang)" OFF)
-if(GR4_PRESENT_BUILD_DEVTOOLS AND NOT EMSCRIPTEN)
-  add_subdirectory(devtools)
-endif()
-
 message(STATUS "GR4_PRESENT_ENABLE_TESTING       : ${GR4_PRESENT_ENABLE_TESTING}")
 message(STATUS "GR4_PRESENT_ENABLE_CLANG_TIDY    : ${GR4_PRESENT_ENABLE_CLANG_TIDY}")
 message(STATUS "GR4_PRESENT_ENABLE_IMGUI_TEST_ENGINE : ${GR4_PRESENT_ENABLE_IMGUI_TEST_ENGINE}")

@@ -1,0 +1,135 @@
+name: Metrics
+
+# CLAUDE.md §3 checked by GR4's naming-check, and devtools/code-metrics.sh compared with main's report of the commit the
+# change lands on (ci-metrics branch), both from GR4's devtools at the pinned GR4 revision (.github/actions/gr4-devtools,
+# scoped by .github/qualitybot.conf) on a configured Clang tree: no full build, what they parse is generated at configure
+# time. Naming is red on a violation on a changed line, Code Style only when units could not be parsed; neither is
+# required for merging: the figures are evidence for review (CLAUDE.md, measured quality).
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # a GR4 ref in place of the pin; empty: the GR4 pin in cmake/DependenciesSHAs.cmake
+  GR4_DEVTOOLS_REF: ""
+
+jobs:
+  image:
+    name: build image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      image: ${{ steps.wait.outputs.image }}
+      configure: ${{ steps.wait.outputs.configure }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: wait
+        uses: ./.github/actions/wait-for-image
+        with:
+          flavour: Clang22-Debug
+
+  metrics:
+    name: Metrics
+    needs: image
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.image.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: read
+      packages: read
+      pull-requests: write
+      statuses: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: ccache settings
+        run: devtools/ci/ccache-env.sh >> "$GITHUB_ENV"
+
+      - name: Configure
+        run: |
+          mkdir -p cmake-build-Clang22-Debug/_deps && cp -a /opt/gr4-present/deps-src/. cmake-build-Clang22-Debug/_deps/
+          cmake --preset Clang22-Debug -DGR_BUILD_PARALLEL_LEVEL=3 -DFETCHCONTENT_FULLY_DISCONNECTED=ON ${{ needs.image.outputs.configure }}
+
+      # libvpx's headers are installed when its external project builds; every other header exists after configuring
+      - name: Headers the tools parse
+        run: cmake --build cmake-build-Clang22-Debug --target libvpx_external
+
+      - uses: ./.github/actions/gr4-devtools
+        with:
+          ref: ${{ env.GR4_DEVTOOLS_REF }}
+          tools: "true"
+
+      - name: Naming
+        id: naming
+        run: |
+          "$RUNNER_TEMP/qualitybot" naming --build cmake-build-Clang22-Debug --tools "$RUNNER_TEMP/gr4-devtools" --out naming-report
+
+      - name: Report Naming
+        if: ${{ !cancelled() && steps.naming.outcome == 'success' }}
+        uses: ./.gr4-devtools/.github/actions/report
+        with:
+          directory: naming-report
+          fail-on-no-go: false
+
+      - name: Code Style
+        id: code-style
+        if: ${{ !cancelled() }}
+        run: |
+          "$RUNNER_TEMP/qualitybot" code-style --build cmake-build-Clang22-Debug --tools "$RUNNER_TEMP/gr4-devtools" --out code-style-report
+
+      - name: Report Code Style
+        if: ${{ !cancelled() && steps.code-style.outcome == 'success' }}
+        uses: ./.gr4-devtools/.github/actions/report
+        with:
+          directory: code-style-report
+          fail-on-no-go: false
+
+  # main's figures join the history on the ci-metrics branch; the only job here that may write to the repository
+  record:
+    name: record the figures
+    needs: [image, metrics]
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.image.outputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: write
+      packages: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/gr4-devtools
+        with:
+          ref: ${{ env.GR4_DEVTOOLS_REF }}
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: "*-report"
+          path: reports
+
+      - name: Record
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          set -- reports/*
+          (($#)) || { echo "nothing to record"; exit 0; }
+          "$RUNNER_TEMP/qualitybot" record --out "$RUNNER_TEMP/record" "$@"
