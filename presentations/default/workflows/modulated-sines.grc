@@ -67,7 +67,6 @@ blocks:
       name: frequency1
       label: f1
       unit: Hz
-      value_type: float32
       value: 12
       min: 0.1
       max: 20
@@ -79,7 +78,6 @@ blocks:
       name: amplitude1
       label: A1
       unit: V
-      value_type: float32
       value: 1
       min: 0
       max: 2
@@ -91,7 +89,6 @@ blocks:
       name: frequency2
       label: f2
       unit: Hz
-      value_type: float32
       value: 5
       min: 0.1
       max: 20
@@ -103,7 +100,6 @@ blocks:
       name: amplitude2
       label: A2
       unit: V
-      value_type: float32
       value: 1
       min: 0
       max: 2
@@ -115,7 +111,6 @@ blocks:
       name: noiseAmplitude
       label: noise
       unit: V
-      value_type: float32
       value: 0.01
       min: 0
       max: 0.1

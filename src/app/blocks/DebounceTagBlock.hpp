@@ -29,11 +29,8 @@ struct DebounceTagBlock : gr::Block<DebounceTagBlock<T>, gr::NoTagPropagation> {
     bool        _hasAcceptedTag    = false;
     std::size_t _lastAcceptedIndex = 0UZ;
 
-    template<typename TInputSpans, typename TOutputSpans>
-    void forwardTags(TInputSpans&, TOutputSpans&, std::size_t) noexcept {}
-
     [[nodiscard]] bool isActivationTag(const gr::Tag& tag) const noexcept {
-        const auto name = tag.map.template get_if<std::string_view>(gr::tag::TRIGGER_NAME.key());
+        const auto name = tag.map.template get_if<std::string_view>(gr::tag::kTriggerName.key());
         return name.has_value() && *name == std::string_view{activation_tag.value};
     }
 

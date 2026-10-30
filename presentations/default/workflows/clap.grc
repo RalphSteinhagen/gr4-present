@@ -44,13 +44,15 @@ blocks:
   - id: gr::blocks::trigger::SchmittTriggerNoInterpolation<float32>
     parameters:
       name: triggerL
-      threshold: 0.1
-      n_dead_time: 50000
+      threshold: 0.1 # the level a clap must reach
+      dead_time: 50000 # samples
+      trigger_name_rising: RISING
   - id: gr::blocks::trigger::SchmittTriggerNoInterpolation<float32>
     parameters:
       name: triggerR
-      threshold: 0.1
-      n_dead_time: 50000
+      threshold: 0.1 # the level a clap must reach
+      dead_time: 50000 # samples
+      trigger_name_rising: RISING
   - id: gr::basic::StreamToDataSet<float32>
     parameters:
       name: snapshotL
@@ -112,7 +114,6 @@ blocks:
       name: threshold
       label: threshold
       unit: FS
-      value_type: float32
       value: 0.1
       min: 0
       max: 1
@@ -124,7 +125,6 @@ blocks:
       name: postTrigger
       label: post-trigger
       unit: samples
-      value_type: uint32
       value: 20000
       min: 2000
       max: 100000
@@ -136,13 +136,12 @@ blocks:
       name: holdOff
       label: trigger hold-off
       unit: samples
-      value_type: uint32
       value: 50000
       min: 2000
       max: 100000
       step: 1000
       style: slider
-      target_map: "snapshotL,snapshotR:holdoff_samples;triggerL,triggerR:n_dead_time"
+      target_map: "snapshotL,snapshotR:holdoff_samples;triggerL,triggerR:dead_time"
 connections:
   - [ recording, 0, speaker, 0 ]
   - [ recording, 0, channels, 0 ]

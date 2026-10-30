@@ -1,18 +1,17 @@
 # Its own name: OpenDigitizer's dependency file force-sets GIT_SHA_GNURADIO4 to its pin, and would win otherwise
 set(GR4_PRESENT_GIT_REF_GNURADIO4
-    d06fa584
-    CACHE STRING "" FORCE) # newTriggerBlocks (2026-10-11), on main 442345b7 (#857 merged: forwarded settings no longer
-                           # re-applied, scheduler stops its blocks on ERROR, browser audio through a JS
-                           # AudioWorkletProcessor): the trigger module, the StreamToDataSet hold-off and the Schmitt
-                           # trigger's dead time. Not merged, and its history may be rewritten: re-find it by the
-                           # subjects "feat(blocks): the trigger module, its event vocabulary, time base and shared
-                           # primitives" and "refactor(blocks): the Schmitt trigger moves to the trigger module".
+    f0f48976111f55b0604e109381a3e09894212e12
+    CACHE STRING "" FORCE) # main (2026-10-29): the trigger module merged (#864 renames: kUpperCamel tag constants, the
+                           # Schmitt trigger's threshold as the level, hysteresis, dead_time, named edges),
+                           # StreamToDataSet capture modes and hold-off, canonical settings through their tag alias. A
+                           # full SHA: GitHub serves a commit by its full id only.
 
 set(GIT_REF_OPENDIGITIZER
-    907881b
-    CACHE STRING "" FORCE) # main (2026-10-11), with #514: DataSet against GR4's std::pmr fields (#857), gr-digitizers
-                           # main 9c32e960 (#211), chart SymLog threshold and history in seconds, chart reset() off the
-                           # render thread, refl-cpp's __COUNTER__ pragma for native Clang.
+    155aad8ff4fbbc1fba35cf6358372f236e07e6ac
+    CACHE STRING "" FORCE) # main (2026-10-30) past the merge of bumpGR4 (#521): the GR4 pin above and its API (tag
+                           # constants, gr::emit, std::pmr strings for the signal settings), SignalGenerator in place of
+                           # SineSource. A merged branch's head is unreachable once the branch is deleted, so the pin
+                           # follows main.
 
 set(GIT_SHA_UT
     v2.3.1

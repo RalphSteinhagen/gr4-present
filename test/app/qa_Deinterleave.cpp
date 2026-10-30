@@ -29,7 +29,7 @@ const suite<"Deinterleave"> deinterleaveTests = [] {
     "six stereo frames become six mono samples per channel, at the frame rate"_test = [] {
         gr::Graph graph;
         auto&     source = graph.emplaceBlock<TagSource<float, ProcessFunction::USE_PROCESS_BULK>>({{"n_samples_max", gr::Size_t{12}}, {"sample_rate", 1000.0f}, {"mark_tag", false}, {"verbose_console", false}});
-        source._tags     = {{0UZ, gr::property_map{{gr::tag::SAMPLE_RATE.shortKey(), 1000.0f}, {gr::tag::NUM_CHANNELS.key(), gr::Size_t{2U}}}}};
+        source._tags     = {{0UZ, gr::property_map{{gr::tag::kSampleRate.shortKey(), 1000.0f}, {gr::tag::kNumChannels.key(), gr::Size_t{2U}}}}};
         auto& split      = graph.emplaceBlock<gr::present::blocks::Deinterleave<float>>({{"n_channels", gr::Size_t{2}}});
         auto& left       = graph.emplaceBlock<TagSink<float, ProcessFunction::USE_PROCESS_BULK>>({{"log_samples", true}, {"log_tags", true}, {"verbose_console", false}});
         auto& right      = graph.emplaceBlock<TagSink<float, ProcessFunction::USE_PROCESS_BULK>>({{"log_samples", true}, {"log_tags", true}, {"verbose_console", false}});
@@ -45,10 +45,10 @@ const suite<"Deinterleave"> deinterleaveTests = [] {
         const std::vector<float> odds{1.0f, 3.0f, 5.0f, 7.0f, 9.0f, 11.0f};
         expect(std::ranges::equal(left._samples, evens)) << "the left channel is every first sample of a frame";
         expect(std::ranges::equal(right._samples, odds)) << "the right channel every second";
-        expect(eq(left.sample_rate, 1000.0f) && eq(right.sample_rate, 1000.0f)) << "each channel keeps the frame rate, " << left.sample_rate;
+        expect(eq(left.sample_rate.value, 1000.0f) && eq(right.sample_rate.value, 1000.0f)) << "each channel keeps the frame rate, " << left.sample_rate.value;
         const auto channelCountSeen = [](const auto& sink) {
-            const auto stated = std::ranges::find_if(sink._tags, [](const auto& logged) { return logged.map.contains(gr::tag::NUM_CHANNELS.key()); });
-            return stated == sink._tags.end() ? gr::Size_t{0U} : stated->map.template value_or<gr::Size_t>(gr::tag::NUM_CHANNELS.key(), gr::Size_t{0U});
+            const auto stated = std::ranges::find_if(sink._tags, [](const auto& logged) { return logged.map.contains(gr::tag::kNumChannels.key()); });
+            return stated == sink._tags.end() ? gr::Size_t{0U} : stated->map.template value_or<gr::Size_t>(gr::tag::kNumChannels.key(), gr::Size_t{0U});
         };
         expect(eq(channelCountSeen(left), gr::Size_t{1U}) && eq(channelCountSeen(right), gr::Size_t{1U})) << "each channel is one channel";
     };
@@ -60,7 +60,7 @@ const suite<"Deinterleave"> deinterleaveTests = [] {
         gr::Graph             graph;
         auto&                 recording = graph.emplaceBlock<gr::blocks::fileio::WavSource<float>>({{"uri", std::pmr::string{GR4_PRESENT_PACKAGE_DIRECTORY "/media/clap.wav"}}});
         auto&                 channels  = graph.emplaceBlock<gr::present::blocks::Deinterleave<float>>({{"n_channels", gr::Size_t{2}}});
-        auto&                 trigger   = graph.emplaceBlock<gr::blocks::trigger::SchmittTrigger<float, gr::trigger::InterpolationMethod::NO_INTERPOLATION>>({{"threshold", 0.1f}});
+        auto&                 trigger   = graph.emplaceBlock<gr::blocks::trigger::SchmittTrigger<float, gr::trigger::InterpolationMethod::NO_INTERPOLATION>>({{"threshold", 0.1f}, {"trigger_name_rising", std::pmr::string{"RISING"}}});
         auto&                 snapshot  = graph.emplaceBlock<gr::basic::StreamToDataSet<float>>({{"filter", std::pmr::string{"RISING"}}, {"n_pre", static_cast<gr::Size_t>(kPre)}, {"n_post", static_cast<gr::Size_t>(kPost)}, {"holdoff_samples", gr::Size_t{24000U}}});
         auto&                 sink      = graph.emplaceBlock<TagSink<gr::DataSet<float>, ProcessFunction::USE_PROCESS_BULK>>({{"log_samples", true}, {"log_tags", false}, {"verbose_console", false}});
         auto&                 right     = graph.emplaceBlock<TagSink<float, ProcessFunction::USE_PROCESS_BULK>>({{"log_samples", false}, {"log_tags", false}, {"verbose_console", false}});
