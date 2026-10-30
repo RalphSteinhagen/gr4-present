@@ -59,6 +59,7 @@ ImFont* FaceSet::forKind(InlineKind kind) const noexcept {
     switch (kind) {
     case InlineKind::strong: return bold;
     case InlineKind::emphasis: return italic;
+    case InlineKind::strongEmphasis: return boldItalic;
     case InlineKind::code:
     case InlineKind::math: return mono;
     case InlineKind::text:

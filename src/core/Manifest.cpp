@@ -6,9 +6,14 @@
 #include <gnuradio-4.0/YamlPmt.hpp>
 
 #include <algorithm>
+#include <array>
+#include <charconv>
 #include <cstddef>
 #include <cstdint>
 #include <format>
+#include <optional>
+#include <system_error>
+#include <utility>
 
 namespace gr::present {
 
@@ -48,6 +53,28 @@ namespace {
     return {};
 }
 
+/// a value that is no colour is reported and ignored
+[[nodiscard]] std::optional<Rgb> colourField(const gr::property_map& map, std::string_view key) {
+    const std::string text = stringField(map, key);
+    if (text.empty()) {
+        return std::nullopt;
+    }
+    if (const auto colour = parseHexColour(text)) {
+        return colour;
+    }
+    gr::log::warning("colours: {}: '{}' is no colour (#rrggbb); the viewer's own is used", key, text);
+    return std::nullopt;
+}
+
+/// `text: "#000000"` inks both schemes, `text: { light: ..., dark: ... }` each its own
+[[nodiscard]] std::pair<std::optional<Rgb>, std::optional<Rgb>> textColoursField(const gr::property_map& colours) {
+    if (const gr::property_map perScheme = mapField(colours, "text"); !perScheme.empty()) {
+        return {colourField(perScheme, "light"), colourField(perScheme, "dark")};
+    }
+    const std::optional<Rgb> both = colourField(colours, "text");
+    return {both, both};
+}
+
 /// a value that names no position is reported and ignored
 [[nodiscard]] ChartLegend legendField(const gr::property_map& map, std::string_view key, ChartLegend fallback) {
     const std::string text = stringField(map, key);
@@ -76,7 +103,7 @@ namespace {
 
 [[nodiscard]] TypeScale sizesField(const gr::property_map& sizes) {
     constexpr TypeScale kDefault{};
-    return TypeScale{.title = pointsField(sizes, "title", kDefault.title), .body = pointsField(sizes, "body", kDefault.body), .floor = pointsField(sizes, "floor", kDefault.floor)};
+    return TypeScale{.title = pointsField(sizes, "title", kDefault.title), .subtitle = pointsField(sizes, "subtitle", kDefault.subtitle), .body = pointsField(sizes, "body", kDefault.body), .floor = pointsField(sizes, "floor", kDefault.floor)};
 }
 
 /// each entry of `fonts:`, a file or a map of `regular`, `bold`, `italic` and `bolditalic`, in the order written
@@ -126,12 +153,34 @@ bool versionAtLeast(std::string_view available, std::string_view required) noexc
     return true;
 }
 
+std::optional<Rgb> parseHexColour(std::string_view text) noexcept {
+    if (text.starts_with('#')) {
+        text.remove_prefix(1UZ);
+    }
+    if (text.size() != 6UZ) {
+        return std::nullopt;
+    }
+    std::array<std::uint8_t, 3UZ> channels{};
+    for (std::size_t channel = 0UZ; channel < channels.size(); ++channel) {
+        const char* const first = text.data() + 2UZ * channel;
+        const char* const last  = first + 2UZ;
+        unsigned          value = 0U;
+        const auto [end, error] = std::from_chars(first, last, value, 16);
+        if (error != std::errc{} || end != last) {
+            return std::nullopt;
+        }
+        channels[channel] = static_cast<std::uint8_t>(value);
+    }
+    return Rgb{.red = channels[0], .green = channels[1], .blue = channels[2]};
+}
+
 std::expected<Manifest, ManifestError> parseManifest(std::string_view yaml) {
     const auto parsed = gr::pmt::yaml::deserialize(yaml);
     if (!parsed) {
         return std::unexpected(ManifestError{.kind = ManifestError::Kind::invalidYaml, .detail = std::format("line {}, column {}: {}", parsed.error().line, parsed.error().column, parsed.error().message)});
     }
 
+    const auto [textColourLight, textColourDark] = textColoursField(mapField(*parsed, "colours"));
     Manifest manifest{
         .format               = stringField(*parsed, "format"),
         .title                = stringField(*parsed, "title"),
@@ -143,6 +192,8 @@ std::expected<Manifest, ManifestError> parseManifest(std::string_view yaml) {
         .liveLegend           = legendField(mapField(*parsed, "live"), "legend", ChartLegend::bottom),
         .fonts                = fontsField(mapField(*parsed, "fonts")),
         .sizes                = sizesField(mapField(*parsed, "sizes")),
+        .textColourLight      = textColourLight,
+        .textColourDark       = textColourDark,
         .background           = stringField(*parsed, "background"),
         .pointer              = stringField(*parsed, "pointer"),
         .breakEffect          = stringField(mapField(*parsed, "break"), "effect"),

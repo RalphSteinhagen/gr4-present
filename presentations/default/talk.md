@@ -526,7 +526,8 @@ its named boxes take the title, this text and the footer, and its middle band st
 ![the master's bands and named boxes](figures/master-annotated.svg)
 
 :::notes
-`data-present` says what belongs in each box, and the boxes themselves are hidden while the backdrop is drawn. The
+`data-present` says what belongs in each box, and the boxes themselves are hidden while the backdrop is drawn. A box
+named `footnotes` takes the slide's footnotes, which otherwise sit above the footer. The
 drawing is in three groups, `top`, `middle` and `bottom`: the top and bottom bands keep their shape at the screen's
 edges, the middle one stretches between them. A screen taller than wide takes the `portrait:` master instead, where
 the sidebar sits under the prose.
@@ -556,7 +557,8 @@ outline: on
 :::notes
 Any key in the layout directive other than its settings -- `source`, `portrait`, `anchor`, `transition`, `region`,
 `via`, `camera`, `grid`, `duration`, `advance`, `rotate`, `font`, `size` and `outline` -- names an area and what
-belongs in it. A box an author drew is a frame, not a stretch target.
+belongs in it. A box an author drew is a frame, not a stretch target. A `:::place` block adds boxes of its own over
+the drawing, at fractions of the slide, for what one slide needs and the master does not draw.
 :::
 
 # Fit to View<br>an overfull Slide shrinks, down to a Floor {#autoscale}
@@ -621,13 +623,15 @@ grid: [(deck_md, 0.5), (deck)], [(box_md, 0.5), (box)], [(span_md, 0.5), (span)]
 # index.yml: the deck's own faces and sizes
 fonts:
   hand: fonts/PatrickHand-Regular.ttf  # a name of its own
-sizes: { title: 36pt, body: 18pt, floor: 12pt }
+sizes: { title: 36pt, subtitle: 20pt, body: 18pt, floor: 12pt }
+colours: { text: "#000000" }  # or { light: ..., dark: ... }
 ```
 :::
 
 :::deck {frame}
 A deck names TrueType faces in its package, by role (body, bold, italic, mono, title) or by a name of its own, and sets its sizes once.
 A slide picks one up with `font:` and `size:` in its `:::layout`.
+`colours: text` inks its words, once or per scheme, where the viewer's grey does not suit a master; `[a few words]{colour=#c00000}` ink only those.
 :::
 
 :::box_md {frame size=95%}

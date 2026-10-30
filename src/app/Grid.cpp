@@ -276,6 +276,6 @@ Layout declaredLayoutOf(std::span<const Area> fractions, float width, float heig
     return layout;
 }
 
-bool contradictsMaster(std::string_view source, std::string_view grid, bool placedBoxes) noexcept { return !source.empty() && isSvgReference(source) && (!grid.empty() || placedBoxes); }
+bool contradictsMaster(std::string_view source, std::string_view grid) noexcept { return !source.empty() && isSvgReference(source) && !grid.empty(); }
 
 } // namespace gr::present

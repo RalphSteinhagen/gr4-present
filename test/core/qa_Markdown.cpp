@@ -73,6 +73,15 @@ const suite<"Markdown"> markdownTests = [] {
     };
 
     // Ground truth: Pandoc's bracketed span, `[words]{key=value}`, with the attributes this viewer reads
+    "three asterisks set words bold and italic at once, and the pairs inside stay what they are"_test = [] {
+        const Document                 document = parseMarkdown("plain ***both*** then **bold** and *italic*\n");
+        const std::vector<InlineSpan>& spans    = document.blocks.front().spans;
+        expect(eq(spans.size(), 6UZ));
+        expect(spans[1].kind == InlineKind::strongEmphasis && spans[1].text == "both");
+        expect(spans[3].kind == InlineKind::strong && spans[3].text == "bold");
+        expect(spans[5].kind == InlineKind::emphasis && spans[5].text == "italic");
+    };
+
     "a bracketed span sets its words in a face and a size, and the text around it keeps its own"_test = [] {
         const Document                document = parseMarkdown("say [hello there]{font=hand size=80%} to all\n");
         const std::vector<InlineSpan> expected{
@@ -91,6 +100,16 @@ const suite<"Markdown"> markdownTests = [] {
             InlineSpan{.kind = InlineKind::text, .text = " ", .target = {}, .font = "mono"},
             InlineSpan{.kind = InlineKind::code, .text = "x", .target = {}, .font = "mono"},
             InlineSpan{.kind = InlineKind::footnote, .text = "cite", .target = "cite", .font = "mono"},
+        };
+        expect(document.blocks.front().spans == expected);
+    };
+
+    "a span's words take a colour, as written, in either spelling"_test = [] {
+        const Document                document = parseMarkdown("[red]{colour=#c00000} and [blue]{color=#0000c0}\n");
+        const std::vector<InlineSpan> expected{
+            InlineSpan{.kind = InlineKind::text, .text = "red", .target = {}, .colour = "#c00000"},
+            InlineSpan{.kind = InlineKind::text, .text = " and ", .target = {}},
+            InlineSpan{.kind = InlineKind::text, .text = "blue", .target = {}, .colour = "#0000c0"},
         };
         expect(document.blocks.front().spans == expected);
     };
@@ -273,6 +292,26 @@ const suite<"Markdown"> markdownTests = [] {
         expect(inside.blocks.front().lines == expected.blocks.front().lines && inside.blocks.front().lineSteps == expected.blocks.front().lineSteps);
         expect(eq(shorthand.stepCount(), longhand.stepCount())) << "a box's steps are its own, in either spelling";
         expect(eq(shorthand.blocks.back().step, longhand.blocks.back().step));
+    };
+
+    "a box opened at a slide's later step counts its own pauses on from that step"_test = [] {
+        const Document slide = parseMarkdown("# slide\n\n:::step {in=fade}\n:::aside\nfirst\n\n. . .\n\nsecond\n:::\n");
+        const Block&   box   = slide.blocks.back();
+        expect(box.kind == BlockKind::directive && eq(box.step, 1)) << "the step before the box is the box's own";
+        const Document inside = boxDocumentOf(box.lines, slide, box.step);
+        expect(eq(inside.blocks.size(), 2UZ));
+        expect(eq(inside.blocks[0].step, 1)) << "what the box opens with arrives with the box";
+        expect(eq(inside.blocks[1].step, 2)) << "its pause is the slide's next step";
+        expect(eq(boxDocumentOf(box.lines, slide).blocks[1].step, 1)) << "on its own, a box counts from zero as before";
+    };
+
+    "a step written after a slide's last block is a step of its own, on that slide"_test = [] {
+        expect(eq(parseMarkdown("words\n\n:::step\n").stepCount(), 2)) << "the marker reveals nothing yet, but Next stops there";
+        const auto sections = sectionsOf(parseMarkdown("# one\n\nx\n\n:::step {in=fade}\n\n# two\n\ny\n"));
+        expect(eq(sections.size(), 2UZ));
+        expect(eq(sections[0].document.stepCount(), 2)) << "the trailing step belongs to the slide it was written on";
+        expect(eq(sections[1].document.stepCount(), 1)) << "the next slide starts afresh";
+        expect(eq(sections[1].document.blocks.front().step, 0));
     };
 
     "a document without directives has exactly one step"_test = [] {

@@ -311,12 +311,19 @@ void advanceLoading(Viewer& viewer) {
 }
 
 void applyTheme(Viewer& viewer, ColourScheme scheme) {
-    if (viewer.logo.id != 0 && viewer.theme.scheme == scheme) {
+    // the deck's ink, where it names one, over the viewer's own; read each frame, so a reloaded deck takes effect
+    Theme wanted = themeFor(scheme);
+    if (const std::optional<Rgb> ink = scheme == ColourScheme::dark ? viewer.loader.manifest().textColourDark : viewer.loader.manifest().textColourLight) {
+        wanted.text = IM_COL32(ink->red, ink->green, ink->blue, 0xFF);
+    }
+    if (viewer.logo.id != 0 && viewer.theme == wanted) {
         return;
     }
-    viewer.logo.release();
-    viewer.theme = themeFor(scheme);
-    viewer.logo  = Texture::loadLogo(scheme);
+    if (viewer.logo.id == 0 || viewer.theme.scheme != scheme) {
+        viewer.logo.release();
+        viewer.logo = Texture::loadLogo(scheme);
+    }
+    viewer.theme = wanted;
 
     ImGuiStyle& style               = ImGui::GetStyle();
     style.Colors[ImGuiCol_Text]     = ImGui::ColorConvertU32ToFloat4(viewer.theme.text);

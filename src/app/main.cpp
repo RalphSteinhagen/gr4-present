@@ -119,7 +119,7 @@ void renderFrame(Viewer& viewer) {
         }
     }
 
-    applyTheme(viewer, viewer.exporting ? ColourScheme::light : detectColourScheme()); // a PDF is for paper
+    applyTheme(viewer, viewer.exporting ? ColourScheme::light : detectColourScheme(viewer.options.value("theme").value_or(""))); // a PDF is for paper
 
 #ifdef GR4_PRESENT_HAS_OPENDIGITIZER
     // pinch and rotation go unused here, but this also recovers a finger whose lift event never arrived
@@ -358,7 +358,7 @@ int main(int argc, char** argv) {
 
     Fonts::instance().load();
     prepareLiveGraphs(); // while the atlas is still open: a live region's chart adds its own faces to it
-    applyTheme(viewer, detectColourScheme());
+    applyTheme(viewer, detectColourScheme(viewer.options.value("theme").value_or("")));
     viewer.navigator             = placeholderNavigatorUntilPackagesLoad();
     viewer.loader.builtInEffects = EffectLibrary::bundledNames() | std::ranges::to<std::vector<std::string>>();
     viewer.frameStart            = std::chrono::steady_clock::now();

@@ -50,7 +50,7 @@ struct Fonts {
     ImFont* title      = nullptr; // a slide's title
     ImFont* icons      = nullptr; // Font Awesome solid, subset to the glyphs the viewer draws
 
-    TypeScale scale; // `sizes:` in index.yml: title, body and floor in points
+    TypeScale scale; // `sizes:` in index.yml: title, subtitle, body and floor in points
 
     /// the icons the viewer uses, as UTF-8
     static constexpr std::string_view kWarning   = "\xef\x81\xb1";
@@ -143,6 +143,7 @@ struct Fonts {
 
     /// a title over the body, and a heading inside the flow over the body, as the deck's sizes have them
     [[nodiscard]] static float titleRatio() noexcept { return instance().scale.title / instance().scale.body; }
+    [[nodiscard]] static float subtitleRatio() noexcept { return instance().scale.subtitle / instance().scale.title; }
     [[nodiscard]] static float headingRatio() noexcept { return kPointsHeading / kPointsBody; }
 
     [[nodiscard]] static float slideBodySize(float viewportWidth, float viewportHeight) noexcept { return pointsToPixels(instance().scale.body, viewportWidth, viewportHeight); }

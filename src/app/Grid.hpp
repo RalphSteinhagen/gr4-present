@@ -42,8 +42,8 @@ inline constexpr std::string_view kDefaultGrid = "[(content)]";
 /// a layout from boxes the author placed as fractions of the slide; `title` and `footer` are added unless named
 [[nodiscard]] Layout declaredLayoutOf(std::span<const Area> fractions, float width, float height);
 
-/// whether a section names both a drawing and a grid; a raster source carries no boxes and is not a master
-[[nodiscard]] bool contradictsMaster(std::string_view source, std::string_view grid, bool placedBoxes) noexcept;
+/// a drawn master is the layout: rows (`grid:`) have no place in it, while `:::place` boxes lie over its own
+[[nodiscard]] bool contradictsMaster(std::string_view source, std::string_view grid) noexcept;
 
 } // namespace gr::present
 

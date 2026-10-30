@@ -229,6 +229,51 @@ sizes:
         expect(eq(manifest->sizes.floor, 12.0f)) << "what is not said keeps its default";
     };
 
+    // Ground truth: the sRGB triplet a colour picker shows for the same hex code
+    "a hex colour reads as its three channels, with or without the hash"_test = [] {
+        expect(parseHexColour("#1a2b3c") == std::optional{Rgb{.red = 0x1A, .green = 0x2B, .blue = 0x3C}});
+        expect(parseHexColour("FFFFFF") == std::optional{Rgb{.red = 255, .green = 255, .blue = 255}});
+        expect(!parseHexColour("#12345").has_value()) << "five digits are no colour";
+        expect(!parseHexColour("#gg0000").has_value()) << "g is no hex digit";
+        expect(!parseHexColour("black").has_value()) << "names are not read";
+    };
+
+    "a deck inks its words once for both schemes, or each scheme its own"_test = [] {
+        const auto both = parseManifest(R"(format: gr4-presentation/1
+entry: talk.md
+colours: { text: "#000000" }
+)");
+        expect(both.has_value()) << (both ? std::string{} : both.error().message());
+        expect(both->textColourLight == std::optional{Rgb{}});
+        expect(both->textColourDark == std::optional{Rgb{}});
+
+        const auto each = parseManifest(R"(format: gr4-presentation/1
+entry: talk.md
+colours:
+  text:
+    light: "#102030"
+    dark: "#f0f0f0"
+)");
+        expect(each.has_value()) << (each ? std::string{} : each.error().message());
+        expect(each->textColourLight == std::optional{Rgb{.red = 0x10, .green = 0x20, .blue = 0x30}});
+        expect(each->textColourDark == std::optional{Rgb{.red = 0xF0, .green = 0xF0, .blue = 0xF0}});
+    };
+
+    "a deck that names no colours, or one that is no colour, keeps the viewer's own ink"_test = [] {
+        const auto silent = parseManifest("format: gr4-presentation/1\nentry: talk.md\n");
+        expect(silent.has_value() && !silent->textColourLight.has_value() && !silent->textColourDark.has_value());
+        const auto nonsense = parseManifest("format: gr4-presentation/1\nentry: talk.md\ncolours: { text: ink }\n");
+        expect(nonsense.has_value() && !nonsense->textColourLight.has_value()) << "'ink' is no colour; the viewer's grey stays";
+    };
+
+    "a deck sets its sub-title size, else it is 20 points under a 36 point title"_test = [] {
+        const auto set = parseManifest("format: gr4-presentation/1\nentry: talk.md\nsizes: { title: 30pt, subtitle: 24pt }\n");
+        expect(set.has_value()) << (set ? std::string{} : set.error().message());
+        expect(std::abs(set->sizes.subtitle - 24.0f) < 0.001f);
+        const auto unset = parseManifest("format: gr4-presentation/1\nentry: talk.md\n");
+        expect(unset.has_value() && std::abs(unset->sizes.subtitle - 20.0f) < 0.001f && std::abs(unset->sizes.title - 36.0f) < 0.001f);
+    };
+
     "a size that is no size keeps the default rather than stopping the deck"_test = [] {
         const auto manifest = parseManifest(R"(format: gr4-presentation/1
 entry: talk.md

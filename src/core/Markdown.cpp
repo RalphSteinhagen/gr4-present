@@ -82,7 +82,7 @@ void appendText(std::vector<InlineSpan>& spans, std::string_view text) {
     if (text.empty()) {
         return;
     }
-    if (!spans.empty() && spans.back().kind == InlineKind::text && spans.back().font.empty() && spans.back().size.empty()) {
+    if (!spans.empty() && spans.back().kind == InlineKind::text && spans.back().font.empty() && spans.back().size.empty() && spans.back().colour.empty()) {
         spans.back().text.append(text);
         return;
     }
@@ -116,6 +116,7 @@ struct StyledSpan {
     std::string_view words;
     std::string      font;
     std::string      size;
+    std::string      colour = {}; // `colour=` or `color=`, as written
 };
 
 [[nodiscard]] StyledSpan matchStyledSpan(std::string_view text) {
@@ -138,16 +139,18 @@ struct StyledSpan {
     if (braceEnd == std::string_view::npos) {
         return {};
     }
-    StyledSpan styled{.consumed = braceEnd + 1UZ, .words = text.substr(1UZ, close - 1UZ), .font = {}, .size = {}};
+    StyledSpan styled{.consumed = braceEnd + 1UZ, .words = text.substr(1UZ, close - 1UZ), .font = {}, .size = {}, .colour = {}};
     for (auto& [key, value] : fenceOptionsOf(text.substr(close + 1UZ, braceEnd - close))) {
         if (key == "font") {
             styled.font = std::move(value);
         } else if (key == "size") {
             styled.size = std::move(value);
+        } else if (key == "colour" || key == "color") {
+            styled.colour = std::move(value);
         }
     }
     // `[x]{#id}` and other braces after a bracket are not a style, and stay as they were written
-    return styled.font.empty() && styled.size.empty() ? StyledSpan{} : styled;
+    return styled.font.empty() && styled.size.empty() && styled.colour.empty() ? StyledSpan{} : styled;
 }
 
 /// `[^label]`, a footnote or citation reference; the label goes in the target, as a link's does
@@ -227,8 +230,9 @@ struct StyledSpan {
             if (const StyledSpan styled = matchStyledSpan(rest); styled.consumed > 0UZ) {
                 appendText(spans, text.substr(plain, index - plain));
                 for (InlineSpan inner : parseInlines(styled.words)) {
-                    inner.font = inner.font.empty() ? styled.font : inner.font;
-                    inner.size = inner.size.empty() ? styled.size : inner.size;
+                    inner.font   = inner.font.empty() ? styled.font : inner.font;
+                    inner.size   = inner.size.empty() ? styled.size : inner.size;
+                    inner.colour = inner.colour.empty() ? styled.colour : inner.colour;
                     spans.push_back(std::move(inner));
                 }
                 index += styled.consumed;
@@ -236,14 +240,15 @@ struct StyledSpan {
                 continue;
             }
         }
-        const Match match = rest.starts_with("[^")   ? matchFootnoteReference(rest)                    //
-                            : rest.starts_with("![") ? matchReference(rest, true)                      //
-                            : rest.starts_with('[')  ? matchReference(rest, false)                     //
-                            : rest.starts_with("**") ? matchDelimited(rest, "**", InlineKind::strong)  //
-                            : rest.starts_with('*')  ? matchDelimited(rest, "*", InlineKind::emphasis) //
-                            : rest.starts_with('`')  ? matchDelimited(rest, "`", InlineKind::code)     //
-                            : rest.starts_with('$')  ? matchDelimited(rest, "$", InlineKind::math)     //
-                                                     : Match{};
+        const Match match = rest.starts_with("[^")    ? matchFootnoteReference(rest)                            //
+                            : rest.starts_with("![")  ? matchReference(rest, true)                              //
+                            : rest.starts_with('[')   ? matchReference(rest, false)                             //
+                            : rest.starts_with("***") ? matchDelimited(rest, "***", InlineKind::strongEmphasis) //
+                            : rest.starts_with("**")  ? matchDelimited(rest, "**", InlineKind::strong)          //
+                            : rest.starts_with('*')   ? matchDelimited(rest, "*", InlineKind::emphasis)         //
+                            : rest.starts_with('`')   ? matchDelimited(rest, "`", InlineKind::code)             //
+                            : rest.starts_with('$')   ? matchDelimited(rest, "$", InlineKind::math)             //
+                                                      : Match{};
         if (match.consumed == 0UZ) {
             ++index;
             continue;
@@ -384,7 +389,7 @@ float Document::delayBefore(int step) const noexcept {
 }
 
 int Document::stepCount() const noexcept {
-    int highest = -1;
+    int highest = lastStep;
     for (const Block& block : blocks) {
         highest = std::max(highest, block.step);
         for (const int lineStep : block.lineSteps) {
@@ -434,7 +439,7 @@ std::string notesOf(const Document& document) {
     }
     return notes;
 }
-Document boxDocumentOf(std::span<const std::string> lines, const Document& slide) {
+Document boxDocumentOf(std::span<const std::string> lines, const Document& slide, int firstStep) {
     std::string prose;
     for (const std::string& line : lines) {
         prose += line;
@@ -442,6 +447,19 @@ Document boxDocumentOf(std::span<const std::string> lines, const Document& slide
     }
     Document contents  = parseMarkdown(prose);
     contents.footnotes = slide.footnotes;
+    for (Block& block : contents.blocks) {
+        block.step += firstStep;
+        for (int& lineStep : block.lineSteps) {
+            lineStep += firstStep;
+        }
+    }
+    for (Document::StepReveal& reveal : contents.stepReveals) {
+        reveal.step += firstStep;
+    }
+    for (auto& [step, unusedSeconds] : contents.stepDelays) {
+        step += firstStep;
+    }
+    contents.lastStep += firstStep;
     return contents;
 }
 
@@ -463,12 +481,17 @@ std::vector<Section> sectionsOf(const Document& document, int level) {
     }
 
     // steps are numbered across the whole document, so rebase each section's onto zero for its own (view, step) cursor
-    for (Section& section : sections) {
-        const auto lowest = std::ranges::min_element(section.document.blocks, {}, &Block::step);
+    for (std::size_t index = 0UZ; index < sections.size(); ++index) {
+        Section&   section = sections[index];
+        const auto lowest  = std::ranges::min_element(section.document.blocks, {}, &Block::step);
         if (lowest == section.document.blocks.end()) {
             continue;
         }
         const int base = lowest->step;
+        // the next section's heading took the counter as it stood, so a step written after this section's last block
+        // shows there; the sections after this one are still numbered across the document at this point
+        const int ending          = index + 1UZ < sections.size() ? sections[index + 1UZ].document.blocks.front().step : document.lastStep;
+        section.document.lastStep = ending - base;
         for (Block& block : section.document.blocks) {
             block.step -= base;
             for (int& lineStep : block.lineSteps) {
@@ -965,6 +988,7 @@ Document parseMarkdown(std::string_view source) {
     if (insideDirective && openDirectiveIndex < document.blocks.size()) {
         document.blocks[openDirectiveIndex].closed = false;
     }
+    document.lastStep = step;
     return document;
 }
 
