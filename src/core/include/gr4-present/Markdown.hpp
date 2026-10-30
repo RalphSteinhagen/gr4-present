@@ -11,14 +11,15 @@
 
 namespace gr::present {
 
-enum class InlineKind { text, emphasis, strong, code, link, image, math, footnote, lineBreak }; // `lineBreak`: a written `<br>`
+enum class InlineKind { text, emphasis, strong, strongEmphasis, code, link, image, math, footnote, lineBreak }; // `strongEmphasis`: `***both***`; `lineBreak`: a written `<br>`
 
 struct InlineSpan {
     InlineKind  kind = InlineKind::text;
-    std::string text;      // the visible text; for an image, its alternative text
-    std::string target;    // link or image reference, resolved against the package root by the caller
-    std::string font = {}; // `[words]{font=hand}`: a role or a face the deck names; empty is the surrounding face
-    std::string size = {}; // `[words]{size=80%}`, as written; empty is the surrounding size
+    std::string text;        // the visible text; for an image, its alternative text
+    std::string target;      // link or image reference, resolved against the package root by the caller
+    std::string font   = {}; // `[words]{font=hand}`: a role or a face the deck names; empty is the surrounding face
+    std::string size   = {}; // `[words]{size=80%}`, as written; empty is the surrounding size
+    std::string colour = {}; // `[words]{colour=#c00000}`, as written; empty is the ink around it
 
     bool operator==(const InlineSpan&) const = default;
 };
@@ -104,7 +105,11 @@ struct Document {
     /// what the parser read past rather than understood, "line 12: ...", for the problems list
     std::vector<std::string> warnings = {};
 
-    [[nodiscard]] int                            stepCount() const noexcept;           // one more than the highest step any block carries
+    /// the step the counter stood at when the document, or the section, ended: a `:::step` after the last block is a
+    /// step of its own, with nothing to show yet
+    int lastStep = 0;
+
+    [[nodiscard]] int                            stepCount() const noexcept;           // one more than the highest step any block carries, or `lastStep`
     [[nodiscard]] float                          delayBefore(int step) const noexcept; // seconds after which `step` reveals itself; negative waits for a key
     [[nodiscard]] const Reveal*                  revealOf(int step) const noexcept;    // how `step` arrives; null is at once
     [[nodiscard]] const Block*                   withId(std::string_view id) const noexcept;
@@ -127,8 +132,9 @@ struct Section {
 /// splits a document at headings of `level` or above; blocks before the first heading form a leading section
 [[nodiscard]] std::vector<Section> sectionsOf(const Document& document, int level = 1);
 
-/// the prose a `:::<name>` box holds, parsed as a document of its own; the slide's footnotes travel with it
-[[nodiscard]] Document boxDocumentOf(std::span<const std::string> lines, const Document& slide);
+/// the prose a `:::<name>` box holds, parsed as a document of its own; the slide's footnotes travel with it, and its
+/// steps count on from `firstStep`, the slide's step the box opened at, so a `:::step` before a box reveals it
+[[nodiscard]] Document boxDocumentOf(std::span<const std::string> lines, const Document& slide, int firstStep = 0);
 
 /// appends each footnote label a block cites, prose then table cells, that `labels` does not hold yet
 void appendCitedLabels(const Block& block, std::vector<std::string>& labels);

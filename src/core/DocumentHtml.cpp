@@ -1,7 +1,9 @@
 #include <gr4-present/DocumentHtml.hpp>
+#include <gr4-present/Manifest.hpp>
 
 #include <algorithm>
 #include <format>
+#include <optional>
 #include <string_view>
 
 namespace gr::present {
@@ -27,10 +29,19 @@ void appendSpans(std::string& html, std::span<const InlineSpan> spans) {
         html += std::format("</{}>", tag);
     };
     for (const InlineSpan& span : spans) {
+        const std::optional<Rgb> colour = parseHexColour(span.colour);
+        if (colour) {
+            html += std::format("<span style=\"color:#{:02x}{:02x}{:02x}\">", colour->red, colour->green, colour->blue);
+        }
         switch (span.kind) {
         case InlineKind::text: appendEscaped(html, span.text); break;
         case InlineKind::emphasis: wrapped("em", span.text); break;
         case InlineKind::strong: wrapped("strong", span.text); break;
+        case InlineKind::strongEmphasis:
+            html += "<strong>";
+            wrapped("em", span.text);
+            html += "</strong>";
+            break;
         case InlineKind::code: wrapped("code", span.text); break;
         case InlineKind::math: wrapped("code", span.text); break; // its LaTeX, as a reader copies it
         case InlineKind::lineBreak: html += "<br>"; break;
@@ -49,6 +60,9 @@ void appendSpans(std::string& html, std::span<const InlineSpan> spans) {
             appendEscaped(html, span.text);
             html += "\">";
             break;
+        }
+        if (colour) {
+            html += "</span>";
         }
     }
 }

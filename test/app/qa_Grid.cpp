@@ -181,11 +181,10 @@ const suite<"Grid"> gridTests = [] {
 
     // Ground truth: a drawing carries its own boxes, so a grid over one contradicts it; a photograph carries none
     "asking for a drawing and a grid at once is reported, over a photograph it is not"_test = [] {
-        expect(contradictsMaster("figures/master.svg", "(left, right)", false)) << "a drawn master and a named grid";
-        expect(contradictsMaster("figures/master.svg", "", true)) << "a drawn master and boxes placed by hand";
-        expect(!contradictsMaster("figures/master.svg", "", false)) << "a drawn master on its own is the usual case";
-        expect(!contradictsMaster("", "(left, right)", false)) << "and a grid on its own is the other usual case";
-        expect(!contradictsMaster("media/Science_FAIR.webp", "(left, right)", false)) << "a photograph has no boxes to contradict";
+        expect(contradictsMaster("figures/master.svg", "(left, right)")) << "a drawn master and a named grid";
+        expect(!contradictsMaster("figures/master.svg", "")) << "a drawn master on its own is the usual case; boxes placed by hand lie over it";
+        expect(!contradictsMaster("", "(left, right)")) << "and a grid on its own is the other usual case";
+        expect(!contradictsMaster("media/Science_FAIR.webp", "(left, right)")) << "a photograph has no boxes to contradict";
     };
 
     // Ground truth: a cell must be at least twelve ems wide, else the row is laid out down the slide

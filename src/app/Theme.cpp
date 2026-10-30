@@ -15,13 +15,14 @@ namespace {
 constexpr ImU32 kBrandOrange = IM_COL32(0xFD, 0xB3, 0x42, 0xFF);
 } // namespace
 
-ColourScheme detectColourScheme() noexcept {
-    // the projector's scheme need not match the presenter's desktop, so it can be forced
-    if (const char* forced = std::getenv("GR4_PRESENT_COLOUR_SCHEME"); forced != nullptr) {
-        if (std::string_view{forced} == "light") {
+ColourScheme detectColourScheme(std::string_view forced) noexcept {
+    // the projector's scheme need not match the presenter's desktop, so the address or the environment can force it
+    const char* environment = std::getenv("GR4_PRESENT_COLOUR_SCHEME");
+    for (const std::string_view wanted : {forced, std::string_view{environment == nullptr ? "" : environment}}) {
+        if (wanted == "light") {
             return ColourScheme::light;
         }
-        if (std::string_view{forced} == "dark") {
+        if (wanted == "dark") {
             return ColourScheme::dark;
         }
     }

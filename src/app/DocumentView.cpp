@@ -8,6 +8,7 @@
 #include "Transition.hpp"
 
 #include <gr4-present/EffectSource.hpp>
+#include <gr4-present/Manifest.hpp>
 #include <gr4-present/Number.hpp>
 #include <gr4-present/Slice.hpp>
 
@@ -44,7 +45,6 @@ constexpr float kAnchorAirShare             = 0.06f;
 constexpr float kFooterClearEms             = 2.1f;
 constexpr float kFooterSmallestStatusShare  = 0.7f;
 constexpr float kRiseEms                    = 0.6f;
-constexpr float kSubtitleRatio              = 20.0f / 36.0f; // 20 pt under a 36 pt title
 constexpr float kGapBelowTitleLines         = 0.79f;
 // captions sit in a band at the foot, not a column that would cover what the camera frames
 constexpr float kCaptionMaxHeightShare    = 0.30f;
@@ -114,6 +114,15 @@ constexpr float kVideoControlsHeightLines = kVideoBarGapLines + kVideoBarHeightL
     const bool    plain  = span.kind == InlineKind::text || span.kind == InlineKind::image;
     const FaceSet chosen = span.font.empty() ? faces : Fonts::instance().faceSet(span.font).value_or(faces);
     return plain && span.font.empty() && textFace != nullptr ? textFace : chosen.forKind(span.kind);
+}
+
+/// the span's own colour where `[words]{colour=#rrggbb}` names one, else the ink around it
+[[nodiscard]] ImU32 inkOf(const InlineSpan& span, ImU32 surrounding) noexcept {
+    if (span.colour.empty()) {
+        return surrounding;
+    }
+    const std::optional<Rgb> own = parseHexColour(span.colour);
+    return own ? IM_COL32(own->red, own->green, own->blue, 0xFF) : surrounding;
 }
 
 /// a span's `size=` in pixels: points at the deck's reference, or a share of `around`
@@ -401,9 +410,11 @@ struct InlinePen {
         baseSize             = size;
         ImFont* const font   = faceOf(inlineSpan, faces, face);
         const float   spanSz = sizeOf(inlineSpan, size);
+        const ImU32   ink    = inkOf(inlineSpan, theme.text);
         switch (inlineSpan.kind) {
         case InlineKind::strong:
-        case InlineKind::emphasis: run(inlineSpan.text, theme.text, font, spanSz); return;
+        case InlineKind::emphasis:
+        case InlineKind::strongEmphasis: run(inlineSpan.text, ink, font, spanSz); return;
         case InlineKind::code: run(inlineSpan.text, theme.fill, font, spanSz); return;
         case InlineKind::math: {
             const PlacedFormula* rendered = formulas != nullptr && *formulas ? (*formulas)(inlineSpan.text, spanSz, false) : nullptr;
@@ -426,7 +437,7 @@ struct InlinePen {
             linkTarget = {};
             return;
         case InlineKind::image:
-        case InlineKind::text: run(inlineSpan.text, theme.text, font, spanSz); return;
+        case InlineKind::text: run(inlineSpan.text, ink, font, spanSz); return;
         }
     }
 };
@@ -1107,7 +1118,7 @@ void DocumentView::draw(const Theme& theme) {
         // a shallow drawn box lends the title air instead
         const ImVec2 viewportSize = ImGui::GetMainViewport()->Size;
         const float  floorPixels  = Fonts::pointsToPixels(Fonts::instance().scale.floor, viewportSize.x, viewportSize.y);
-        titleArea.floorScale      = std::min(1.0f, floorPixels / (headingSize(1, titleBody) * kSubtitleRatio));
+        titleArea.floorScale      = std::min(1.0f, floorPixels / (headingSize(1, titleBody) * Fonts::subtitleRatio()));
         const LaidOut titleNeeded = layoutPass(faded, *document, 1.0f, false, titleArea, Selection::headingOnly);
         const float   titleScale  = drawn ? 1.0f : fittingScale(faded, *document, titleArea, Selection::headingOnly, titleNeeded).first;
         const float   lent        = drawn ? std::max(titleNeeded.height - where.title.height, 0.0f) * 0.5f : 0.0f;
@@ -1737,7 +1748,7 @@ auto DocumentView::layoutPass(const Theme& theme, const Document& contents, floa
                     subtitled = true;
                     pen.newline("\n");
                     heading.reset();
-                    heading.emplace(size * kSubtitleRatio, faces.regular);
+                    heading.emplace(size * Fonts::subtitleRatio(), faces.regular);
                     pen.lineHeight = ImGui::GetTextLineHeight();
                     continue;
                 }

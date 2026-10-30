@@ -4,7 +4,9 @@
 #include <gr4-present/ChartLegend.hpp>
 #include <gr4-present/TypeSize.hpp>
 
+#include <cstdint>
 #include <expected>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -28,6 +30,18 @@ struct FontFamily {
 /// the move duration when the deck says none
 inline constexpr float kDefaultTransitionSeconds = 0.5f;
 
+/// an sRGB colour as a deck writes it, `#rrggbb`
+struct Rgb {
+    std::uint8_t red   = 0;
+    std::uint8_t green = 0;
+    std::uint8_t blue  = 0;
+
+    bool operator==(const Rgb&) const = default;
+};
+
+/// `#rrggbb` or `rrggbb`, six hex digits; anything else is no colour
+[[nodiscard]] std::optional<Rgb> parseHexColour(std::string_view text) noexcept;
+
 struct Manifest {
     std::string format;
     std::string title;
@@ -50,8 +64,13 @@ struct Manifest {
     /// to four
     std::vector<std::pair<std::string, FontFamily>> fonts;
 
-    /// `sizes: { title: 40pt, body: 20pt, floor: 12pt }`; a relative value scales the size the viewer would use
+    /// `sizes: { title: 40pt, subtitle: 22pt, body: 20pt, floor: 12pt }`; a relative value scales the size the viewer would use
     TypeScale sizes;
+
+    /// `colours: { text: "#000000" }` or `colours: { text: { light: "#000000", dark: "#ffffff" } }`: the ink of the
+    /// slides' words in each scheme; unset keeps the viewer's own grey. A value must be quoted, as `#` opens a comment
+    std::optional<Rgb> textColourLight;
+    std::optional<Rgb> textColourDark;
 
     /// `background: plasma speed=1`: the effect shader behind every slide that does not name its own
     std::string background;

@@ -23,11 +23,12 @@ struct TypeSize {
 /// `14pt`, `14`, `80%` or `1.2em`; nothing for anything else, and for a size that is not positive
 [[nodiscard]] std::optional<TypeSize> parseTypeSize(std::string_view text) noexcept;
 
-/// the deck's type in points: `sizes: { title: 36pt, body: 18pt, floor: 12pt }` in `index.yml`
+/// the deck's type in points: `sizes: { title: 36pt, subtitle: 20pt, body: 18pt, floor: 12pt }` in `index.yml`
 struct TypeScale {
-    float title = 36.0f;
-    float body  = 18.0f;
-    float floor = 12.0f; // auto-shrink stops here; a size the author set is never raised to it
+    float title    = 36.0f;
+    float subtitle = 20.0f; // the line a title's `<br>` starts
+    float body     = 18.0f;
+    float floor    = 12.0f; // auto-shrink stops here; a size the author set is never raised to it
 
     bool operator==(const TypeScale&) const = default;
 };

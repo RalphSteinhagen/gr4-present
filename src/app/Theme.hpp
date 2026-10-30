@@ -6,12 +6,15 @@
 #include <imgui.h>
 
 #include <array>
+#include <string_view>
 
 namespace gr::present {
 
 enum class ColourScheme { light, dark };
 
-[[nodiscard]] ColourScheme detectColourScheme() noexcept;
+/// `forced`: `light` or `dark` from the address (`?theme=dark`) or the command line; anything else asks the
+/// environment (`GR4_PRESENT_COLOUR_SCHEME`), then the system
+[[nodiscard]] ColourScheme detectColourScheme(std::string_view forced = {}) noexcept;
 
 struct Theme {
     ColourScheme scheme         = ColourScheme::light;
@@ -23,6 +26,8 @@ struct Theme {
     ImU32        menuBackground = 0u;
 
     [[nodiscard]] ImVec4 backgroundColour() const noexcept { return ImGui::ColorConvertU32ToFloat4(background); }
+
+    bool operator==(const Theme&) const = default;
 };
 
 [[nodiscard]] Theme themeFor(ColourScheme scheme) noexcept;

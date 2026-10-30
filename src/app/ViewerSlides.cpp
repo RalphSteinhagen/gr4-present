@@ -89,7 +89,7 @@ static void                             transformDrawn(ImDrawList& list, int fro
         if (!isBox(block) || (block.lines.empty() && block.field("notes") != "all")) {
             continue;
         }
-        visual.slots.push_back(AreaDocument{.id = block.info, .contents = boxDocumentOf(block.lines, found->document), .options = boxOptionsOf(block)});
+        visual.slots.push_back(AreaDocument{.id = block.info, .contents = boxDocumentOf(block.lines, found->document, block.step), .options = boxOptionsOf(block)});
     }
 
     const Block* declaration = layoutDeclarationOf(found->document);
@@ -109,7 +109,7 @@ static void                             transformDrawn(ImDrawList& list, int fro
     visual.font        = std::string{declaration->field("font")};
     visual.outline     = declaration->field("outline") == "on";
     visual.size        = parseTypeSize(declaration->field("size"));
-    visual.contradicts = contradictsMaster(visual.source, visual.grid, !visual.declaredGrid.empty());
+    visual.contradicts = contradictsMaster(visual.source, visual.grid);
     for (const auto& [key, value] : declaration->fields) {
         if (key != "source" && key != "portrait" && !isLayoutSetting(key)) {
             visual.areaContent.emplace_back(key, value);
@@ -158,7 +158,14 @@ static void                             transformDrawn(ImDrawList& list, int fro
     if (known == viewer.layouts.end()) {
         return visual;
     }
-    visual.layout                   = &known->second;
+    visual.layout = &known->second;
+    // a master that draws a `footnotes` box collects the notes every box cites, as a `:::footnotes {notes=all}` would
+    if (known->second.find("footnotes") != nullptr && !std::ranges::contains(visual.slots, "footnotes", &AreaDocument::id)) {
+        for (AreaDocument& slot : visual.slots) {
+            slot.options.notes = false;
+        }
+        visual.slots.push_back(AreaDocument{.id = "footnotes", .contents = boxDocumentOf({}, found->document), .options = BoxOptions{.slideNotes = true}});
+    }
     const std::string_view anchorId = declaration->field("anchor");
     if (const Area* anchor = known->second.find(anchorId); anchor != nullptr) {
         visual.frame = Rectangle{.x = anchor->x, .y = anchor->y, .width = anchor->width, .height = anchor->height};
@@ -295,6 +302,14 @@ void drawSection(Viewer& viewer, const SectionVisual& visual, std::size_t step, 
             viewer.slides.grid = gridLayoutOf(rows, viewport.Size.x, viewport.Size.y, filledAreasOf(visual), measuredRows(viewer, visual, rows, viewport));
         } else {
             viewer.slides.grid = declaredLayoutOf(visual.declaredGrid, viewport.Size.x, viewport.Size.y);
+        }
+        viewer.documentView.layout = &viewer.slides.grid;
+    } else if (visual.layout != nullptr && !visual.declaredGrid.empty()) {
+        // boxes a `:::place` block put at fractions of the slide lie over the drawing's own, in the drawing's units
+        const Layout& master = *visual.layout;
+        viewer.slides.grid   = master;
+        for (const Area& fraction : visual.declaredGrid) {
+            viewer.slides.grid.areas.push_back(Area{.id = fraction.id, .kind = fraction.kind, .step = fraction.step, .x = fraction.x * master.width, .y = fraction.y * master.height, .width = fraction.width * master.width, .height = fraction.height * master.height});
         }
         viewer.documentView.layout = &viewer.slides.grid;
     }
