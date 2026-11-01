@@ -1567,8 +1567,10 @@ const boost::ut::suite<"DocumentView"> documentViewTests = [] {
         if (!before.has_value() || !after.has_value()) {
             return;
         }
-        // rows of the panel that carry a glyph: a text line is several rows, so lines are counted as runs of them
-        const auto panelAndLines = [](const Screenshot& shot) {
+        // rows of the panel that carry a glyph: a text line is several rows, so lines are counted as runs of them;
+        // llvmpipe rounds the anti-aliased edge rows unevenly, hence the tolerance
+        constexpr int kEdgeRoundingSteps = 2;
+        const auto    panelAndLines      = [](const Screenshot& shot) {
             const std::uint32_t background = shot.at(2, 2);
             int                 top = -1, bottom = -1, lines = 0;
             bool                inLine = false;
@@ -1581,7 +1583,7 @@ const boost::ut::suite<"DocumentView"> documentViewTests = [] {
                 bottom     = y;
                 bool glyph = false;
                 for (int x = 60; x < shot.width / 2 && !glyph; ++x) {
-                    glyph = shot.at(x, y) != edge;
+                    glyph = !near(shot.at(x, y), edge, kEdgeRoundingSteps);
                 }
                 lines += glyph && !inLine ? 1 : 0;
                 inLine = glyph;
