@@ -324,6 +324,8 @@ int main(int argc, char** argv) {
 #endif
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+    // SDL 3.4.2 otherwise asks GLX for an sRGB visual, which llvmpipe under Xvfb does not offer
+    SDL_GL_SetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, 0);
 
     viewer.window = SDL_CreateWindow("gr4-present", 1280, 720, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
     if (viewer.window == nullptr) {
