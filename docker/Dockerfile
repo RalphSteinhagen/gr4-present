@@ -24,11 +24,9 @@ RUN apt-get update -y \
     && dpkg-query -W -f='${Status}' libgl1-mesa-dri | grep -q "install ok installed" \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# The native application tests drive the viewer under Xvfb with XTest (qa_NativeToolbar, qa_NativePresenter,
-# qa_ExportPdf*), and qa_PdfWriter reads its pages back with poppler; without them CMake leaves those tests out. The
-# probe opens the viewer's window under an Xvfb of the tests' depth through the SDL3 the base ships, asking for the
-# context main.cpp asks for: the offscreen suites draw through EGL and pass on an X server whose GLX offers no visual.
-# When it fails, glxinfo lists what the server offers.
+# The native application tests drive the viewer under Xvfb with XTest, and qa_PdfWriter reads its pages back with
+# poppler; without them CMake leaves those tests out. The probe opens a window as main.cpp does. Its server runs on a
+# display CI does not use and is waited for, so no root-owned lock file stays in /tmp.
 RUN apt-get update -y \
     && (apt-get install --no-install-recommends -qqy xvfb libxtst-dev poppler-utils mesa-utils || true) \
     && dpkg-query -W -f='${Status}' xvfb | grep -q "install ok installed" \
@@ -51,6 +49,7 @@ int main() {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+    SDL_GL_SetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, 0);
     SDL_Window* window = SDL_CreateWindow("probe", 1280, 720, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
     if (window == nullptr) {
         std::printf("SDL_CreateWindow: %s\n", SDL_GetError());
@@ -69,16 +68,22 @@ int main() {
 }
 CPP
 g++-15 -std=c++23 $(pkg-config --cflags sdl3) -o /tmp/probe-window /tmp/probe-window.cpp $(pkg-config --libs sdl3)
-Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
-for _ in $(seq 1 50); do [ -S /tmp/.X11-unix/X99 ] && break; sleep 0.2; done
-export DISPLAY=:99 SDL_VIDEO_DRIVER=x11
+Xvfb :98 -screen 0 1920x1080x24 -nolisten tcp &
+server=$!
+for _ in $(seq 1 50); do [ -S /tmp/.X11-unix/X98 ] && break; sleep 0.2; done
+export DISPLAY=:98 SDL_VIDEO_DRIVER=x11
 if ! /tmp/probe-window; then
     glxinfo || true
     exit 1
 fi
 glxinfo -B
-kill $!
+kill "$server"
+wait "$server" || true
 rm -f /tmp/probe-window /tmp/probe-window.cpp
+if [ -e /tmp/.X98-lock ] || [ -e /tmp/.X11-unix/X98 ]; then
+    echo "the probe's X server left its lock file or socket behind"
+    exit 1
+fi
 PROBE
 
 # ./formatFiles.sh --install needs a Python venv, npm and curl

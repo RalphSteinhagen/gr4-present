@@ -226,9 +226,15 @@ jobs:
       - name: Test
         shell: bash
         run: |
-          Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
+          Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp > "$RUNNER_TEMP/xvfb.log" 2>&1 &
           display=$!
-          trap 'kill "$display"' EXIT
+          trap 'kill "$display" 2> /dev/null || true' EXIT
+          for _ in $(seq 1 50); do DISPLAY=:99 glxinfo -B > /dev/null 2>&1 && break; sleep 0.2; done
+          if ! DISPLAY=:99 glxinfo -B > /dev/null 2>&1; then
+            cat "$RUNNER_TEMP/xvfb.log"
+            echo "::error::Xvfb :99 does not answer"
+            exit 1
+          fi
           DISPLAY=:99 LLVM_PROFILE_FILE="$GITHUB_WORKSPACE/coverage-profiles/%p-%m.profraw" ctest --test-dir "cmake-build-$PRESET" --output-on-failure
 
       # the coverage of what ran is reported even when a test failed
