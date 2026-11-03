@@ -40,7 +40,8 @@ ctest --test-dir cmake-build-GCC15-Debug --output-on-failure
 node devtools/serve.mjs --directory cmake-build-WASM-Release/viewer-web   # then open the address it prints
 ```
 
-The browser needs the COOP/COEP headers `devtools/serve.mjs` sets.
+The browser needs the COOP/COEP headers `devtools/serve.mjs` sets; a static host that sends none (GitHub Pages) gets them from the page's service worker, which reloads once.
+The same worker keeps the viewer and every deck it showed, so a page visited once online opens offline afterwards, and Edge, Chrome and Safari install it as an app from the address bar.
 `--presentation=<directory, URL or .tar.gz>` (or `?presentation=` in the address) opens another deck, `--theme=dark` (or `?theme=`) forces the colour scheme the system would otherwise choose;
 without it the demo in `presentations/default` is shown.
 Load at the top of the side menu (`Ctrl+O`) opens a deck from this computer without a server: natively its `index.yml`, a lone `.md` or a `.tar.gz`, in a browser its folder; a `.md` or a `.tar.gz` dropped onto the window opens as well, and a deck's folder natively and in Chromium.
