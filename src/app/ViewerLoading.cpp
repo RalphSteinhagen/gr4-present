@@ -106,7 +106,7 @@ void advanceLoading(Viewer& viewer) {
         return;
     }
 
-    const Document whole    = parseMarkdown(viewer.loader.documentSource());
+    const Document whole    = viewer.loader.document();
     viewer.sections         = sectionsOf(whole);
     viewer.figures.bytesFor = [&viewer](std::string_view reference) { return viewer.loader.figureBytes(reference); };
     viewer.effects.reset([&viewer](std::string_view reference) { return viewer.loader.figureBytes(reference); }, &viewer.diagnostics);

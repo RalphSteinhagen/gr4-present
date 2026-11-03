@@ -224,6 +224,29 @@ const suite<"PresentationLoader"> presentationLoaderTests = [] {
         expect(eq(loader.diagnostics.count(DiagnosticKind::missingResource), 0UZ)) << "the timing fields were fetched as if they named files";
     };
 
+    // Ground truth: a deck's masters are files of the package like any the slides name
+    "the default master a deck names once is fetched for the slides that name no layout"_test = [] {
+        const auto root = std::filesystem::temp_directory_path() / "gr4-present-master-scan";
+        std::filesystem::remove_all(root);
+        std::filesystem::create_directories(root / "figures");
+        const auto write = [&root](std::string_view name, std::string_view content) { std::ofstream{root / name, std::ios::binary} << content; };
+        write("index.yml", "format: gr4-presentation/1\ntitle: masters\nentry: talk.md\nmasters:\n  default: figures/main.svg\n  blank: figures/blank.svg\n");
+        write("talk.md", "# One {#one}\n\nwords\n\n# Two {#two master=blank}\n\nmore\n");
+        write("figures/main.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 9\"/>");
+        write("figures/blank.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 9\"/>");
+
+        PresentationLoader loader;
+        loader.retryPolicy.enabled = false;
+        loader.begin(root.string(), kFrame);
+        expect(settle(loader) == LoadState::ready) << loader.diagnostic();
+        expect(!loader.figureBytes("figures/main.svg").empty()) << "the default master was never asked for";
+        expect(!loader.figureBytes("figures/blank.svg").empty()) << "the master a heading picks was never asked for";
+        const std::vector<Section> sections = sectionsOf(loader.document());
+        expect(eq(sections.size(), 2UZ));
+        expect(eq(std::string{sections[0].document.blocks[1].field("source")}, std::string{"figures/main.svg"}));
+        expect(eq(std::string{sections[1].document.blocks[1].field("source")}, std::string{"figures/blank.svg"}));
+    };
+
     // Ground truth: the syntax, every place a deck can name an effect, each a different file
     "every effect a deck names is fetched with the assets its header asks for, and a bundled name is not missing"_test = [] {
         const auto root = std::filesystem::temp_directory_path() / "gr4-present-effect-scan";

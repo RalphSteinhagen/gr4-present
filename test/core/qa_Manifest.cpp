@@ -23,6 +23,23 @@ transition:
         expect(std::abs(manifest->advanceSeconds - 6.0f) < 0.001f);
     };
 
+    // Ground truth: a deck of one look names its masters once; a slide names only the exception
+    "a deck names its SVG masters once, by name, in the order written; an entry without a file is dropped"_test = [] {
+        const auto manifest = parseManifest(R"(format: gr4-presentation/1
+entry: talk.md
+masters:
+  default: figures/main.svg
+  blank: figures/blank.svg
+  empty:
+)");
+        expect(manifest.has_value()) << (manifest ? std::string{} : manifest.error().message());
+        expect(eq(manifest->masters.size(), 2UZ));
+        expect(eq(manifest->masters.front().first, std::string{"default"}));
+        expect(eq(manifest->masters.front().second, std::string{"figures/main.svg"}));
+        expect(eq(manifest->masters.back().first, std::string{"blank"}));
+        expect(parseManifest("format: gr4-presentation/1\nentry: talk.md\n")->masters.empty()) << "no masters: key, no masters";
+    };
+
     // a colour is quoted: GR4's YAML reader takes any '#' for a comment, where YAML 1.2 wants a space before it
     "a deck names its background, its pointer and its break once, each an effect with its settings"_test = [] {
         const auto manifest = parseManifest(R"(format: gr4-presentation/1

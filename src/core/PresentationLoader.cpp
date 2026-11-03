@@ -192,7 +192,7 @@ void PresentationLoader::advance(std::chrono::steady_clock::time_point now) {
 
     if (_step == Step::document) {
         _documentSource.assign(reinterpret_cast<const char*>(_request->bytes.data()), _request->bytes.size());
-        FilesToFetch files = filesToFetch(parseMarkdown(_documentSource), _manifest, builtInEffects);
+        FilesToFetch files = filesToFetch(document(), _manifest, builtInEffects);
         _pendingFigures    = std::move(files.wanted);
         _optionalFigures   = std::move(files.optional);
         _progress          = 0.75f;
@@ -356,6 +356,12 @@ void PresentationLoader::pollFigures() {
     const std::size_t done = _figureCount - _pendingFigures.size() - _inFlight.size();
     _progress              = _figureCount == 0UZ ? 1.0f : 0.75f + 0.25f * static_cast<float>(done) / static_cast<float>(_figureCount);
     fillRequests();
+}
+
+Document PresentationLoader::document() const {
+    Document parsed = parseMarkdown(_documentSource);
+    applyMasters(parsed, _manifest.masters);
+    return parsed;
 }
 
 std::vector<PackageFile> PresentationLoader::packageFiles() const {
