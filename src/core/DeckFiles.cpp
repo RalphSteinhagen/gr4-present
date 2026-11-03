@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <format>
+#include <fstream>
 #include <ranges>
 
 namespace gr::present {
@@ -80,6 +81,31 @@ std::expected<UnpackedDeck, std::string> unpackDeck(std::span<const std::byte> a
         return std::unexpected(base.error());
     }
     return UnpackedDeck{.files = std::move(*files), .base = std::move(*base)};
+}
+
+std::expected<void, std::string> writeFiles(const std::filesystem::path& directory, std::span<const PackageFile> files) {
+    for (const PackageFile& file : files) {
+        const std::filesystem::path target = directory / file.path;
+        std::error_code             error;
+        std::filesystem::create_directories(target.parent_path(), error);
+        std::ofstream out{target, std::ios::binary};
+        out.write(reinterpret_cast<const char*>(file.bytes.data()), static_cast<std::streamsize>(file.bytes.size()));
+        if (error || !out) {
+            return std::unexpected(std::format("{}: cannot be written", target.string()));
+        }
+    }
+    return {};
+}
+
+std::filesystem::path deckWithin(const std::filesystem::path& folder, std::string_view base) { return base == "." ? folder : (folder / base).lexically_normal(); }
+
+std::expected<std::filesystem::path, std::string> writeUnpackedDeck(const std::filesystem::path& folder, const UnpackedDeck& deck) {
+    const auto asPackageFile = [](const gr::compression::TarEntry& entry) {
+        const std::span<const std::uint8_t> bytes{reinterpret_cast<const std::uint8_t*>(entry.bytes.data()), entry.bytes.size()};
+        return PackageFile{.path = entry.path, .bytes = bytes};
+    };
+    const auto files = deck.files | std::views::transform(asPackageFile) | std::ranges::to<std::vector<PackageFile>>();
+    return writeFiles(folder, files).transform([&] { return deckWithin(folder, deck.base); });
 }
 
 std::expected<std::string, std::string> entryOfManifest(std::string_view manifest) {

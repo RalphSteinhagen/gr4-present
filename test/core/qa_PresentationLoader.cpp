@@ -2,6 +2,7 @@
 
 #include <httplib.h>
 
+#include <gr4-present/DeckFiles.hpp>
 #include <gr4-present/Diagnostics.hpp>
 #include <gr4-present/Markdown.hpp>
 #include <gr4-present/Navigation.hpp>
@@ -475,6 +476,87 @@ const suite<"PresentationLoader"> presentationLoaderTests = [] {
         expect(eq(textOf(files[0].bytes), std::string{"format: gr4-presentation/1\ntitle: files\nentry: talk.md\n"})) << "the manifest as read";
         expect(textOf(files[1].bytes).starts_with("## files"));
         expect(eq(textOf(files[2].bytes), std::string{"<svg xmlns='http://www.w3.org/2000/svg'/>"}));
+    };
+
+    "a .tar.gz loads as the deck inside it, every file by its package path, over a file or http address alike"_test = [] {
+        const auto bytesOf = [](std::string_view text) { return std::span{reinterpret_cast<const std::uint8_t*>(text.data()), text.size()}; };
+        // packed under a folder, as Save writes it, beside a file that is not the deck's
+        const std::vector<PackageFile> files{{.path = "index.yml", .bytes = bytesOf("format: gr4-presentation/1\ntitle: packed\nentry: talk.md\n")}, {.path = "talk.md", .bytes = bytesOf("## packed\n\n![one](figures/a.svg) ![again](./figures/a.svg)\n")}, {.path = "figures/a.svg", .bytes = bytesOf("<svg xmlns='http://www.w3.org/2000/svg'/>")}};
+        const auto                     packed = packDeck(files, "tour");
+        expect(fatal(packed.has_value())) << packed.error_or("");
+        const auto directory = std::filesystem::temp_directory_path() / "gr4-present-archive-deck";
+        std::filesystem::create_directories(directory);
+        std::ofstream{directory / "tour.tar.gz", std::ios::binary}.write(reinterpret_cast<const char*>(packed->data()), static_cast<std::streamsize>(packed->size()));
+
+        httplib::Server server;
+        expect(server.set_mount_point("/decks", directory.string()));
+        const int port = server.bind_to_any_port("localhost");
+        expect(port > 0);
+        std::jthread listening{[&server] { server.listen_after_bind(); }};
+        server.wait_until_ready();
+
+        for (const std::string& address : {(directory / "tour.tar.gz").string(), std::format("http://localhost:{}/decks/tour.tar.gz", port)}) {
+            PresentationLoader loader;
+            loader.retryPolicy.enabled = false;
+            loader.begin(address, kFrame);
+            expect(settle(loader) == LoadState::ready) << address << ": " << loader.diagnostic();
+            expect(eq(loader.manifest().title, std::string{"packed"}));
+            expect(std::filesystem::is_regular_file(std::filesystem::path{loader.baseUri()} / "figures" / "a.svg")) << "unpacked into the temporary folder, so a live block reads a file by path";
+            expect(loader.documentSource().starts_with("## packed"));
+            expect(!loader.figureBytes("figures/a.svg").empty()) << "a figure by its package path";
+            expect(!loader.figureBytes("./figures/a.svg").empty()) << "and by the document's own spelling";
+            const auto paths = loader.packageFiles() | std::views::transform(&PackageFile::path) | std::ranges::to<std::vector<std::string>>();
+            expect(paths == std::vector<std::string>{"index.yml", "talk.md", "figures/a.svg"}) << "Save packs the same deck again: got " << paths.size() << " files";
+            expect(eq(loader.progress(), 1.0f));
+        }
+        server.stop();
+    };
+
+    "an archive holding a lone Markdown file loads it as a deck of its own"_test = [] {
+        const auto                     bytesOf = [](std::string_view text) { return std::span{reinterpret_cast<const std::uint8_t*>(text.data()), text.size()}; };
+        const std::vector<PackageFile> files{{.path = "solo.md", .bytes = bytesOf("## alone\n\n![beside](figures/b.svg)\n")}, {.path = "figures/b.svg", .bytes = bytesOf("<svg/>")}};
+        const auto                     packed = packDeck(files, "notes");
+        expect(fatal(packed.has_value())) << packed.error_or("");
+        const auto path = std::filesystem::temp_directory_path() / "gr4-present-archive-lone.tgz";
+        std::ofstream{path, std::ios::binary}.write(reinterpret_cast<const char*>(packed->data()), static_cast<std::streamsize>(packed->size()));
+
+        PresentationLoader loader;
+        loader.retryPolicy.enabled = false;
+        loader.begin(path.string(), kFrame);
+        expect(settle(loader) == LoadState::ready) << loader.diagnostic();
+        expect(eq(loader.manifest().entry, std::string{"solo.md"}));
+        expect(eq(loader.manifest().title, std::string{"solo"}));
+        expect(loader.documentSource().contains("alone"));
+        expect(!loader.figureBytes("figures/b.svg").empty()) << "a figure beside the file is part of its package";
+        expect(parseManifest(loader.manifestSource()).has_value()) << "a saved copy would not open: " << loader.manifestSource();
+    };
+
+    "a file the document names but the archive lacks is reported, and the deck still presents"_test = [] {
+        const auto                     bytesOf = [](std::string_view text) { return std::span{reinterpret_cast<const std::uint8_t*>(text.data()), text.size()}; };
+        const std::vector<PackageFile> files{{.path = "index.yml", .bytes = bytesOf("format: gr4-presentation/1\ntitle: short\nentry: talk.md\n")}, {.path = "talk.md", .bytes = bytesOf("## short\n\n![gone](figures/gone.svg)\n")}};
+        const auto                     packed = packDeck(files, "short");
+        expect(fatal(packed.has_value())) << packed.error_or("");
+        const auto path = std::filesystem::temp_directory_path() / "gr4-present-archive-short.tar.gz";
+        std::ofstream{path, std::ios::binary}.write(reinterpret_cast<const char*>(packed->data()), static_cast<std::streamsize>(packed->size()));
+
+        PresentationLoader loader;
+        loader.retryPolicy.enabled = false;
+        loader.begin(path.string(), kFrame);
+        expect(settle(loader) == LoadState::ready) << loader.diagnostic();
+        expect(eq(loader.diagnostics.count(DiagnosticKind::missingResource), 1UZ)) << "figures/gone.svg";
+        expect(loader.figureBytes("figures/gone.svg").empty());
+    };
+
+    "an archive that is no deck fails and says why"_test = [] {
+        const auto path = std::filesystem::temp_directory_path() / "gr4-present-archive-broken.tar.gz";
+        std::ofstream{path, std::ios::binary} << "not gzip at all";
+
+        PresentationLoader loader;
+        loader.retryPolicy.enabled = false;
+        loader.begin(path.string(), kFrame);
+        expect(settle(loader) == LoadState::failed);
+        expect(loader.diagnostic().contains("no gzip")) << loader.diagnostic();
+        expect(eq(loader.diagnostics.count(DiagnosticKind::archiveError), 1UZ));
     };
 
     "references resolve against the base, whatever the scheme"_test = [] {
