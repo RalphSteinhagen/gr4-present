@@ -129,6 +129,7 @@ struct Viewer {
     std::time_t                           frameWallClock = 0; // the local clock, for the presenter's time of day and an effect's date
 
     Theme                                 theme;
+    std::string                           forcedScheme; // `light` or `dark` from the address, the command line or the menu's "dark colours"; empty follows the system
     Texture                               logo;
     LoadingScreen                         launch;
     bool                                  launchComplete = false;
@@ -195,6 +196,7 @@ struct Viewer {
         NotesOverlay::Action                  lastNotesAction = NotesOverlay::Action::none;
         bool                                  phoneCodeShown  = false; // for a test to read
         std::chrono::steady_clock::time_point openedAt        = std::chrono::steady_clock::now();
+        ColourScheme                          menuScheme      = ColourScheme::light; // the scheme the menu's "dark colours" box was built for
     } presenterTools;
 
     struct {              // owned by ViewerDeckFiles.cpp

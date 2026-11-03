@@ -204,6 +204,10 @@ void buildSideMenu(Viewer& viewer) {
     viewer.menu.utilities.push_back({.label = std::string{Fonts::kExpand} + "  full screen", .activate = [&viewer] { viewer.windowMode.toggle(); }, .separatorBefore = false, .mnemonic = "F"});
     viewer.menu.utilities.push_back({.label = std::string{Fonts::kPointer} + "  pointer", .activate = [&viewer] { viewer.input.pointing = !viewer.input.pointing; }, .separatorBefore = false, .mnemonic = "L"});
     viewer.menu.utilities.push_back({.label = std::string{Fonts::kNotes} + "  notes", .activate = [&viewer] { viewer.notes.visible = !viewer.notes.visible; }, .separatorBefore = false, .mnemonic = "N"});
+    // the projector's room need not match the presenter's desktop: the box forces the other scheme, whatever the system says
+    const bool dark                  = viewer.theme.scheme == ColourScheme::dark;
+    viewer.presenterTools.menuScheme = viewer.theme.scheme;
+    viewer.menu.utilities.push_back({.label = std::string{dark ? Fonts::kChecked : Fonts::kUnchecked} + "  dark colours", .activate = [&viewer, dark] { viewer.forcedScheme = dark ? "light" : "dark"; }, .separatorBefore = false, .mnemonic = {}});
 #ifdef __EMSCRIPTEN__
     if (!viewer.presenter) {
         viewer.menu.utilities.push_back({.label = std::string{Fonts::kPresenter} + "  speaker", .activate = [] { openPresenterWindow(); }, .separatorBefore = false, .mnemonic = "S"});
