@@ -58,7 +58,9 @@ public:
     std::vector<std::string> builtInEffects; // effect names the viewer has itself: a bare one is never looked for in the deck
 
     // `now` is the frame's time: a failed load is retried once `now` reaches the end of its back-off; a base ending in
-    // `.md` is a deck of its own, that document the entry, its directory the package and the manifest's defaults its own
+    // `.md` is a deck of its own, that document the entry, its directory the package and the manifest's defaults its own;
+    // one ending in `.tar.gz` or `.tgz` is read whole, unpacked into the temporary folder and loaded from there, so the
+    // viewer's blocks read its files by path like any folder's
     void begin(std::string_view baseUri, std::chrono::steady_clock::time_point now);
     void advance(std::chrono::steady_clock::time_point now);
 
@@ -85,7 +87,7 @@ public:
     [[nodiscard]] std::string resolve(std::string_view reference) const;
 
 private:
-    enum class Step { manifest, document, figures, done };
+    enum class Step { manifest, document, figures, archive, done };
 
     struct Request;
 
@@ -110,6 +112,8 @@ private:
     [[nodiscard]] std::unique_ptr<Request> open(std::string_view uri, std::string_view reference);
     void                                   startRequest(std::string_view uri, std::chrono::steady_clock::time_point now);
     void                                   fail(std::string_view reason, std::chrono::steady_clock::time_point now);
+    void                                   start(std::string_view base, std::chrono::steady_clock::time_point now);
+    void                                   adoptArchive(std::chrono::steady_clock::time_point now);
     void                                   fillRequests();
     void                                   pollFigures();
 };

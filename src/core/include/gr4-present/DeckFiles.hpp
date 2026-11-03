@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <expected>
+#include <filesystem>
 #include <span>
 #include <string>
 #include <string_view>
@@ -37,6 +38,16 @@ struct UnpackedDeck {
     std::string                            base;
 };
 [[nodiscard]] std::expected<UnpackedDeck, std::string> unpackDeck(std::span<const std::byte> archive);
+
+/// the files written under `directory`, parents created; the reason at the first that fails. Written directly: fileio's
+/// blocking write may not run on the browser's main thread
+[[nodiscard]] std::expected<void, std::string> writeFiles(const std::filesystem::path& directory, std::span<const PackageFile> files);
+
+/// what `deckBaseAmong` named, inside `folder`: the folder itself for `.`
+[[nodiscard]] std::filesystem::path deckWithin(const std::filesystem::path& folder, std::string_view base);
+
+/// an unpacked archive's files written under `folder`; what of them to load (`deckWithin`)
+[[nodiscard]] std::expected<std::filesystem::path, std::string> writeUnpackedDeck(const std::filesystem::path& folder, const UnpackedDeck& deck);
 
 /// the package-relative path of the entry document a manifest names, or why it names none this viewer shows: the YAML
 /// does not parse, it asks for a newer viewer, or its entry lies outside the package

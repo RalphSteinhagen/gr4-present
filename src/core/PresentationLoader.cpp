@@ -1,3 +1,4 @@
+#include <gr4-present/DeckFiles.hpp>
 #include <gr4-present/EffectSource.hpp>
 #include <gr4-present/Markdown.hpp>
 #include <gr4-present/PackagePath.hpp>
@@ -7,6 +8,7 @@
 #include <gnuradio-4.0/algorithm/fileio/FileIo.hpp>
 
 #include <algorithm>
+#include <filesystem>
 #include <format>
 #include <optional>
 #include <ranges>
@@ -19,6 +21,13 @@ namespace {
 [[nodiscard]] std::string withScheme(std::string_view uri) { return uri.contains("://") || uri.starts_with("file:") || uri.starts_with("dialog:") ? std::string{uri} : std::format("file:{}", uri); }
 
 [[nodiscard]] std::string_view withoutTrailingSlash(std::string_view uri) { return uri.ends_with('/') ? uri.substr(0UZ, uri.size() - 1UZ) : uri; }
+
+[[nodiscard]] bool isArchive(std::string_view uri) { return uri.ends_with(".tar.gz") || uri.ends_with(".tgz"); }
+
+[[nodiscard]] std::string_view lastName(std::string_view path) {
+    const auto slash = path.rfind('/');
+    return slash == std::string_view::npos ? path : path.substr(slash + 1UZ);
+}
 
 } // namespace
 
@@ -79,7 +88,9 @@ std::chrono::milliseconds PresentationLoader::untilRetry(std::chrono::steady_clo
 }
 
 std::unique_ptr<PresentationLoader::Request> PresentationLoader::open(std::string_view uri, std::string_view reference) {
-    auto reader = gr::algorithm::fileio::readAsync(withScheme(uri));
+    // fileio inflates a `.gz` by itself; an archive is wanted as it is, `unpackDeck` inflates it within the deck size cap
+    const gr::algorithm::fileio::CompressionMode compression = isArchive(uri) ? gr::algorithm::fileio::CompressionMode::none : gr::algorithm::fileio::CompressionMode::automatic;
+    auto                                         reader      = gr::algorithm::fileio::readAsync(withScheme(uri), {.compression = compression});
     if (!reader) {
         return nullptr;
     }
@@ -95,7 +106,6 @@ void PresentationLoader::startRequest(std::string_view uri, std::chrono::steady_
 
 void PresentationLoader::begin(std::string_view baseUri, std::chrono::steady_clock::time_point now) {
     _requestedUri = std::string{baseUri};
-    _baseUri      = std::string{baseUri};
     _state        = LoadState::loading;
     _step         = Step::manifest;
     _progress     = 0.0f;
@@ -109,22 +119,56 @@ void PresentationLoader::begin(std::string_view baseUri, std::chrono::steady_clo
     _figureCount = 0UZ;
     _figures.clear();
     ++_attempts;
-    if (baseUri.ends_with(".md")) {
-        const auto        slash = baseUri.rfind('/');
-        const std::string entry{slash == std::string_view::npos ? baseUri : baseUri.substr(slash + 1UZ)};
-        const auto        escaped     = [](char c) { return c == '"' || c == '\\' ? std::string{'\\', c} : std::string{c}; };
-        const std::string quotedEntry = entry | std::views::transform(escaped) | std::views::join | std::ranges::to<std::string>();
-        _baseUri                      = slash == std::string_view::npos ? std::string{"."} : std::string{baseUri.substr(0UZ, slash)};
-        _manifestSource               = std::format("format: {}\nentry: \"{}\"\n", kSupportedManifestFormat, quotedEntry); // what a saved copy opens with
-        _manifest.format              = kSupportedManifestFormat;
-        _manifest.title               = entry.substr(0UZ, entry.size() - 3UZ);
-        _manifest.entry               = entry;
-        _progress                     = 0.5f;
-        _step                         = Step::document;
+    start(baseUri, now);
+}
+
+// the first read of a package: its archive whole, a lone document, else the manifest
+void PresentationLoader::start(std::string_view base, std::chrono::steady_clock::time_point now) {
+    _baseUri = std::string{base};
+    _step    = Step::manifest;
+    if (isArchive(base)) {
+        _progress = 0.25f;
+        _step     = Step::archive;
+        startRequest(base, now);
+        return;
+    }
+    if (base.ends_with(".md")) {
+        const std::string_view entry       = lastName(base);
+        const auto             escaped     = [](char c) { return c == '"' || c == '\\' ? std::string{'\\', c} : std::string{c}; };
+        const std::string      quotedEntry = entry | std::views::transform(escaped) | std::views::join | std::ranges::to<std::string>();
+        _baseUri                           = entry.size() == base.size() ? std::string{"."} : std::string{base.substr(0UZ, base.size() - entry.size() - 1UZ)};
+        _manifestSource                    = std::format("format: {}\nentry: \"{}\"\n", kSupportedManifestFormat, quotedEntry); // what a saved copy opens with
+        _manifest.format                   = kSupportedManifestFormat;
+        _manifest.title                    = std::string{entry.substr(0UZ, entry.size() - 3UZ)};
+        _manifest.entry                    = std::string{entry};
+        _progress                          = 0.5f;
+        _step                              = Step::document;
         startRequest(resolve(entry), now);
         return;
     }
     startRequest(resolve(kManifestName), now);
+}
+
+// the archive read whole is unpacked under the temporary folder, named after it, and the deck inside is loaded from there
+void PresentationLoader::adoptArchive(std::chrono::steady_clock::time_point now) {
+    const std::size_t archiveBytes = _request->bytes.size();
+    const auto        deck         = unpackDeck(std::as_bytes(std::span{_request->bytes}));
+    _request.reset();
+    if (!deck) [[unlikely]] {
+        diagnostics.report(DiagnosticKind::archiveError, _baseUri, deck.error(), true);
+        fail(std::format("cannot unpack {} ({} bytes): {}", _baseUri, archiveBytes, deck.error()), now);
+        return;
+    }
+    const std::filesystem::path folder = std::filesystem::temp_directory_path() / "gr4-present-unpacked" / std::filesystem::path{std::string{lastName(_baseUri)}}.stem().stem();
+    std::error_code             removed;
+    std::filesystem::remove_all(folder, removed);
+    const auto written = writeUnpackedDeck(folder, *deck);
+    if (!written) [[unlikely]] {
+        diagnostics.report(DiagnosticKind::archiveError, _baseUri, written.error(), true);
+        fail(written.error(), now);
+        return;
+    }
+    start(written->generic_string(), now);
 }
 
 void PresentationLoader::advance(std::chrono::steady_clock::time_point now) {
@@ -165,6 +209,10 @@ void PresentationLoader::advance(std::chrono::steady_clock::time_point now) {
         return;
     }
 
+    if (_step == Step::archive) {
+        adoptArchive(now);
+        return;
+    }
     if (_step == Step::manifest) {
         const std::string_view text{reinterpret_cast<const char*>(_request->bytes.data()), _request->bytes.size()};
         _manifestSource   = std::string{text};

@@ -59,22 +59,6 @@ constexpr int kDeepestDeckFile = 2; // how far below a chosen folder its deck's 
     return {};
 }
 
-/// the files written under `directory`, parents created; the reason at the first that fails. Written directly: FileIO's
-/// blocking write may not run on the browser's main thread
-[[nodiscard]] std::expected<void, std::string> writeFiles(const std::filesystem::path& directory, std::span<const PackageFile> files) {
-    for (const PackageFile& file : files) {
-        const std::filesystem::path target = directory / file.path;
-        std::error_code             error;
-        std::filesystem::create_directories(target.parent_path(), error);
-        std::ofstream out{target, std::ios::binary};
-        out.write(reinterpret_cast<const char*>(file.bytes.data()), static_cast<std::streamsize>(file.bytes.size()));
-        if (error || !out) {
-            return std::unexpected(std::format("{}: cannot be written", target.string()));
-        }
-    }
-    return {};
-}
-
 [[nodiscard]] std::vector<std::uint8_t> fileBytes(const std::filesystem::path& path) {
     std::error_code           sizeError;
     const auto                size = std::filesystem::file_size(path, sizeError);
@@ -82,9 +66,6 @@ constexpr int kDeepestDeckFile = 2; // how far below a chosen folder its deck's 
     std::ifstream{path, std::ios::binary}.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
     return bytes;
 }
-
-/// `base` (`deckBaseAmong`) inside `folder`, the folder itself for `.`
-[[nodiscard]] std::filesystem::path within(const std::filesystem::path& folder, const std::string& base) { return base == "." ? folder : (folder / base).lexically_normal(); }
 
 /// the deck in a folder, found as in an archive of it (`deckBaseAmong`), no deeper than `kDeepestDeckFile`: natively a
 /// dropped folder may be one's home
@@ -100,17 +81,7 @@ constexpr int kDeepestDeckFile = 2; // how far below a chosen folder its deck's 
             paths.push_back(entry->path().lexically_relative(folder).generic_string());
         }
     }
-    return deckBaseAmong(paths).transform([&folder](const std::string& base) { return within(folder, base); });
-}
-
-/// an unpacked archive's files written under `folder`; what of them to load
-[[nodiscard]] std::expected<std::filesystem::path, std::string> writeUnpackedDeck(const std::filesystem::path& folder, const UnpackedDeck& deck) {
-    const auto asPackageFile = [](const gr::compression::TarEntry& entry) {
-        const std::span<const std::uint8_t> bytes{reinterpret_cast<const std::uint8_t*>(entry.bytes.data()), entry.bytes.size()};
-        return PackageFile{.path = entry.path, .bytes = bytes};
-    };
-    const auto files = deck.files | std::views::transform(asPackageFile) | std::ranges::to<std::vector<PackageFile>>();
-    return writeFiles(folder, files).transform([&] { return within(folder, deck.base); });
+    return deckBaseAmong(paths).transform([&folder](const std::string& base) { return deckWithin(folder, base); });
 }
 
 #ifdef __EMSCRIPTEN__

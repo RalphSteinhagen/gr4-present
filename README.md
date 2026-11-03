@@ -41,7 +41,7 @@ node devtools/serve.mjs --directory cmake-build-WASM-Release/viewer-web   # then
 ```
 
 The browser needs the COOP/COEP headers `devtools/serve.mjs` sets.
-`--presentation=<directory or URL>` (or `?presentation=` in the address) opens another deck, `--theme=dark` (or `?theme=`) forces the colour scheme the system would otherwise choose;
+`--presentation=<directory, URL or .tar.gz>` (or `?presentation=` in the address) opens another deck, `--theme=dark` (or `?theme=`) forces the colour scheme the system would otherwise choose;
 without it the demo in `presentations/default` is shown.
 Load at the top of the side menu (`Ctrl+O`) opens a deck from this computer without a server: natively its `index.yml`, a lone `.md` or a `.tar.gz`, in a browser its folder; a `.md` or a `.tar.gz` dropped onto the window opens as well, and a deck's folder natively and in Chromium.
 A folder without `index.yml` opens its least nested `.md`.
