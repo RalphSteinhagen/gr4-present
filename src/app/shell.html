@@ -4,13 +4,14 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
     <title>gr4-present</title>
-    <link rel="icon" href="data:," /><!-- no favicon request, so no 404 in the console -->
+    <link rel="icon" href="icon.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
     <!-- A static host that cannot send COOP/COEP, GitHub Pages among them, leaves the page without
-         SharedArrayBuffer and the threaded runtime never starts. This registers a service worker that re-serves
-         every response with those headers and reloads once; where the headers already arrive, as from
-         devtools/serve.mjs, it does nothing. It reads window.document.currentScript.src, so it must not be
-         deferred, async or a module. -->
-    <script src="coi-serviceworker.js"></script>
+         SharedArrayBuffer and the threaded runtime never starts. This registers the service worker that re-serves
+         every response with those headers (reloading once where they were missing) and keeps an offline copy of the
+         viewer and the decks it showed. It reads document.currentScript.src, so it must not be deferred, async or a
+         module. -->
+    <script src="gr4-serviceworker.js"></script>
     <style>
       :root {
         --background: #ffffff;
@@ -143,10 +144,15 @@
         postRun: [() => { window.gr4Present.setProgress(0, 1); window.gr4Present.dismiss(); }],
       };
 
-      // Reached only when both the headers and coi-serviceworker.js failed, so the threaded runtime cannot start
-      // at all rather than merely losing GR4 workflows.
+      // Without the headers the threaded runtime cannot start at all. Where the service worker can add them the
+      // page is about to reload; where it cannot (opened as a file, or over plain http from another machine) the
+      // reader is told what would work.
       if (!window.crossOriginIsolated) {
-        window.gr4Present.setStatus('failed: page is not cross-origin isolated, SharedArrayBuffer is unavailable');
+        const workerComing = window.isSecureContext && !!navigator.serviceWorker && location.protocol !== 'file:';
+        const remedy = location.protocol === 'file:'
+          ? 'open this folder through a web server, not as a file: any static server, e.g. python3 -m http.server, ruby -run -e httpd ., or node devtools/serve.mjs'
+          : 'open the page over https, or on this computer as http://localhost';
+        window.gr4Present.setStatus(workerComing ? 'preparing the page' : 'failed: the runtime needs SharedArrayBuffer, which this page cannot get; ' + remedy);
       }
 
       window.onerror = (message) => window.gr4Present.setStatus('failed: ' + message);

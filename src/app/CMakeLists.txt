@@ -213,8 +213,23 @@ if(EMSCRIPTEN)
             ${EXECUTABLE_OUTPUT_PATH}/index.js
     COMMENT "gzip the viewer for serve.mjs")
 
-  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/coi-serviceworker.js ${EXECUTABLE_OUTPUT_PATH}/coi-serviceworker.js
+  # the worker's cache is named after the build it serves, so it is written after each link
+  add_custom_command(
+    TARGET ${target_name}
+    POST_BUILD
+    COMMAND
+      ${CMAKE_COMMAND} -DSOURCE=${CMAKE_CURRENT_SOURCE_DIR}/gr4-serviceworker.js
+      -DPAGE=${EXECUTABLE_OUTPUT_PATH}/index.html -DGLUE=${EXECUTABLE_OUTPUT_PATH}/index.js
+      -DWASM=${EXECUTABLE_OUTPUT_PATH}/index.wasm -DTARGET=${EXECUTABLE_OUTPUT_PATH}/gr4-serviceworker.js -P
+      ${CMAKE_SOURCE_DIR}/cmake/StampServiceWorker.cmake
+    COMMENT "stamp the service worker with the build id")
+  set_property(
+    TARGET ${target_name}
+    APPEND
+    PROPERTY LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/gr4-serviceworker.js)
+  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/manifest.webmanifest ${EXECUTABLE_OUTPUT_PATH}/manifest.webmanifest
                  COPYONLY)
+  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/icon.png ${EXECUTABLE_OUTPUT_PATH}/icon.png COPYONLY)
 
   add_custom_target(
     serve-viewer

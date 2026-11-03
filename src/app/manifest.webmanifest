@@ -1,0 +1,11 @@
+{
+  "name": "gr4-present",
+  "short_name": "gr4-present",
+  "description": "Markdown and SVG slides that host live GNU Radio 4.0 flow graphs",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#fdb342",
+  "icons": [{ "src": "icon.png", "sizes": "512x512", "type": "image/png" }]
+}

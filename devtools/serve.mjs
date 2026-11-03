@@ -48,6 +48,7 @@ const usage = `usage: serve.mjs [options]
       --no-browser       serve only, do not open a browser
       --relay            relay the slide between this deck's windows, a phone included, under a random token
       --cors             let a viewer on another origin read these files: serve a deck rather than the viewer
+      --no-isolation     send no COOP/COEP headers, as a plain static host does: the page's service worker must add them
   -h, --help             show this
 `;
 
@@ -60,6 +61,7 @@ const options = {
   browser: true,
   relay: false,
   cors: false,
+  isolation: true,
 };
 for (let index = 2; index < process.argv.length; ++index) {
   const argument = process.argv[index];
@@ -71,6 +73,7 @@ for (let index = 2; index < process.argv.length; ++index) {
   else if (argument === "--page") options.page = next();
   else if (argument === "--no-browser") options.browser = false;
   else if (argument === "--cors") options.cors = true;
+  else if (argument === "--no-isolation") options.isolation = false;
   else if (argument === "--relay") options.relay = true;
   else if (argument === "-h" || argument === "--help") {
     process.stdout.write(usage);
@@ -239,6 +242,9 @@ const handle = (request, response) => {
     headers["Access-Control-Allow-Origin"] = "*";
     headers["Cross-Origin-Resource-Policy"] = "cross-origin";
   }
+  if (!options.isolation) {
+    for (const header of ["Cross-Origin-Opener-Policy", "Cross-Origin-Embedder-Policy", "Cross-Origin-Resource-Policy"]) delete headers[header];
+  }
 
   if (!existsSync(file) || statSync(file).isDirectory()) {
     response.writeHead(404, headers).end("not found");
@@ -272,7 +278,7 @@ server.listen(options.port, options.host, () => {
   process.stdout.write(`listening on port ${port}\n`);
 
   const url = `${scheme}://localhost:${port}/${options.page}`;
-  process.stdout.write(`serving ${root}\n  ${url}  (COOP/COEP set, so SharedArrayBuffer is available)\n`);
+  process.stdout.write(`serving ${root}\n  ${url}  ${options.isolation ? "(COOP/COEP set, so SharedArrayBuffer is available)" : "(no COOP/COEP: the page's service worker adds them)"}\n`);
   if (options.host !== "127.0.0.1" && options.host !== "localhost") {
     process.stdout.write(`  ${scheme}://${localAddress()}:${port}/${options.page}  (from another machine on this network)\n`);
     if (!options.https) {
