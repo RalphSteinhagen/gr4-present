@@ -527,7 +527,9 @@ its named boxes take the title, this text and the footer, and its middle band st
 
 :::notes
 `data-present` says what belongs in each box, and the boxes themselves are hidden while the backdrop is drawn. A box
-named `footnotes` takes the slide's footnotes, which otherwise sit above the footer. The
+named `footnotes` takes the slide's footnotes, which otherwise sit above the footer. A deck of one look names its
+masters once, `masters: { default: figures/master.svg, blank: figures/blank.svg }` in index.yml: every slide without a
+`:::layout source:` takes `default`, a heading's `{#id master=blank}` another, `master=none` leaves the slide bare. The
 drawing is in three groups, `top`, `middle` and `bottom`: the top and bottom bands keep their shape at the screen's
 edges, the middle one stretches between them. A screen taller than wide takes the `portrait:` master instead, where
 the sidebar sits under the prose.

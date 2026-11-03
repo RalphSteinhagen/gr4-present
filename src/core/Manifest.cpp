@@ -121,6 +121,20 @@ namespace {
     return families;
 }
 
+/// each entry of `masters:`, a name and its file, in the order written
+[[nodiscard]] std::vector<std::pair<std::string, std::string>> mastersField(const gr::property_map& masters) {
+    std::vector<std::pair<std::string, std::string>> named;
+    for (const auto& entry : masters) {
+        const std::string name{entry.first};
+        if (const std::string file = stringField(masters, name); file.empty()) {
+            gr::log::warning("masters: {}: names no file; it is ignored", name);
+        } else {
+            named.emplace_back(name, file);
+        }
+    }
+    return named;
+}
+
 } // namespace
 
 std::string ManifestError::message() const {
@@ -194,6 +208,7 @@ std::expected<Manifest, ManifestError> parseManifest(std::string_view yaml) {
         .sizes                = sizesField(mapField(*parsed, "sizes")),
         .textColourLight      = textColourLight,
         .textColourDark       = textColourDark,
+        .masters              = mastersField(mapField(*parsed, "masters")),
         .background           = stringField(*parsed, "background"),
         .pointer              = stringField(*parsed, "pointer"),
         .breakEffect          = stringField(mapField(*parsed, "break"), "effect"),

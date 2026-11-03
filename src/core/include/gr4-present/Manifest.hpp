@@ -71,6 +71,9 @@ struct Manifest {
     /// slides' words in each scheme; unset keeps the viewer's own grey. A value must be quoted, as `#` opens a comment
     std::optional<Rgb> textColourLight;
     std::optional<Rgb> textColourDark;
+    /// `masters: { default: figures/main.svg, blank: figures/blank.svg }`: SVG masters by name, in the order written;
+    /// `default` lays out every slide that names no `:::layout source:`, a heading's `{master=blank}` picks another
+    std::vector<std::pair<std::string, std::string>> masters;
 
     /// `background: plasma speed=1`: the effect shader behind every slide that does not name its own
     std::string background;

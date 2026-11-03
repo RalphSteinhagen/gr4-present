@@ -51,7 +51,7 @@ struct Block {
     std::vector<InlineSpan>  spans = {}; // paragraph, heading and list-item content
     std::vector<std::string> lines = {}; // fenced-code content, verbatim
 
-    std::vector<std::pair<std::string, std::string>> fields = {}; // a directive's `key: value` lines
+    std::vector<std::pair<std::string, std::string>> fields = {}; // a directive's `key: value` lines, or a heading's `{master=blank}` options
 
     std::vector<Alignment>               columns = {}; // table: one entry per column, taken from the delimiter row
     std::vector<std::vector<InlineSpan>> cells   = {}; // table: row-major and rectangular, the header row first
@@ -131,6 +131,11 @@ struct Section {
 
 /// splits a document at headings of `level` or above; blocks before the first heading form a leading section
 [[nodiscard]] std::vector<Section> sectionsOf(const Document& document, int level = 1);
+
+/// the deck's SVG masters (`masters:` in index.yml, name and file) given to every slide: a slide whose `:::layout` names
+/// no `source:` takes the one its heading picks (`{master=blank}`), else `default`; `{master=none}` takes none, a name
+/// with a dot or slash is a file of its own. A `:::layout` without one is added. Runs before `sectionsOf`
+void applyMasters(Document& document, std::span<const std::pair<std::string, std::string>> masters);
 
 /// the prose a `:::<name>` box holds, parsed as a document of its own; the slide's footnotes travel with it, and its
 /// steps count on from `firstStep`, the slide's step the box opened at, so a `:::step` before a box reveals it

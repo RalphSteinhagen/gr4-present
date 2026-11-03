@@ -73,6 +73,30 @@ using gr::trigger::detail::trim;
     return {trim(slice(text, 0UZ, open)), slice(text, open + 2UZ, text.size() - open - 3UZ)};
 }
 
+/// a heading's trailing `{#id master=blank}`: the anchor and the other options, which only a heading keeps as fields;
+/// a brace group without an anchor, an `=` or a Pandoc class is prose
+struct HeadingOptions {
+    std::string_view                                 text;
+    std::string_view                                 anchor;
+    std::vector<std::pair<std::string, std::string>> fields;
+};
+[[nodiscard]] HeadingOptions headingOptionsOf(std::string_view text) {
+    const auto open = text.ends_with('}') ? text.rfind('{') : std::string_view::npos;
+    if (open == std::string_view::npos) {
+        return {.text = text, .anchor = {}, .fields = {}};
+    }
+    const std::string_view braced = text.substr(open);
+    if (!braced.contains('#') && !braced.contains('=') && !braced.starts_with("{.")) {
+        return {.text = text, .anchor = {}, .fields = {}};
+    }
+    HeadingOptions options{.text = trim(text.substr(0UZ, open)), .anchor = {}, .fields = fenceOptionsOf(braced)};
+    if (const auto anchor = std::ranges::find_if(options.fields, [](const auto& option) { return option.first.starts_with('#'); }); anchor != options.fields.end()) {
+        options.anchor = text.substr(open + braced.find('#') + 1UZ, anchor->first.size() - 1UZ);
+        options.fields.erase(anchor);
+    }
+    return options;
+}
+
 [[nodiscard]] bool isRule(std::string_view line) noexcept {
     const std::string_view body = trim(line);
     return body.size() >= 3UZ && (body.find_first_not_of('-') == std::string_view::npos || body.find_first_not_of('*') == std::string_view::npos);
@@ -461,6 +485,46 @@ Document boxDocumentOf(std::span<const std::string> lines, const Document& slide
     }
     contents.lastStep += firstStep;
     return contents;
+}
+
+void applyMasters(Document& document, std::span<const std::pair<std::string, std::string>> masters) {
+    const auto fileOf = [&](std::string_view name) -> std::optional<std::string> {
+        if (const auto known = valueFor(masters, name)) {
+            return std::string{*known};
+        }
+        return name.contains('.') || name.contains('/') ? std::optional{std::string{name}} : std::nullopt;
+    };
+    for (std::size_t index = 0UZ; index < document.blocks.size(); ++index) {
+        const Block& heading = document.blocks[index];
+        if (heading.kind != BlockKind::heading || heading.level != 1) {
+            continue;
+        }
+        const std::string_view     wanted = heading.field("master");
+        std::optional<std::string> file   = fileOf(wanted.empty() ? std::string_view{"default"} : wanted);
+        if (wanted == "none") {
+            file.reset();
+        } else if (!file && !wanted.empty()) {
+            document.warnings.push_back(std::format("slide {}: index.yml names no master `{}`; the default is used", heading.id, wanted));
+            file = fileOf("default");
+        }
+        // the slide's own `:::layout`, if it has one before the next slide
+        const auto next   = std::ranges::find_if(document.blocks.begin() + static_cast<std::ptrdiff_t>(index) + 1, document.blocks.end(), [](const Block& block) { return block.kind == BlockKind::heading && block.level == 1; });
+        const auto layout = std::ranges::find_if(document.blocks.begin() + static_cast<std::ptrdiff_t>(index) + 1, next, [](const Block& block) { return block.kind == BlockKind::directive && block.info == "layout"; });
+        if (layout != next && !layout->field("source").empty()) {
+            if (!wanted.empty()) {
+                document.warnings.push_back(std::format("slide {}: its `:::layout` names a `source:`, so `master={}` on its heading is ignored", heading.id, wanted));
+            }
+            continue;
+        }
+        if (!file) {
+            continue;
+        }
+        if (layout != next) {
+            layout->fields.emplace_back("source", std::move(*file));
+            continue;
+        }
+        document.blocks.insert(document.blocks.begin() + static_cast<std::ptrdiff_t>(index) + 1, Block{.kind = BlockKind::directive, .step = heading.step, .info = "layout", .fields = {{"source", std::move(*file)}}});
+    }
 }
 
 std::vector<Section> sectionsOf(const Document& document, int level) {
@@ -933,13 +997,13 @@ Document parseMarkdown(std::string_view source) {
         }
         if (body.starts_with('#')) {
             flushParagraph();
-            const auto hashes         = std::min(body.find_first_not_of('#'), static_cast<std::size_t>(kMaxHeading));
-            const auto [text, anchor] = withoutAnchor(trim(body.substr(hashes)));
+            const auto hashes           = std::min(body.find_first_not_of('#'), static_cast<std::size_t>(kMaxHeading));
+            auto [text, anchor, fields] = headingOptionsOf(trim(body.substr(hashes)));
             if (hashes == 1UZ) {
                 closeWith(); // a slide's blocks never arrive with the last step of the slide before
                 sectionStartStep = step;
             }
-            document.blocks.push_back(Block{.kind = BlockKind::heading, .level = static_cast<int>(hashes), .step = step, .id = anchor.empty() ? slugOf(text) : std::string{anchor}, .spans = parseInlines(text)});
+            document.blocks.push_back(Block{.kind = BlockKind::heading, .level = static_cast<int>(hashes), .step = step, .id = anchor.empty() ? slugOf(text) : std::string{anchor}, .spans = parseInlines(text), .fields = std::move(fields)});
             continue;
         }
         if (const ListMarker marker = listMarkerOf(line); marker.found) {

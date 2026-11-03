@@ -68,6 +68,8 @@ public:
     [[nodiscard]] std::string_view diagnostic() const noexcept { return _diagnostic; }
     [[nodiscard]] std::string_view baseUri() const noexcept { return _baseUri; }
     [[nodiscard]] std::string_view documentSource() const noexcept { return _documentSource; }
+    /// the entry document parsed, with the manifest's masters given to its slides
+    [[nodiscard]] Document document() const;
     /// the manifest as read, or as written for a lone `.md`
     [[nodiscard]] std::string_view manifestSource() const noexcept { return _manifestSource; }
 

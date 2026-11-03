@@ -45,6 +45,7 @@ const suite<"Markdown"> markdownTests = [] {
 
     "an explicit anchor overrides the derived slug"_test = [] {
         const Document document = parseMarkdown("# Overview {#intro}\n");
+        expect(document.blocks.front().fields.empty()) << "an anchor alone is no option";
         expect(eq(document.blocks.front().id, std::string{"intro"}));
         expect(eq(plainText(document.blocks.front()), std::string{"Overview"}));
         expect(document.withId("intro") != nullptr);
@@ -915,6 +916,61 @@ const suite<"Markdown"> markdownTests = [] {
     "a deck without sections cites nothing"_test = [] {
         const Citations cited = citationsOf({});
         expect(cited.footnotes.empty() && cited.references.empty());
+    };
+};
+
+const suite<"Markdown masters"> markdownMastersTests = [] {
+    static const std::vector<std::pair<std::string, std::string>> kMasters{{"default", "figures/main.svg"}, {"blank", "figures/blank.svg"}};
+
+    // Ground truth: the heading carries the slide's exceptions, as Pandoc writes attributes: `{#id key=value}`
+    "a heading's braces hold its anchor and its options; prose in braces stays prose"_test = [] {
+        const Document document = parseMarkdown("# One {#one master=blank}\n\n# Two {master=blank}\n\n# Set {a, b}\n\n- item {#it}\n");
+        expect(eq(document.blocks[0].id, std::string{"one"}));
+        expect(eq(std::string{document.blocks[0].field("master")}, std::string{"blank"}));
+        expect(eq(document.blocks[1].id, std::string{"two"})) << "the slug of the text without the braces";
+        expect(eq(std::string{document.blocks[1].field("master")}, std::string{"blank"}));
+        expect(eq(plainText(document.blocks[2]), std::string{"Set {a, b}"})) << "no anchor, no `=`, no class: not options";
+        expect(document.blocks[2].fields.empty());
+        expect(eq(document.blocks[3].id, std::string{"it"})) << "a list item keeps its anchor";
+    };
+
+    "every slide without a layout source takes the default master as a layout of its own"_test = [] {
+        Document document = parseMarkdown("# One {#one}\n\nwords\n\n# Two {#two}\n\n:::layout\nfigure: a.svg\n:::\n\n# Three {#three}\n\n:::layout\nsource: own.svg\n:::\n");
+        applyMasters(document, kMasters);
+        const std::vector<Section> sections = sectionsOf(document);
+        expect(eq(sections.size(), 3UZ));
+        const auto layoutOf = [](const Section& section) {
+            const auto found = std::ranges::find_if(section.document.blocks, [](const Block& block) { return block.kind == BlockKind::directive && block.info == "layout"; });
+            return found == section.document.blocks.end() ? std::string{"<none>"} : std::string{found->field("source")};
+        };
+        expect(eq(layoutOf(sections[0]), std::string{"figures/main.svg"})) << "a layout was added after the heading";
+        expect(eq(sections[0].document.blocks[1].info, std::string{"layout"}));
+        expect(eq(layoutOf(sections[1]), std::string{"figures/main.svg"})) << "the slide's own layout gained the source";
+        expect(eq(std::string{sections[1].document.blocks[1].field("figure")}, std::string{"a.svg"})) << "and kept its pictures";
+        expect(eq(layoutOf(sections[2]), std::string{"own.svg"})) << "a source named by the slide wins";
+        expect(document.warnings.empty());
+    };
+
+    "a heading picks another master by name or file, none at all, and an unknown name falls back with a word"_test = [] {
+        Document document = parseMarkdown("# One {#one master=blank}\n\n# Two {#two master=none}\n\n# Three {#three master=figures/other.svg}\n\n# Four {#four master=missing}\n\n# Five {#five master=blank}\n\n:::layout\nsource: own.svg\n:::\n");
+        applyMasters(document, kMasters);
+        const std::vector<Section> sections = sectionsOf(document);
+        const auto                 sourceOf = [&sections](std::size_t index) { return sections[index].document.blocks.size() > 1UZ ? std::string{sections[index].document.blocks[1].field("source")} : std::string{"<none>"}; };
+        expect(eq(sourceOf(0), std::string{"figures/blank.svg"}));
+        expect(eq(sourceOf(1), std::string{"<none>"})) << "`none` keeps the slide bare";
+        expect(eq(sourceOf(2), std::string{"figures/other.svg"})) << "a file is taken as written";
+        expect(eq(sourceOf(3), std::string{"figures/main.svg"})) << "an unknown name takes the default";
+        expect(eq(sourceOf(4), std::string{"own.svg"}));
+        expect(eq(document.warnings.size(), 2UZ)) << "the unknown name and the ignored option are each named once";
+        expect(document.warnings.front().contains("missing"));
+        expect(document.warnings.back().contains("five"));
+    };
+
+    "without masters a document is left as written"_test = [] {
+        const Document written  = parseMarkdown("# One {#one}\n\nwords\n");
+        Document       document = written;
+        applyMasters(document, {});
+        expect(document == written);
     };
 };
 
