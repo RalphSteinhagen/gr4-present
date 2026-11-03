@@ -12,8 +12,8 @@ namespace gr::present {
 
 enum class ColourScheme { light, dark };
 
-/// `forced`: `light` or `dark` from the address (`?theme=dark`) or the command line; anything else asks the
-/// environment (`GR4_PRESENT_COLOUR_SCHEME`), then the system
+/// `forced`: `light` or `dark` from the address (`?theme=dark`), the command line or the side menu; anything else asks
+/// the environment (`GR4_PRESENT_COLOUR_SCHEME`), then the system
 [[nodiscard]] ColourScheme detectColourScheme(std::string_view forced = {}) noexcept;
 
 struct Theme {
