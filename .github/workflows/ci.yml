@@ -423,6 +423,7 @@ jobs:
       - name: Record
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
           shopt -s nullglob
           set -- reports/*
