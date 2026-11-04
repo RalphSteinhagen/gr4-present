@@ -115,6 +115,8 @@ jobs:
         shell: bash
         run: |
           shopt -s nullglob
-          set -- reports/*
+          # one matching artefact unpacks into reports/ itself, several into reports/<name>/
+          set -- reports/*/
+          [[ -f reports/figures.csv ]] && set -- reports
           (($#)) || { echo "nothing to record"; exit 0; }
           "$RUNNER_TEMP/qualitybot" record --out "$RUNNER_TEMP/record" "$@"
