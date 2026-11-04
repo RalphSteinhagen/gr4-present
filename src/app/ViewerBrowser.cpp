@@ -35,6 +35,16 @@ namespace gr::present {
     const char* text = emscripten_run_script_string(std::format("window.location.{}", component).c_str());
     return text != nullptr ? std::string{text} : std::string{};
 }
+
+std::string pageFolder() {
+    // opened as a file (launch-chromium): fileio reads a `file:` address from the in-memory file system, where
+    // shell.html copied the deck beside the page before the runtime started
+    if (emscriptenLocation("protocol") == "file:") [[unlikely]] {
+        return std::string{kFilePageFolder};
+    }
+    const std::string path = emscriptenLocation("pathname");
+    return emscriptenLocation("origin") + path.substr(0UZ, path.rfind('/'));
+}
 #endif
 
 #ifdef __EMSCRIPTEN__
@@ -304,6 +314,9 @@ void publishRegionBounds(const Viewer& viewer) {
         }
         return json + "\"";
     };
+    for (const auto& [index, entry] : viewer.menu.drawnUtilities) { // ["utility", index, x, y, w, h, label]: the foot's rows, which the flavour decides
+        fileEntries += std::format("{}[\"utility\",{},{},{},{},{},{}]", fileEntries.empty() ? "" : ",", index, std::lround(entry.x), std::lround(entry.y), std::lround(entry.width), std::lround(entry.height), quoted(viewer.menu.utilities[index].label));
+    }
     // only once the slide has settled: rebuilding every word's rectangle on each transition frame is work no test reads
     static std::string textRuns;
     static std::string links;

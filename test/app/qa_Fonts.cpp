@@ -43,6 +43,7 @@ const std::vector<Icon> kIcons{
     {.name = "file-pdf", .constant = Fonts::kPdf, .published = 0xf1c1},
     {.name = "folder-open", .constant = Fonts::kFolder, .published = 0xf07c},
     {.name = "floppy-disk", .constant = Fonts::kSave, .published = 0xf0c7},
+    {.name = "download", .constant = Fonts::kDownload, .published = 0xf019},
     {.name = "square-check", .constant = Fonts::kChecked, .published = 0xf14a},
     {.name = "square", .constant = Fonts::kUnchecked, .published = 0xf0c8},
 };

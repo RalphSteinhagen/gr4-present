@@ -224,6 +224,11 @@ target_link_libraries(
           raii_wrapper)
 add_test(NAME qa_SideMenu COMMAND qa_SideMenu)
 
+add_executable(qa_PresenterBundle qa_PresenterBundle.cpp ${_app_source_dir}/PresenterBundle.cpp)
+target_include_directories(qa_PresenterBundle PRIVATE ${_app_source_dir})
+target_link_libraries(qa_PresenterBundle PRIVATE ut gr4-present-core gr4-present-options)
+add_test(NAME qa_PresenterBundle COMMAND qa_PresenterBundle)
+
 add_executable(qa_Morph qa_Morph.cpp ${_app_source_dir}/Morph.cpp ${_app_source_dir}/Transition.cpp)
 # imgui.h lends this test its vertex type only; nothing here calls into ImGui, so its objects are not linked
 target_include_directories(qa_Morph SYSTEM PRIVATE $<TARGET_PROPERTY:imgui,INTERFACE_INCLUDE_DIRECTORIES>)

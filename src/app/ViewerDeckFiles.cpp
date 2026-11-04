@@ -1,7 +1,10 @@
 #include "Viewer.hpp"
 
+#include "PresenterBundle.hpp"
+
 #include <gr4-present/DeckFiles.hpp>
 #include <gr4-present/Manifest.hpp>
+#include <gr4-present/Noinline.hpp>
 
 #include <gnuradio-4.0/Logger.hpp>
 #include <gnuradio-4.0/algorithm/fileio/FileIo.hpp>
@@ -13,6 +16,7 @@
 #endif
 
 #include <algorithm>
+#include <chrono>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -29,7 +33,27 @@ constexpr std::string_view kLocalRoot  = "/local";
 constexpr std::string_view kIncoming   = "/incoming";      // a deck picked, checked here before it replaces the one in /local
 constexpr std::string_view kPickedDeck = "/incoming/deck"; // a file's bytes arrive without its name
 
-std::optional<gr::algorithm::fileio::Writer> savedArchive; // the browser's download of <deck>.tar.gz, finishing after the frame
+/// the browser's download of <deck>.tar.gz or of the viewer's bundle, finishing after the frame
+struct Delivery {
+    gr::algorithm::fileio::Writer writer;
+    std::string                   name; // what a failure is reported for
+};
+std::optional<Delivery> savedArchive;
+
+/// "download viewer + deck": the site's files on their way from the page's own folder; the bundle is packed and saved once all are here
+struct SiteFetch {
+    struct File {
+        std::string                   name;
+        gr::algorithm::fileio::Reader reader;
+        std::vector<std::uint8_t>     bytes = {};
+        std::optional<std::string>    error = {};
+        bool                          done  = false;
+    };
+    std::vector<File>                     files;
+    std::chrono::steady_clock::time_point startedAt; // the frame of the click; a file that never arrives gives up after `kSiteFetchPatience`
+};
+std::optional<SiteFetch> siteFetch;
+constexpr auto           kSiteFetchPatience = std::chrono::seconds{60}; // a stalled browser fetch never fails by itself
 #endif
 constexpr int kDeepestDeckFile = 2; // how far below a chosen folder its deck's index.yml or .md is looked for
 
@@ -372,14 +396,61 @@ void takeStagedDeck(Viewer& viewer) {
     adoptPickedFile(viewer, fileBytes(staged), opening, LocalSource::kept);
 }
 
+/// the bundle, as a download, once the site's files are all here
+GR4_PRESENT_NOINLINE void saveBundle(Viewer& viewer, const SiteFetch& fetch) {
+    if (const auto failed = std::ranges::find_if(fetch.files, [](const SiteFetch::File& file) { return file.error.has_value(); }); failed != fetch.files.end()) [[unlikely]] {
+        viewer.diagnostics.report(DiagnosticKind::saveFailed, "the viewer's files", std::format("{}: {}", failed->name, *failed->error));
+        return;
+    }
+    const bool        ready  = viewer.loader.state() == LoadState::ready;
+    const std::string name   = deckFolderName(ready ? viewer.loader.manifest().title : std::string_view{}, viewer.loader.baseUri());
+    const std::string folder = name.starts_with("gr4-present") ? name : std::format("gr4-present-{}", name); // the viewer's own deck is named after it already
+    const auto        site   = fetch.files | std::views::transform([](const SiteFetch::File& file) { return PackageFile{.path = file.name, .bytes = file.bytes}; }) | std::ranges::to<std::vector<PackageFile>>();
+    const auto        deck   = ready ? viewer.loader.packageFiles() : std::vector<PackageFile>{};
+    const auto        packed = packPresenterBundle(folder, PresenterBundle{.site = pageFolder(), .title = ready ? viewer.loader.manifest().title : std::string_view{}, .siteFiles = site, .deckFiles = deck});
+    if (!packed) [[unlikely]] {
+        viewer.diagnostics.report(DiagnosticKind::saveFailed, folder, packed.error());
+        return;
+    }
+    const auto bytes = std::span{reinterpret_cast<const std::uint8_t*>(packed->data()), packed->size()};
+    if (auto delivery = gr::algorithm::fileio::writeAsync(std::format("download:/{}.tar.gz", folder), bytes); delivery.has_value()) {
+        savedArchive = Delivery{.writer = std::move(*delivery), .name = std::format("the archive {}.tar.gz", folder)};
+    } else {
+        viewer.diagnostics.report(DiagnosticKind::saveFailed, folder, delivery.error().message);
+    }
+}
+
 void tendSaving(Viewer& viewer) {
-    if (savedArchive.has_value() && savedArchive->finished()) {
-        if (const auto result = savedArchive->result(); !result) {
-            viewer.diagnostics.report(DiagnosticKind::saveFailed, "the deck's archive", result.error().message);
+    if (savedArchive.has_value() && savedArchive->writer.finished()) {
+        if (const auto result = savedArchive->writer.result(); !result) {
+            viewer.diagnostics.report(DiagnosticKind::saveFailed, savedArchive->name, result.error().message);
         }
         savedArchive.reset();
     }
+    if (!siteFetch.has_value()) {
+        return;
+    }
+    if (viewer.frameStart - siteFetch->startedAt > kSiteFetchPatience && !std::ranges::all_of(siteFetch->files, &SiteFetch::File::done)) [[unlikely]] {
+        viewer.diagnostics.report(DiagnosticKind::saveFailed, "the viewer's files", std::format("did not arrive within {} s", kSiteFetchPatience.count()));
+        siteFetch.reset();
+        return;
+    }
+    for (SiteFetch::File& file : siteFetch->files | std::views::filter([](const SiteFetch::File& candidate) { return !candidate.done; })) {
+        file.reader.poll([&file](const gr::algorithm::fileio::Reader::PollResult& result) {
+            if (!result.data) {
+                file.error = result.data.error().message;
+            } else {
+                file.bytes.insert(file.bytes.end(), result.data->begin(), result.data->end());
+            }
+            file.done = file.done || result.isFinal || file.error.has_value();
+        });
+    }
+    if (std::ranges::all_of(siteFetch->files, &SiteFetch::File::done) && !(savedArchive.has_value() && !savedArchive->writer.finished())) {
+        saveBundle(viewer, *siteFetch);
+        siteFetch.reset();
+    }
 }
+
 #else
 constexpr auto kWatchInterval = std::chrono::seconds{2};
 
@@ -563,7 +634,7 @@ void saveDeck(Viewer& viewer) {
     const auto bytes = std::span{reinterpret_cast<const std::uint8_t*>(packed->data()), packed->size()};
 #ifdef __EMSCRIPTEN__
     if (auto delivery = gr::algorithm::fileio::writeAsync(std::format("download:/{}.tar.gz", name), bytes); delivery.has_value()) {
-        savedArchive = std::move(*delivery);
+        savedArchive = Delivery{.writer = std::move(*delivery), .name = "the deck's archive"};
     } else {
         viewer.diagnostics.report(DiagnosticKind::saveFailed, name, delivery.error().message);
     }
@@ -591,6 +662,24 @@ void reopenLocalDeck(Viewer& viewer, std::string_view address, std::string_view 
     wipeTree("");
     tendKeptFiles(0);
     reopenKeptFiles(std::string{address}.c_str());
+}
+
+void downloadViewer(Viewer& viewer) {
+    if (siteFetch.has_value()) [[unlikely]] { // one bundle at a time
+        viewer.diagnostics.report(DiagnosticKind::saveFailed, "the viewer's files", "are still on their way from the last click");
+        return;
+    }
+    SiteFetch fetch{.files = {}, .startedAt = viewer.frameStart};
+    for (const std::string_view name : kSiteFiles) {
+        // the worker answers from its cache where the network is gone; `.compression`: fileio would inflate a `.gz`, none of these is one
+        auto reader = gr::algorithm::fileio::readAsync(std::format("{}/{}", pageFolder(), name), {.compression = gr::algorithm::fileio::CompressionMode::none});
+        if (!reader) [[unlikely]] {
+            viewer.diagnostics.report(DiagnosticKind::saveFailed, std::string{name}, reader.error().message);
+            return;
+        }
+        fetch.files.push_back(SiteFetch::File{.name = std::string{name}, .reader = std::move(*reader)});
+    }
+    siteFetch = std::move(fetch);
 }
 #endif
 

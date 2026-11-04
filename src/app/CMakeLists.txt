@@ -79,6 +79,7 @@ set(GR4_PRESENT_APP_SOURCES
     QrCode.cpp
     QrCode.hpp
     PlotView.cpp
+    PresenterBundle.cpp
     PlotView.hpp
     Texture.cpp
     Texture.hpp
@@ -196,6 +197,8 @@ if(EMSCRIPTEN)
     "SHELL:-s NO_EXIT_RUNTIME=1"
     "SHELL:-s MINIFY_HTML=0"
     "-sFETCH=1" # gr::algorithm::fileio reads http(s) through emscripten_fetch
+    # shell.html copies the deck beside a page opened as a file into the in-memory file system before main()
+    "SHELL:-s EXPORTED_RUNTIME_METHODS=FS,addRunDependency,removeRunDependency"
     # MicroTeX throws on a formula it cannot parse and the viewer catches it. Emscripten needs -fexceptions on the link
     # as well as the compile, or the catch is not generated and the throw takes the whole thread with it.
     -fexceptions

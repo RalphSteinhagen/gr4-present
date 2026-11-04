@@ -39,6 +39,7 @@ void SideMenu::draw(const Theme& theme, float interfacePixelsPerPoint) {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     drawnEntries.clear();
     drawnFiles.clear();
+    drawnUtilities.clear();
     drawnFollowEdits = {};
     drawnPanel       = {};
 
@@ -156,13 +157,15 @@ void SideMenu::draw(const Theme& theme, float interfacePixelsPerPoint) {
         ImGui::Dummy(ImVec2{0.0f, padding * 0.5f});
 
         const ScopedFont face(utilityPixels);
-        for (const Item& item : utilities) {
+        for (std::size_t index = 0UZ; index < utilities.size(); ++index) {
+            const Item& item = utilities[index];
             if (item.separatorBefore) {
                 ImGui::Separator();
             }
             if (control(item.label, item.mnemonic, false)) {
                 item.activate();
             }
+            drawnUtilities.emplace_back(index, drawnRectangle());
         }
     }
 }
