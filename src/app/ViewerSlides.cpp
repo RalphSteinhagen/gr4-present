@@ -103,13 +103,12 @@ static void                             transformDrawn(ImDrawList& list, int fro
     if (const std::string_view own = declaration->field("background"); !own.empty()) {
         visual.background = std::string{own};
     }
-    visual.grid        = std::string{declaration->field("grid")};
-    visual.duration    = parseSeconds(declaration->field("duration")).value_or(-1.0f);
-    visual.rotation    = parseNumber<float>(declaration->field("rotate")).value_or(0.0f); // degrees, signed
-    visual.font        = std::string{declaration->field("font")};
-    visual.outline     = declaration->field("outline") == "on";
-    visual.size        = parseTypeSize(declaration->field("size"));
-    visual.contradicts = contradictsMaster(visual.source, visual.grid);
+    visual.grid     = std::string{declaration->field("grid")};
+    visual.duration = parseSeconds(declaration->field("duration")).value_or(-1.0f);
+    visual.rotation = parseNumber<float>(declaration->field("rotate")).value_or(0.0f); // degrees, signed
+    visual.font     = std::string{declaration->field("font")};
+    visual.outline  = declaration->field("outline") == "on";
+    visual.size     = parseTypeSize(declaration->field("size"));
     for (const auto& [key, value] : declaration->fields) {
         if (key != "source" && key != "portrait" && !isLayoutSetting(key)) {
             visual.areaContent.emplace_back(key, value);
@@ -159,6 +158,8 @@ static void                             transformDrawn(ImDrawList& list, int fro
         return visual;
     }
     visual.layout = &known->second;
+    // rows over a drawn master divide its `content` box; a master without one has nowhere to put them
+    visual.contradicts = !visual.grid.empty() && known->second.find("content") == nullptr;
     // a master that draws a `footnotes` box collects the notes every box cites, as a `:::footnotes {notes=all}` would
     if (known->second.find("footnotes") != nullptr && !std::ranges::contains(visual.slots, "footnotes", &AreaDocument::id)) {
         for (AreaDocument& slot : visual.slots) {
@@ -193,6 +194,21 @@ const FrontMatter kNoFrontMatter{};
 
 /// the height each prose-only row asks for; a picture row is left out as it fills its box; empty for a single row
 /// the boxes a slide fills; a box nobody fills collapses, so the slide is measured and drawn on this one list
+/// what a box placed over a master stands on: the smallest measured box of the master under its centre, else the
+/// master as a whole; so its ink suits the drawing, not the system's scheme
+[[nodiscard]] static float backdropUnder(const Layout& master, const Area& placed) {
+    const float x     = placed.x + placed.width * 0.5f;
+    const float y     = placed.y + placed.height * 0.5f;
+    const Area* under = nullptr;
+    for (const Area& area : master.areas) {
+        const bool holds = area.backdropLight >= 0.0f && x >= area.x && x <= area.x + area.width && y >= area.y && y <= area.y + area.height;
+        if (holds && (under == nullptr || area.width * area.height < under->width * under->height)) {
+            under = &area;
+        }
+    }
+    return under != nullptr ? under->backdropLight : master.backdropLight;
+}
+
 [[nodiscard]] static std::vector<std::string> filledAreasOf(const SectionVisual& visual) {
     // `content` is filled by the section's own prose, so a plain slide keeps its box
     std::vector<std::string> filled{"content"};
@@ -309,8 +325,19 @@ void drawSection(Viewer& viewer, const SectionVisual& visual, std::size_t step, 
         const Layout& master = *visual.layout;
         viewer.slides.grid   = master;
         for (const Area& fraction : visual.declaredGrid) {
-            viewer.slides.grid.areas.push_back(Area{.id = fraction.id, .kind = fraction.kind, .step = fraction.step, .x = fraction.x * master.width, .y = fraction.y * master.height, .width = fraction.width * master.width, .height = fraction.height * master.height});
+            Area placed{.id = fraction.id, .kind = fraction.kind, .step = fraction.step, .x = fraction.x * master.width, .y = fraction.y * master.height, .width = fraction.width * master.width, .height = fraction.height * master.height};
+            placed.backdropLight = backdropUnder(master, placed);
+            viewer.slides.grid.areas.push_back(std::move(placed));
         }
+        viewer.documentView.layout = &viewer.slides.grid;
+    } else if (const Area* content = visual.layout == nullptr || visual.grid.empty() ? nullptr : visual.layout->find("content"); content != nullptr) {
+        // rows (`grid:`) divide the master's `content` box; a cell named `content` takes the prose in its place
+        const std::vector<Area> cells = gridAreasIn(gridRowsOf(visual.grid), *content, filledAreasOf(visual));
+        viewer.slides.grid            = *visual.layout;
+        if (std::ranges::contains(cells, "content", &Area::id)) {
+            std::erase_if(viewer.slides.grid.areas, [](const Area& area) { return area.id == "content"; });
+        }
+        viewer.slides.grid.areas.insert(viewer.slides.grid.areas.end(), cells.begin(), cells.end());
         viewer.documentView.layout = &viewer.slides.grid;
     }
     if (visual.layout != nullptr) {

@@ -132,7 +132,7 @@ constexpr float kVideoControlsHeightLines = kVideoBarGapLines + kVideoBarHeightL
         return around;
     }
     const ImVec2 viewport = ImGui::GetMainViewport()->Size;
-    return said->unit == TypeSize::Unit::relative ? around * said->value : Fonts::pointsToPixels(said->value, viewport.x, viewport.y);
+    return said->unit == TypeSize::Unit::relative ? around * said->value : Fonts::pointsToPixels(said->pointsWithin(0.0f, Fonts::instance().scale.caption), viewport.x, viewport.y);
 }
 
 /// applies a body size the author set; auto-shrink floors at the deck's floor, or at once if already below it
@@ -144,7 +144,7 @@ void sizedAsSaid(DocumentView::Placement& where, const std::optional<TypeSize>& 
     if (slide && where.titlePixels <= 0.0f) {
         where.titlePixels = where.bodyPixels;
     }
-    where.bodyPixels        = size->unit == TypeSize::Unit::relative ? where.bodyPixels * size->value : Fonts::pointsToPixels(size->value, viewport.x, viewport.y);
+    where.bodyPixels        = size->unit == TypeSize::Unit::relative ? where.bodyPixels * size->value : Fonts::pointsToPixels(size->pointsWithin(0.0f, Fonts::instance().scale.caption), viewport.x, viewport.y);
     const float floorPixels = Fonts::pointsToPixels(Fonts::instance().scale.floor, viewport.x, viewport.y);
     where.floorScale        = std::min(1.0f, floorPixels / where.bodyPixels);
 }
@@ -310,6 +310,18 @@ void scaleDrawn(ImDrawList& list, DrawnFrom start, PageRecording* recording, std
     faded.logoTint       = dimmed(theme.logoTint, opacity);
     faded.menuBackground = dimmed(theme.menuBackground, opacity);
     return faded;
+}
+
+/// a box on a master takes the scheme's ink that suits the master's brightness under it, not the system's scheme:
+/// the deck's `colours: text: { light, dark }` where it names them, else the viewer's
+[[nodiscard]] Theme onBackdrop(const Theme& theme, const Area* area) noexcept {
+    if (area == nullptr || area->backdropLight < 0.0f || theme.inkOnLight == 0u) {
+        return theme;
+    }
+    const ImU32 ink  = area->backdropLight < kDarkVariantBelowBrightness ? theme.inkOnDark : theme.inkOnLight;
+    Theme       onIt = theme;
+    onIt.text        = (ink & ~IM_COL32_A_MASK) | (theme.text & IM_COL32_A_MASK);
+    return onIt;
 }
 
 struct InlinePen {
@@ -1119,14 +1131,15 @@ void DocumentView::draw(const Theme& theme) {
         const ImVec2 viewportSize = ImGui::GetMainViewport()->Size;
         const float  floorPixels  = Fonts::pointsToPixels(Fonts::instance().scale.floor, viewportSize.x, viewportSize.y);
         titleArea.floorScale      = std::min(1.0f, floorPixels / (headingSize(1, titleBody) * Fonts::subtitleRatio()));
-        const LaidOut titleNeeded = layoutPass(faded, *document, 1.0f, false, titleArea, Selection::headingOnly);
-        const float   titleScale  = drawn ? 1.0f : fittingScale(faded, *document, titleArea, Selection::headingOnly, titleNeeded).first;
+        const Theme   titleInk    = onBackdrop(faded, layout == nullptr ? nullptr : layout->find("title"));
+        const LaidOut titleNeeded = layoutPass(titleInk, *document, 1.0f, false, titleArea, Selection::headingOnly);
+        const float   titleScale  = drawn ? 1.0f : fittingScale(titleInk, *document, titleArea, Selection::headingOnly, titleNeeded).first;
         const float   lent        = drawn ? std::max(titleNeeded.height - where.title.height, 0.0f) * 0.5f : 0.0f;
         titleArea.contentTop -= lent;
         titleArea.available += 2.0f * lent;
         const Canvas         canvas{ImGui::GetWindowDrawList(), recording, &textRuns};
         const ScopedClipRect inTitle{canvas.list, ImVec2{where.title.x, where.title.y - lent}, ImVec2{where.title.x + where.title.width, where.title.y + where.title.height + lent}};
-        layoutPass(faded, *document, titleScale, true, titleArea, Selection::headingOnly);
+        layoutPass(titleInk, *document, titleScale, true, titleArea, Selection::headingOnly);
     }
 
     const bool notesBeneath = notesNeed > 0.0f && picture.width > 0.0f;
@@ -1134,6 +1147,7 @@ void DocumentView::draw(const Theme& theme) {
         where.options.notes = false;
     }
     const Selection body              = split ? Selection::exceptHeading : Selection::all;
+    const Theme     bodyInk           = onBackdrop(faded, layout == nullptr ? nullptr : layout->find("content"));
     const LaidOut   needed            = layoutPass(faded, *document, 1.0f, false, where, body);
     const auto [bodyScale, bodyDrawn] = fittingScale(faded, *document, where, body, needed);
     appliedScale                      = bodyScale;
@@ -1150,13 +1164,13 @@ void DocumentView::draw(const Theme& theme) {
         const ImVec2         bodyLow{0.0f, where.contentTop};
         const ImVec2         bodyHigh{ImGui::GetIO().DisplaySize.x, where.contentTop + where.available};
         const ScopedClipRect cutAtFloor{atFloor ? ImGui::GetWindowDrawList() : nullptr, bodyLow, bodyHigh};
-        layoutPass(faded, *document, appliedScale, true, where, body);
+        layoutPass(bodyInk, *document, appliedScale, true, where, body);
     }
     if (notesBeneath) {
         // notes sit at the picture's lower edge and keep to its width, as a caption does
         Placement under{.contentLeft = notesUnder.x, .contentTop = notesUnder.y, .contentWidth = notesUnder.width, .available = 0.0f, .bodyPixels = where.bodyPixels, .title = {}, .footer = {}, .options = where.options, .inset = 0.0f};
         under.options.notes = true;
-        layoutPass(faded, *document, 1.0f, true, under, Selection::notesOnly);
+        layoutPass(bodyInk, *document, 1.0f, true, under, Selection::notesOnly);
     }
 
     // a `:::<name>` block runs the same layout pass as the main flow into the box of that name
@@ -1183,10 +1197,11 @@ void DocumentView::draw(const Theme& theme) {
         Placement       slot{.contentLeft = box.x, .contentTop = box.y, .contentWidth = box.width, .available = box.height, .bodyPixels = where.bodyPixels, .title = {}, .footer = slotFooter, .options = entry.options, .inset = 0.0f};
         sizedAsSaid(slot, entry.options.size);
 
-        const LaidOut wanted   = layoutPass(faded, entry.contents, 1.0f, false, slot, Selection::all);
+        const Theme   boxInk   = onBackdrop(faded, area);
+        const LaidOut wanted   = layoutPass(boxInk, entry.contents, 1.0f, false, slot, Selection::all);
         const bool    overruns = wanted.heightToFit() > slot.available;
         // content scales down to fit unless the author fixed the size: then it is cut off and reported in `clipped`
-        const auto [scale, fitted] = overruns && entry.options.shrink ? fittingScale(faded, entry.contents, slot, Selection::all, wanted) : std::pair{1.0f, wanted};
+        const auto [scale, fitted] = overruns && entry.options.shrink ? fittingScale(boxInk, entry.contents, slot, Selection::all, wanted) : std::pair{1.0f, wanted};
         if (overruns && !entry.options.shrink) {
             clipped.push_back(Overrun{.id = entry.id, .wanted = wanted.height, .available = slot.available, .shrank = false});
         }
@@ -1213,7 +1228,7 @@ void DocumentView::draw(const Theme& theme) {
         const DrawnFrom      boxFrom     = boxArrives ? startDrawing(*into.list) : DrawnFrom{};
         const DrawnFrom      fitFrom     = boxFits ? startDrawing(*into.list) : DrawnFrom{};
         const auto           marks       = std::array{recording != nullptr ? recording->primitives.size() : 0UZ, textRuns.runs.size(), linkAreas.size()};
-        layoutPass(faded, entry.contents, scale, true, slot, Selection::all);
+        layoutPass(boxInk, entry.contents, scale, true, slot, Selection::all);
         if (boxFits) {
             scaleDrawn(*into.list, fitFrom, recording, marks[0], textRuns, marks[1], linkAreas, marks[2], ImVec2{box.x, slot.contentTop}, slot.available / std::max(boxDrawn.heightToFit(), 1.0f));
         }

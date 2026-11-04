@@ -264,7 +264,7 @@ void advanceLoading(Viewer& viewer) {
             }
         }
         if (visual.contradicts) {
-            viewer.diagnostics.report(DiagnosticKind::unsupportedBlock, std::string{at.viewId}, "the section names both a drawing to lay it out and a grid; the drawing is the layout, so the grid is ignored");
+            viewer.diagnostics.report(DiagnosticKind::unsupportedBlock, std::string{at.viewId}, "lays out rows (`grid:`) over a drawing without a `content` box to divide; the grid is ignored");
         }
     }
     buildSideMenu(viewer);
@@ -313,10 +313,11 @@ void advanceLoading(Viewer& viewer) {
 
 void applyTheme(Viewer& viewer, ColourScheme scheme) {
     // the deck's ink, where it names one, over the viewer's own; read each frame, so a reloaded deck takes effect
-    Theme wanted = themeFor(scheme);
-    if (const std::optional<Rgb> ink = scheme == ColourScheme::dark ? viewer.loader.manifest().textColourDark : viewer.loader.manifest().textColourLight) {
-        wanted.text = IM_COL32(ink->red, ink->green, ink->blue, 0xFF);
-    }
+    Theme      wanted   = themeFor(scheme);
+    const auto colourOf = [](const std::optional<Rgb>& ink, ImU32 otherwise) { return ink ? IM_COL32(ink->red, ink->green, ink->blue, 0xFF) : otherwise; };
+    wanted.inkOnLight   = colourOf(viewer.loader.manifest().textColourLight, wanted.inkOnLight);
+    wanted.inkOnDark    = colourOf(viewer.loader.manifest().textColourDark, wanted.inkOnDark);
+    wanted.text         = scheme == ColourScheme::dark ? wanted.inkOnDark : wanted.inkOnLight;
     if (viewer.logo.id != 0 && viewer.theme == wanted) {
         return;
     }

@@ -31,6 +31,13 @@ const suite<"TypeSize"> typeSizeTests = [] {
         expect(approx(parseTypeSize("14pt")->pointsWithin(20.0f), 14.0f)) << "points ignore what is around them";
     };
 
+    "`caption` is the deck's caption size, whatever surrounds it"_test = [] {
+        const auto caption = parseTypeSize("caption");
+        expect(caption == TypeSize{.unit = TypeSize::Unit::caption, .value = 1.0f});
+        expect(approx(caption->pointsWithin(20.0f, 11.0f), 11.0f)) << "the deck's caption size, not a share of the 20 pt around it";
+        expect(approx(caption->pointsWithin(20.0f), TypeScale{}.caption)) << "the default caption size without a deck's";
+    };
+
     "anything that is no size is refused rather than guessed"_test = [] {
         for (const std::string_view nonsense : {"", "pt", "%", "big", "14px", "14 pt", "1.2.3em", "-3pt", "0", "0%", "nan", "inf"}) {
             expect(!parseTypeSize(nonsense).has_value()) << "'" << nonsense << "' was taken as a size";

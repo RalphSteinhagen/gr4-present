@@ -751,6 +751,22 @@ const suite<"Markdown"> markdownTests = [] {
         }
     };
 
+    "a step that names no way of arriving takes the deck's `steps:`, on every slide and in every box"_test = [] {
+        Document deck                       = parseMarkdown("# A\n\nfirst\n\n:::step\n\nplain\n\n:::step {in=rise}\n\nown\n\n. . .\n\npaused\n");
+        deck.stepDefault                    = Reveal{.kind = "fade", .seconds = 0.3f, .from = {}};
+        const std::vector<Section> sections = sectionsOf(deck);
+        expect(fatal(eq(sections.size(), 1UZ)));
+        const Document& slide = sections.front().document;
+        expect(slide.revealOf(0) == nullptr) << "what is there from the start does not arrive";
+        expect(slide.revealOf(1) != nullptr && slide.revealOf(1)->kind == "fade") << "a bare `:::step`";
+        expect(slide.revealOf(2) != nullptr && slide.revealOf(2)->kind == "rise") << "a step's own `in=` wins";
+        expect(slide.revealOf(3) != nullptr && slide.revealOf(3)->kind == "fade") << "Pandoc's pause";
+        const std::vector<std::string> lines{"a", "", ":::step", "", "b"};
+        const Document                 box = boxDocumentOf(lines, slide, 1);
+        expect(box.revealOf(2) != nullptr && box.revealOf(2)->kind == "fade") << "a box's own step";
+        expect(parseMarkdown("# A\n\n:::step\n\nb\n").revealOf(1) == nullptr) << "without a deck default, at once";
+    };
+
     // Ground truth: a plain step's rule, that a duration is a positive number of seconds, holds for a step `with` the one before too
     "a zero duration counts as unwritten, on a step and on a step `with` the one before alike"_test = [] {
         const Document slide  = parseMarkdown("# S\n\n:::step {in=rise dur=0}\n\nclaim\n\n:::step {in=fade with dur=0}\n\nfigure\n");

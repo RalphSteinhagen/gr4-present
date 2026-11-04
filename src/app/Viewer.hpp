@@ -245,7 +245,7 @@ struct SectionVisual {
     float                     duration = -1.0f;           // `duration:` in seconds; negative takes the deck's pace
     std::vector<AreaDocument> slots;                      // the prose of each `:::<name>` block, and what its fence asked for
     std::vector<Area>         declaredGrid;               // boxes a `:::place` block put at fractions of the slide; over a drawn master they lie on top of its own
-    bool                      contradicts = false;        // both a grid and a drawn master were named
+    bool                      contradicts = false;        // a grid over a drawn master without a `content` box
     std::string               image;                      // a raster the camera moves over, from `source:` when not an SVG
     Rectangle                 region;                     // fractions of the image this section frames; empty is all of it
     Rectangle                 via;                        // an intermediate frame, so a move can pull back before it travels

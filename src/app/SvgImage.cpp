@@ -176,6 +176,15 @@ std::optional<Layout> layoutOfSvg(std::span<const std::uint8_t> source) {
     constexpr std::uint32_t kProbeWidth = 256U;
     if (const std::optional<RasterImage> probe = rasterise(document, kProbeWidth); probe.has_value() && layout.width > 0.0f) {
         const float perUnit = static_cast<float>(probe->width) / layout.width;
+        double      whole = 0.0, wholeCover = 0.0;
+        for (std::size_t at = 0UZ; at + 3UZ < probe->rgba.size(); at += 4UZ) {
+            whole += (0.2126 * probe->rgba[at] + 0.7152 * probe->rgba[at + 1UZ] + 0.0722 * probe->rgba[at + 2UZ]) / 255.0;
+            wholeCover += probe->rgba[at + 3UZ] / 255.0;
+        }
+        const double pixels = static_cast<double>(probe->rgba.size()) / 4.0;
+        if (pixels > 0.0 && wholeCover / pixels >= 0.5) {
+            layout.backdropLight = static_cast<float>(whole / pixels);
+        }
         for (Area& area : layout.areas) {
             const auto  first = [perUnit](float at, std::uint32_t limit) { return std::min(static_cast<std::uint32_t>(std::max(at * perUnit, 0.0f)), limit); };
             const auto  left = first(area.x, probe->width), right = first(area.x + area.width, probe->width), top = first(area.y, probe->height), bottom = first(area.y + area.height, probe->height);

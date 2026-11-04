@@ -2,6 +2,7 @@
 #define GR4_PRESENT_MANIFEST_HPP
 
 #include <gr4-present/ChartLegend.hpp>
+#include <gr4-present/Markdown.hpp>
 #include <gr4-present/TypeSize.hpp>
 
 #include <cstdint>
@@ -64,11 +65,15 @@ struct Manifest {
     /// to four
     std::vector<std::pair<std::string, FontFamily>> fonts;
 
-    /// `sizes: { title: 40pt, subtitle: 22pt, body: 20pt, floor: 12pt }`; a relative value scales the size the viewer would use
+    /// `sizes: { title: 40pt, subtitle: 22pt, body: 20pt, floor: 12pt, caption: 13pt }`; a relative value scales the size the viewer would use
     TypeScale sizes;
 
+    /// `steps: { in: fade, dur: 0.3s }`: how a `:::step` or a pause arrives unless it says so; unset is at once
+    Reveal steps;
+
     /// `colours: { text: "#000000" }` or `colours: { text: { light: "#000000", dark: "#ffffff" } }`: the ink of the
-    /// slides' words in each scheme; unset keeps the viewer's own grey. A value must be quoted, as `#` opens a comment
+    /// slides' words in each scheme, the viewer's own grey where unset; a box on a master takes the scheme's ink that
+    /// suits the master's brightness under it, whatever the system's scheme. A value must be quoted, as `#` opens a comment
     std::optional<Rgb> textColourLight;
     std::optional<Rgb> textColourDark;
     /// `masters: { default: figures/main.svg, blank: figures/blank.svg }`: SVG masters by name, in the order written;

@@ -9,6 +9,9 @@
 namespace gr::present {
 
 std::optional<TypeSize> parseTypeSize(std::string_view text) noexcept {
+    if (text == "caption") {
+        return TypeSize{.unit = TypeSize::Unit::caption, .value = 1.0f};
+    }
     struct Suffix {
         std::string_view text;
         TypeSize::Unit   unit;

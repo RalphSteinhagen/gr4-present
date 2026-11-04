@@ -337,7 +337,7 @@ FilesToFetch filesToFetch(const Document& document, const Manifest& manifest, st
     for (const Document::StepReveal& stepReveal : document.stepReveals) {
         wantedEffect(stepReveal.reveal.kind);
     }
-    for (const std::string_view value : {std::string_view{manifest.background}, std::string_view{manifest.pointer}, std::string_view{manifest.breakEffect}}) {
+    for (const std::string_view value : {std::string_view{manifest.background}, std::string_view{manifest.pointer}, std::string_view{manifest.breakEffect}, std::string_view{manifest.steps.kind}}) {
         wantedEffect(value);
     }
     for (const FontFamily& family : manifest.fonts | std::views::values) {
@@ -407,7 +407,8 @@ void PresentationLoader::pollFigures() {
 }
 
 Document PresentationLoader::document() const {
-    Document parsed = parseMarkdown(_documentSource);
+    Document parsed    = parseMarkdown(_documentSource);
+    parsed.stepDefault = _manifest.steps;
     applyMasters(parsed, _manifest.masters);
     return parsed;
 }
