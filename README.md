@@ -42,8 +42,12 @@ node devtools/serve.mjs --directory cmake-build-WASM-Release/viewer-web   # then
 
 The browser needs the COOP/COEP headers `devtools/serve.mjs` sets; a static host that sends none (GitHub Pages) gets them from the page's service worker, which reloads once.
 The same worker keeps the viewer and every deck it showed, so a page visited once online opens offline afterwards, and Edge, Chrome and Safari install it as an app from the address bar.
-`--presentation=<directory, URL or .tar.gz>` (or `?presentation=` in the address) opens another deck, `--theme=dark` (or `?theme=`) forces the colour scheme the system would otherwise choose;
+`--presentation=<directory, URL or .tar.gz>` (or `?presentation=` in the address, relative to the page where it names no scheme) opens another deck, `--theme=dark` (or `?theme=`) forces the colour scheme the system would otherwise choose;
 without it the demo in `presentations/default` is shown.
+"download viewer + deck" in the side menu saves `gr4-present-<deck name>.tar.gz`: the site's files as served, the deck shown under `default/`, a `README.txt` and a start script per platform (`serve.cmd` for Windows, PowerShell behind it; `serve.sh` for macOS and Linux, python3 or ruby or php).
+Unpacked anywhere, the script serves the folder on that computer and opens the viewer in the browser, no network and no install needed; opened as a file by double-click no browser grants the threaded runtime its memory, and the page says what to start instead, or to open the site, which works offline once visited.
+Where no script interpreter runs, `launch-chromium.cmd` (Windows) or `sh launch-chromium.sh` (macOS, Linux) starts Chrome, Edge, Chromium or Brave on the page as a file with `--allow-file-access-from-files` and `--enable-features=SharedArrayBuffer`, in a profile of its own deleted when its window closes: both switches weaken what the browser protects, so they never reach the browser used day to day; the page copies the deck beside it (`default/` by the list the script writes, or a named `.tar.gz`) into memory before the viewer starts.
+A Chrome update may drop the second switch; the server scripts rely on web standards only.
 Load at the top of the side menu (`Ctrl+O`) opens a deck from this computer without a server: natively its `index.yml`, a lone `.md` or a `.tar.gz`, in a browser its folder; a `.md` or a `.tar.gz` dropped onto the window opens as well, and a deck's folder natively and in Chromium.
 A folder without `index.yml` opens its least nested `.md`.
 Save (`Ctrl+S`) writes the deck shown as `<deck name>.tar.gz` into the downloads folder.

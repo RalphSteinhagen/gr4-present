@@ -220,6 +220,11 @@ void buildSideMenu(Viewer& viewer) {
 #endif
     }
 #endif
+#ifdef __EMSCRIPTEN__
+    if (!viewer.presenter) { // the site and the deck shown to carry, with a script that serves them anywhere
+        viewer.menu.utilities.push_back({.label = std::string{Fonts::kDownload} + "  download viewer + deck", .activate = [&viewer] { downloadViewer(viewer); }, .separatorBefore = false, .mnemonic = {}});
+    }
+#endif
     viewer.menu.utilities.push_back({.label = diagnosticsLabel, .activate = toggleDiagnostics, .separatorBefore = true, .mnemonic = {}});
 }
 

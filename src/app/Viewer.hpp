@@ -283,6 +283,10 @@ void openExportTab(const char* mode);
 
 #ifdef __EMSCRIPTEN__
 [[nodiscard]] std::string emscriptenLocation(std::string_view component);
+/// the page's own folder on its host, without the trailing slash; `kFilePageFolder` for a page opened as a file
+[[nodiscard]] std::string pageFolder();
+/// `pageFolder()` of a page opened as a file (launch-chromium): shell.html copies the deck beside it here
+inline constexpr std::string_view kFilePageFolder = "/gr4-page";
 #endif
 [[nodiscard]] std::string viewNamed(const Viewer& viewer, std::string_view said);
 [[nodiscard]] std::size_t slideNumberOf(const Viewer& viewer, std::string_view viewId);
@@ -364,6 +368,9 @@ void saveDeck(Viewer& viewer);
 /// `?presentation=local:<name>` or a path on this computer (`localPathOf`), by its last name: the kept handle when it has
 /// that name, else one chosen in the picker; the deck at `builtIn` if it cannot
 void reopenLocalDeck(Viewer& viewer, std::string_view address, std::string_view builtIn);
+/// "download viewer + deck": fetches the site's files from the page's folder; `tendDeckFiles` packs them with the deck
+/// shown, the start scripts and a README into `gr4-present-<deck>.tar.gz` and downloads it (`PresenterBundle`)
+void downloadViewer(Viewer& viewer);
 #endif
 /// whether the deck shown can follow edits to its files: one from this computer, in a browser through kept handles
 [[nodiscard]] bool followableDeck(const Viewer& viewer);

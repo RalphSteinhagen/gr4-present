@@ -6,6 +6,8 @@
     <title>gr4-present</title>
     <link rel="icon" href="icon.png" />
     <link rel="manifest" href="manifest.webmanifest" />
+    <!-- filled by "download viewer + deck": the site the carried copy came from, offered below when the page is opened as a file -->
+    <meta name="gr4-site" content="" />
     <!-- A static host that cannot send COOP/COEP, GitHub Pages among them, leaves the page without
          SharedArrayBuffer and the threaded runtime never starts. This registers the service worker that re-serves
          every response with those headers (reloading once where they were missing) and keeps an offline copy of the
@@ -146,16 +148,66 @@
 
       // Without the headers the threaded runtime cannot start at all. Where the service worker can add them the
       // page is about to reload; where it cannot (opened as a file, or over plain http from another machine) the
-      // reader is told what would work.
-      if (!window.crossOriginIsolated) {
+      // reader is told what to do: as a file, start the script "download viewer + deck" put beside the page, for
+      // the platform at hand, or open the site the copy came from, which works offline once visited.
+      let explained = false; // the runtime's own failure, which follows, must not replace the explanation
+      if (location.protocol === 'file:' && typeof SharedArrayBuffer === 'function') {
+        // Opened as a file by launch-chromium: the browser's switches give threads and let this page read its folder,
+        // but the viewer reads a `file:` address from its in-memory file system. So the deck beside the page is copied
+        // there first, under /gr4-page (pageFolder()): a .tar.gz as it is, a folder by the `<deck>.files` list the
+        // script writes, one path per line, relative (sh) or absolute with backslashes (Windows' dir /s /b).
+        const deck = (new URLSearchParams(location.search).get('presentation') || 'default').replace(/\/$/, '');
+        const folder = decodeURIComponent(location.pathname.slice(0, location.pathname.lastIndexOf('/')));
+        const urlOf = (path) => path.split('/').map(encodeURIComponent).join('/');
+        const read = (path) => new Promise((resolve, reject) => {
+          const request = new XMLHttpRequest();
+          request.open('GET', urlOf(path));
+          request.responseType = 'arraybuffer';
+          request.onload = () => (request.response ? resolve(new Uint8Array(request.response)) : reject(new Error(path + ' could not be read')));
+          request.onerror = () => reject(new Error(path + ' could not be read'));
+          request.send();
+        });
+        const withinDeck = (line) => {
+          const path = line.trim().replace(/\\/g, '/').replace(/^\.\//, '');
+          if (!/^([A-Za-z]:)?\//.test(path)) return path;
+          const marker = ('/' + deck + '/').toLowerCase();
+          const at = path.toLowerCase().indexOf(marker, Math.max(0, folder.length - 2));
+          return at < 0 ? '' : path.slice(at + marker.length);
+        };
+        const deckFiles = async () => {
+          if (/\.(tar\.gz|tgz)$/.test(deck)) return [deck];
+          const list = new TextDecoder().decode(await read(deck + '.files'));
+          return list.split('\n').map(withinDeck).filter((path) => path && !path.split('/').includes('..')).map((path) => deck + '/' + path);
+        };
+        Module.preRun = [() => {
+          if (deck.includes(':') || deck.startsWith('/')) return; // an address elsewhere is read as it is
+          Module.addRunDependency('gr4-deck-beside-page');
+          window.gr4Present.setStatus('reading the deck beside the page');
+          deckFiles()
+            .then((paths) => Promise.all(paths.map(async (path) => {
+              const bytes = await read(path);
+              const target = '/gr4-page/' + path;
+              Module.FS.mkdirTree(target.slice(0, target.lastIndexOf('/')));
+              Module.FS.writeFile(target, bytes);
+            })))
+            .catch((error) => console.error('the deck beside the page was not read: ' + error.message)) // the viewer reports it missing
+            .finally(() => Module.removeRunDependency('gr4-deck-beside-page'));
+        }];
+      } else if (!window.crossOriginIsolated) {
         const workerComing = window.isSecureContext && !!navigator.serviceWorker && location.protocol !== 'file:';
-        const remedy = location.protocol === 'file:'
-          ? 'open this folder through a web server, not as a file: any static server, e.g. python3 -m http.server, ruby -run -e httpd ., or node devtools/serve.mjs'
-          : 'open the page over https, or on this computer as http://localhost';
-        window.gr4Present.setStatus(workerComing ? 'preparing the page' : 'failed: the runtime needs SharedArrayBuffer, which this page cannot get; ' + remedy);
+        const site = (document.querySelector('meta[name="gr4-site"]') || {}).content || '';
+        const platform = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+        const windows = /^win/i.test(platform);
+        const start = windows ? 'double-click serve.cmd beside this page' : 'open a terminal in this folder and run: sh serve.sh';
+        const noServer = windows ? ' Without a server, Chrome or Edge can: double-click launch-chromium.cmd.' : ' Without a server, a Chromium can: run sh launch-chromium.sh.';
+        const elsewhere = site ? ' Or open ' + site + ', which works without a network once it has been visited.' : '';
+        const asFile = 'opened as a file, this page cannot start the viewer. To serve it instead, ' + start + '; it opens http://localhost:8000/.' + noServer + elsewhere;
+        const remedy = location.protocol === 'file:' ? asFile : 'the viewer needs its page served over https, or on this computer as http://localhost';
+        window.gr4Present.setStatus(workerComing ? 'preparing the page' : 'failed: ' + remedy);
+        explained = !workerComing;
       }
 
-      window.onerror = (message) => window.gr4Present.setStatus('failed: ' + message);
+      window.onerror = (message) => { if (!explained) window.gr4Present.setStatus('failed: ' + message); };
     </script>
     {{{ SCRIPT }}}
   </body>

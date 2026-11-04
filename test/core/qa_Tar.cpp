@@ -100,8 +100,15 @@ const suite<"Tar"> tarTests = [] {
         expect(eq(textOf(header.subspan(148UZ, 8UZ)), std::format("{:06o}", sum) + std::string{"\0 ", 2UZ}));
     };
 
-    "a path too long to split at a slash, or leaving the archive, is refused"_test = [] {
-        expect(!packTar(std::vector<TarEntry>{{.path = std::string(101UZ, 'x'), .bytes = {}}}).has_value());
+    "a path too long to split at a slash, or leaving the archive, is refused"_test = [] { expect(!packTar(std::vector<TarEntry>{{.path = std::string(101UZ, 'x'), .bytes = {}}}).has_value()); };
+
+    "a file's mode travels: 0644 unless said, 0755 for a script"_test = [] {
+        const auto packed = packTar(std::vector<TarEntry>{{.path = "serve.sh", .bytes = bytesOf("#!/bin/sh\n"), .mode = 0755U}, {.path = "README.txt", .bytes = bytesOf("read me\n")}});
+        expect(fatal(packed.has_value()));
+        const auto files = unpackTar(*packed);
+        expect(fatal(files.has_value() && files->size() == 2UZ));
+        expect(eq((*files)[0].mode, 0755U));
+        expect(eq((*files)[1].mode, 0644U));
         expect(!packTar(std::vector<TarEntry>{{.path = "../outside", .bytes = {}}}).has_value());
         expect(!packTar(std::vector<TarEntry>{{.path = "/etc/passwd", .bytes = {}}}).has_value());
     };

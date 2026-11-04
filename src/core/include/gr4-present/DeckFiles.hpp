@@ -22,6 +22,9 @@ namespace gr::present {
 /// over as `-`, else the name of the folder it came from, else `deck`
 [[nodiscard]] std::string deckFolderName(std::string_view title, std::string_view folder);
 
+/// the entries as a gzip-compressed tar archive
+[[nodiscard]] std::expected<std::vector<std::byte>, std::string> packTarGz(std::span<const gr::compression::TarEntry> entries);
+
 /// the files under `<folder>/`, as a gzip-compressed tar archive
 [[nodiscard]] std::expected<std::vector<std::byte>, std::string> packDeck(std::span<const PackageFile> files, std::string_view folder);
 

@@ -37,6 +37,7 @@ struct SideMenu {
 
     std::vector<std::pair<std::size_t, Rectangle>> drawnEntries     = {}; // the slide entries drawn last frame, by index into `items`
     std::vector<std::pair<std::size_t, Rectangle>> drawnFiles       = {}; // Load and Save drawn last frame, by index into `files`
+    std::vector<std::pair<std::size_t, Rectangle>> drawnUtilities   = {}; // the foot's entries drawn last frame, by index into `utilities`
     Rectangle                                      drawnFollowEdits = {}; // the toggle drawn last frame, empty without one
     Rectangle                                      drawnPanel       = {}; // the panel drawn last frame, empty while hidden
 

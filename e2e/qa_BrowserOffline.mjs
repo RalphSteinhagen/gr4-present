@@ -3,6 +3,10 @@
 // presenter's window too, and a deck never seen shows the failure screen. The page is installable.
 
 import { openPage, withViewer } from "../devtools/browser_harness.mjs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const directory = process.argv[2];
 if (!directory) {
@@ -16,6 +20,41 @@ const expect = (condition, description) => {
   if (!condition) {
     failures.push(description);
   }
+};
+
+const nextFrame = () => new Promise((resolve) => setTimeout(resolve, 100));
+const click = async (page, point) => {
+  await page.command("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y });
+  await nextFrame();
+  for (const type of ["mousePressed", "mouseReleased"]) {
+    await page.command("Input.dispatchMouseEvent", { type, x: point.x, y: point.y, button: "left", clickCount: 1 });
+    await nextFrame();
+  }
+};
+const utilityEntry = async (page, label) => {
+  const probe = `(() => { const entry = (window.gr4FileEntries || []).find((e) => e[0] === "utility" && e[6].endsWith(${JSON.stringify(label)})); return entry && entry[2] >= 0 ? JSON.stringify(entry) : ""; })()`;
+  for (let attempt = 0; attempt < 100; ++attempt) {
+    await page.command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 4 + (attempt % 2), y: 300 });
+    const found = await page.evaluate(probe);
+    if (found) {
+      const entry = JSON.parse(found);
+      return { x: entry[2] + entry[4] / 2, y: entry[3] + entry[5] / 2 };
+    }
+    await nextFrame();
+  }
+  throw new Error(`the side menu never showed ${label}`);
+};
+const untilDownload = async (folder, pattern, timeoutMs = 120_000) => {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const names = readdirSync(folder);
+    const done = names.find((name) => pattern.test(name));
+    if (done && !names.some((name) => name.endsWith(".crdownload"))) {
+      return done;
+    }
+    await nextFrame();
+  }
+  return "";
 };
 
 /// navigates `page` to `url` and waits until the new document's deck is shown (or `until` holds), the old document told apart by a marker
@@ -39,9 +78,21 @@ await withViewer(
     const cached = await page.evaluate("caches.keys().then(async (names) => (await Promise.all(names.map(async (name) => (await (await caches.open(name)).keys()).map((request) => new URL(request.url).pathname)))).flat())");
     expect(cached.includes("/index.wasm") && cached.includes("/default/index.yml") && cached.includes("/default/talk.md"), `the viewer and the deck are kept (${cached.length} files)`);
 
+    expect(cached.includes("/index.html") && cached.includes("/gr4-serviceworker.js"), "the page under its own name and the worker are kept from the start");
+
     server.stop();
     expect(await navigate(page, `${server.origin}/index.html`), "with the server gone, the page reloads from the copy and shows the deck");
     expect(await page.evaluate("window.crossOriginIsolated === true"), "isolated as before");
+    const downloads = mkdtempSync(join(tmpdir(), "gr4-present-offline-"));
+    try {
+      await page.command("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: downloads });
+      await page.evaluate("document.getElementById('canvas').focus()");
+      await click(page, await utilityEntry(page, "download viewer + deck"));
+      const archive = await untilDownload(downloads, /^gr4-present.*\.tar\.gz$/);
+      expect(archive !== "", `"download viewer + deck" works from the copy alone (got ${readdirSync(downloads).join(", ") || "nothing"})`);
+    } finally {
+      execFileSync("rm", ["-rf", downloads]);
+    }
     expect(await navigate(page, `${server.origin}/index.html?presenter`), "the presenter's window, a query the copy never saw, opens as well");
     const never = `${server.origin}/index.html?presentation=${encodeURIComponent("http://localhost:1/never-seen")}`;
     const logsFrom = page.consoleLines.length;

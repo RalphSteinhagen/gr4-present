@@ -24,6 +24,7 @@ namespace gr::compression {
 struct TarEntry {
     std::string            path; // relative, `/`-separated
     std::vector<std::byte> bytes;
+    std::uint32_t          mode = 0644U; // the file's permission bits; 0755 for a script that runs as ./serve.sh
 
     bool operator==(const TarEntry&) const = default;
 };
@@ -143,7 +144,7 @@ inline void putOctal(std::span<std::byte> field, std::size_t value) { putText(fi
 
 } // namespace detail::tar
 
-/// the files as one archive, each a mode 0644 file dated 0, ended by two zero blocks
+/// the files as one archive, each a file of its mode dated 0, ended by two zero blocks
 [[nodiscard]] inline std::expected<std::vector<std::byte>, std::string> packTar(std::span<const TarEntry> entries) {
     using namespace detail::tar;
     std::vector<std::byte> archive;
@@ -162,7 +163,7 @@ inline void putOctal(std::span<std::byte> field, std::size_t value) { putText(fi
         const std::span<std::byte, kBlock> header{block};
         putText(fieldOf(header, kName), split->second);
         putText(fieldOf(header, kPrefix), split->first);
-        putOctal(fieldOf(header, kMode), 0644UZ);
+        putOctal(fieldOf(header, kMode), entry.mode & 07777U);
         putOctal(fieldOf(header, kUid), 0UZ);
         putOctal(fieldOf(header, kGid), 0UZ);
         putOctal(fieldOf(header, kSize), entry.bytes.size());
@@ -228,7 +229,8 @@ inline void putOctal(std::span<std::byte> field, std::size_t value) { putText(fi
         if (leavesTheArchive(path)) {
             return std::unexpected(std::format("'{}' leaves the archive", path));
         }
-        entries.push_back(TarEntry{.path = std::move(path), .bytes = {data.begin(), data.end()}});
+        const std::uint32_t mode = static_cast<std::uint32_t>(octalOf(fieldOf(header, kMode)).value_or(0644UZ)) & 07777U;
+        entries.push_back(TarEntry{.path = std::move(path), .bytes = {data.begin(), data.end()}, .mode = mode});
     }
     return entries;
 }

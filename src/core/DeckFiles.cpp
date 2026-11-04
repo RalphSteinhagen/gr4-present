@@ -38,6 +38,10 @@ std::expected<std::vector<std::byte>, std::string> packDeck(std::span<const Pack
         return gr::compression::TarEntry{.path = std::format("{}/{}", folder, file.path), .bytes = {bytes.begin(), bytes.end()}};
     };
     const auto entries = files | std::views::transform(inFolder) | std::ranges::to<std::vector<gr::compression::TarEntry>>();
+    return packTarGz(entries);
+}
+
+std::expected<std::vector<std::byte>, std::string> packTarGz(std::span<const gr::compression::TarEntry> entries) {
     const auto archive = gr::compression::packTar(entries);
     if (!archive) {
         return std::unexpected(archive.error());

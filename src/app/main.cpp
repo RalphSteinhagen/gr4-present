@@ -55,15 +55,19 @@ namespace {
     };
 }
 
+#ifdef __EMSCRIPTEN__
+/// an address beside the page (`?presentation=talk`, `?presentation=talk.tar.gz`) resolved against its folder; one
+/// with a scheme, a path or `local:` as it is
+[[nodiscard]] std::string resolvedDeckAddress(std::string_view address) {
+    const bool relative = !address.contains(':') && !address.starts_with('/');
+    return relative ? std::format("{}/{}", pageFolder(), address) : std::string{address};
+}
+#endif
+
 [[nodiscard]] std::string defaultPresentationBase(std::string_view executable) {
 #ifdef __EMSCRIPTEN__
     (void)executable;
-    const std::string origin = emscriptenLocation("origin");
-    std::string       path   = emscriptenLocation("pathname");
-    if (const auto lastSlash = path.rfind('/'); lastSlash != std::string::npos) {
-        path.erase(lastSlash);
-    }
-    return std::format("{}{}/default", origin, path);
+    return pageFolder() + "/default";
 #else
     // beside the executable: the viewer may be launched from anywhere
     std::error_code ignored;
@@ -366,9 +370,11 @@ int main(int argc, char** argv) {
     viewer.frameStart            = std::chrono::steady_clock::now();
     const std::string builtIn    = defaultPresentationBase(argc > 0 ? argv[0] : "");
 #ifdef __EMSCRIPTEN__
-    const std::string address = std::string{viewer.options.presentationBase().value_or(builtIn)};
-    // `local:<name>` or a path: a deck from this computer, reopened through the file handle the browser kept (Chromium)
-    if (address.starts_with("local:") || localPathOf(address).has_value()) {
+    const std::string address = resolvedDeckAddress(viewer.options.presentationBase().value_or(builtIn));
+    // `local:<name>` or a path: a deck from this computer, reopened through the file handle the browser kept (Chromium);
+    // a page opened as a file has its deck copied into memory already
+    const bool copiedBeside = address.starts_with(kFilePageFolder);
+    if (address.starts_with("local:") || (localPathOf(address).has_value() && !copiedBeside)) {
         reopenLocalDeck(viewer, address, builtIn);
     } else {
         loadDeck(viewer, address, DeckOpening::launch);

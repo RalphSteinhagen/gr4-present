@@ -78,6 +78,7 @@ void reportFontChoices(Viewer& viewer, std::string_view viewId, const Document& 
     if (isLoopbackAddress(base)) {
         return "; a page from the web reads this computer only once the browser allows local network access, or use Load";
     }
+    return "; Load (Ctrl+O) opens a deck from this computer, or drop its folder or .tar.gz here";
 #endif
     return {};
 }

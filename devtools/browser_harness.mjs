@@ -111,8 +111,10 @@ export const launchBrowser = async (browserArguments = []) => {
   };
 };
 
-export const openPage = async (browser, url) => {
-  const target = await (await fetch(`${browser.endpoint}/json/new?${encodeURIComponent(url)}`, { method: "PUT" })).json();
+export const openPage = async (browser, url) => attachPage(browser, await (await fetch(`${browser.endpoint}/json/new?${encodeURIComponent(url)}`, { method: "PUT" })).json());
+
+/// a page the browser already shows, as /json/list describes it: one a script under test opened
+export const attachPage = async (browser, target) => {
   const socket = new WebSocket(target.webSocketDebuggerUrl);
   const pending = new Map();
   const consoleLines = [];
@@ -167,6 +169,8 @@ export const openPage = async (browser, url) => {
     waitForEvent: (method, from = 0, timeoutMs = kDefaultTimeoutMs) =>
       untilReachable(() => events.slice(from).find((event) => event.method === method), method, timeoutMs),
     eventCount: () => events.length,
+    /// every protocol event seen from index `from`, for a test that reads what the page requested
+    eventsSeen: (from = 0) => events.slice(from),
     press: async (key, code, windowsVirtualKeyCode) => {
       for (const type of ["rawKeyDown", "keyUp"]) {
         await command("Input.dispatchKeyEvent", { type, key, code, windowsVirtualKeyCode, nativeVirtualKeyCode: windowsVirtualKeyCode });

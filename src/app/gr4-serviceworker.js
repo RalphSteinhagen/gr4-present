@@ -8,8 +8,16 @@ const kBuild = "@GR4_PRESENT_BUILD_ID@";
 const kCachePrefix = "gr4-present-";
 const kCache = kCachePrefix + kBuild;
 const kViewerFiles = ["index.js", "index.wasm"]; // immutable within one build; the page itself is a navigation
+// kept from the start, as no fetch of a normal visit passes them through the worker: the page under its own name (a
+// visit is a navigation to the folder) and the worker itself; with them, "download viewer + deck" works offline
+const kPageFiles = ["index.html", "gr4-serviceworker.js", "manifest.webmanifest", "icon.png"];
 
 if (typeof window === "undefined") {
+  const keepPageFiles = async () => {
+    const cache = await caches.open(kCache);
+    await cache.addAll(kPageFiles.map((name) => new URL(name, self.location.href).href)).catch(() => {}); // a missing one does not stop the worker
+  };
+  self.addEventListener("install", (event) => event.waitUntil(keepPageFiles()));
   // no skipWaiting: an updated worker takes over once the old one's tabs are closed, never halfway through a page's
   // load, where it would hand out a runtime from the new build to a page from the old one
   self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
@@ -61,8 +69,9 @@ if (typeof window === "undefined") {
   });
 } else {
   (() => {
-    // no worker without a secure context (http://<lan address>) or in Firefox's private mode: the page runs as served
-    if (!window.isSecureContext || !navigator.serviceWorker) return;
+    // no worker without a secure context (http://<lan address>), in Firefox's private mode or for a page opened as a
+    // file (launch-chromium): the page runs as served
+    if (!window.isSecureContext || !navigator.serviceWorker || location.protocol === "file:") return;
     // a development server on this computer sends the headers itself and rebuilds between reloads: no copy of its files
     const development = window.crossOriginIsolated && ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
     if (development) return;
