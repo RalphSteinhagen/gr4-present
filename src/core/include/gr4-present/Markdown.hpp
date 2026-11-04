@@ -102,6 +102,9 @@ struct Document {
     };
     std::vector<StepReveal> stepReveals;
 
+    /// the deck's `steps:`, for a step that names no way of arriving
+    Reveal stepDefault = {};
+
     /// what the parser read past rather than understood, "line 12: ...", for the problems list
     std::vector<std::string> warnings = {};
 
@@ -111,7 +114,7 @@ struct Document {
 
     [[nodiscard]] int                            stepCount() const noexcept;           // one more than the highest step any block carries, or `lastStep`
     [[nodiscard]] float                          delayBefore(int step) const noexcept; // seconds after which `step` reveals itself; negative waits for a key
-    [[nodiscard]] const Reveal*                  revealOf(int step) const noexcept;    // how `step` arrives; null is at once
+    [[nodiscard]] const Reveal*                  revealOf(int step) const noexcept;    // how `step` arrives, else `stepDefault`; null is at once
     [[nodiscard]] const Block*                   withId(std::string_view id) const noexcept;
     [[nodiscard]] const std::vector<InlineSpan>* footnote(std::string_view label) const noexcept;
 

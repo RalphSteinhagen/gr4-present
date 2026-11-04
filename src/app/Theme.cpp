@@ -35,27 +35,34 @@ ColourScheme detectColourScheme(std::string_view forced) noexcept {
 #endif
 }
 
+constexpr ImU32 kLightSchemeInk = IM_COL32(0x6A, 0x6A, 0x6A, 0xFF);
+constexpr ImU32 kDarkSchemeInk  = IM_COL32(0x9A, 0x9A, 0x9A, 0xFF);
+
 Theme themeFor(ColourScheme scheme) noexcept {
     if (scheme == ColourScheme::dark) {
         return Theme{
             .scheme     = scheme,
             .background = IM_COL32(0x00, 0x00, 0x00, 0xFF),
             .logoTint   = IM_COL32_WHITE,
-            .text       = IM_COL32(0x9A, 0x9A, 0x9A, 0xFF),
+            .text       = kDarkSchemeInk,
             .track      = IM_COL32(0x33, 0x33, 0x33, 0xFF),
             .fill       = kBrandOrange,
             // 60 % alpha, so the slide shows through
             .menuBackground = IM_COL32(0x14, 0x14, 0x14, 0x99),
+            .inkOnLight     = kLightSchemeInk,
+            .inkOnDark      = kDarkSchemeInk,
         };
     }
     return Theme{
         .scheme         = scheme,
         .background     = IM_COL32(0xFF, 0xFF, 0xFF, 0xFF),
         .logoTint       = IM_COL32_WHITE,
-        .text           = IM_COL32(0x6A, 0x6A, 0x6A, 0xFF),
+        .text           = kLightSchemeInk,
         .track          = IM_COL32(0xE4, 0xE4, 0xE4, 0xFF),
         .fill           = kBrandOrange,
         .menuBackground = IM_COL32(0xF4, 0xF4, 0xF4, 0x99),
+        .inkOnLight     = kLightSchemeInk,
+        .inkOnDark      = kDarkSchemeInk,
     };
 }
 ImU32 codeColour(const Theme& theme, TokenKind kind) noexcept {

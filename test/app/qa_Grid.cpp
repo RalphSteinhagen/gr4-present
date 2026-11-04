@@ -3,6 +3,7 @@
 #include "Grid.hpp"
 #include "RasterCamera.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 
@@ -179,12 +180,28 @@ const suite<"Grid"> gridTests = [] {
         expect(gridLayoutOf(gridRowsOf(kDefaultGrid), 1000.0f, 600.0f, kEveryBoxFilled).generated);
     };
 
-    // Ground truth: a drawing carries its own boxes, so a grid over one contradicts it; a photograph carries none
-    "asking for a drawing and a grid at once is reported, over a photograph it is not"_test = [] {
-        expect(contradictsMaster("figures/master.svg", "(left, right)")) << "a drawn master and a named grid";
-        expect(!contradictsMaster("figures/master.svg", "")) << "a drawn master on its own is the usual case; boxes placed by hand lie over it";
-        expect(!contradictsMaster("", "(left, right)")) << "and a grid on its own is the other usual case";
-        expect(!contradictsMaster("media/Science_FAIR.webp", "(left, right)")) << "a photograph has no boxes to contradict";
+    // Ground truth: three equal columns over two equal rows of a 1000 x 600 box at (100, 50), 3 % of 600 = 18 apart
+    "rows over a master divide its content box, three across and two down, on its backdrop"_test = [] {
+        const Area              box{.id = "content", .kind = {}, .step = 0, .x = 100.0f, .y = 50.0f, .width = 1000.0f, .height = 600.0f, .backdropLight = 0.9f};
+        const std::vector<Area> cells = gridAreasIn(gridRowsOf("[(cell_1), (cell_2), (cell_3)], [(cell_4), (cell_5), (cell_6)]"), box, {});
+        expect(fatal(eq(cells.size(), 6UZ)));
+        constexpr float kGutter = 18.0f;
+        const float     width   = (1000.0f - 2.0f * kGutter) / 3.0f;
+        const float     height  = (600.0f - kGutter) / 2.0f;
+        expect(eq(cells[0].id, std::string{"cell_1"}) && approx(cells[0].x, 100.0f) && approx(cells[0].y, 50.0f));
+        expect(approx(cells[2].x, 100.0f + 2.0f * (width + kGutter)) && approx(cells[2].width, width));
+        expect(eq(cells[5].id, std::string{"cell_6"}) && approx(cells[5].y, 50.0f + height + kGutter) && approx(cells[5].height, height));
+        expect(approx(cells[2].x + cells[2].width, 1100.0f)) << "the last column ends at the box's edge";
+        expect(std::ranges::all_of(cells, [](const Area& cell) { return cell.backdropLight == 0.9f; })) << "a cell's ink follows the master under the box";
+    };
+
+    "over a master, unfilled cells leave their row and an empty row the grid"_test = [] {
+        const Area                     box{.id = "content", .kind = {}, .step = 0, .x = 0.0f, .y = 0.0f, .width = 900.0f, .height = 400.0f};
+        const std::vector<std::string> filled{"a", "b"};
+        const std::vector<Area>        cells = gridAreasIn(gridRowsOf("[(a), (gone)], [(b)], [(nothing)]"), box, filled);
+        expect(fatal(eq(cells.size(), 2UZ)));
+        expect(approx(cells[0].width, 900.0f)) << "a takes the row alone";
+        expect(approx(cells[1].y, cells[0].height + 12.0f) && approx(cells[0].height, (400.0f - 12.0f) / 2.0f)) << "two rows left, 3 % of 400 apart";
     };
 
     // Ground truth: a cell must be at least twelve ems wide, else the row is laid out down the slide

@@ -244,6 +244,19 @@ sizes:
         expect(eq(manifest->sizes.title, 40.0f));
         expect(eq(manifest->sizes.body, 27.0f)) << "150 % of the 18 pt body";
         expect(eq(manifest->sizes.floor, 12.0f)) << "what is not said keeps its default";
+        expect(eq(manifest->sizes.caption, TypeScale{}.caption));
+    };
+
+    "`sizes: caption` and `steps:` take the words a slide uses"_test = [] {
+        const auto manifest = parseManifest(R"(format: gr4-presentation/1
+entry: talk.md
+sizes: { caption: 11pt }
+steps: { in: fade, dur: 0.3s }
+)");
+        expect(fatal(manifest.has_value()));
+        expect(eq(manifest->sizes.caption, 11.0f));
+        expect(manifest->steps == Reveal{.kind = "fade", .seconds = 0.3f, .from = {}});
+        expect(parseManifest("format: gr4-presentation/1\nentry: talk.md\n")->steps == Reveal{}) << "unset, a step arrives at once";
     };
 
     // Ground truth: the sRGB triplet a colour picker shows for the same hex code

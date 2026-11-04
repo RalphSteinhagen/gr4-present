@@ -103,7 +103,7 @@ namespace {
 
 [[nodiscard]] TypeScale sizesField(const gr::property_map& sizes) {
     constexpr TypeScale kDefault{};
-    return TypeScale{.title = pointsField(sizes, "title", kDefault.title), .subtitle = pointsField(sizes, "subtitle", kDefault.subtitle), .body = pointsField(sizes, "body", kDefault.body), .floor = pointsField(sizes, "floor", kDefault.floor)};
+    return TypeScale{.title = pointsField(sizes, "title", kDefault.title), .subtitle = pointsField(sizes, "subtitle", kDefault.subtitle), .body = pointsField(sizes, "body", kDefault.body), .floor = pointsField(sizes, "floor", kDefault.floor), .caption = pointsField(sizes, "caption", kDefault.caption)};
 }
 
 /// each entry of `fonts:`, a file or a map of `regular`, `bold`, `italic` and `bolditalic`, in the order written
@@ -188,6 +188,14 @@ std::optional<Rgb> parseHexColour(std::string_view text) noexcept {
     return Rgb{.red = channels[0], .green = channels[1], .blue = channels[2]};
 }
 
+namespace {
+/// `steps: { in: fade, dur: 0.3s, from: below }`, the words a `:::step` takes
+[[nodiscard]] Reveal stepsField(const gr::property_map& steps) {
+    const std::optional<float> seconds = parseSeconds(stringField(steps, "dur"));
+    return Reveal{.kind = stringField(steps, "in"), .seconds = seconds && *seconds > 0.0f ? seconds : std::nullopt, .from = stringField(steps, "from")};
+}
+} // namespace
+
 std::expected<Manifest, ManifestError> parseManifest(std::string_view yaml) {
     const auto parsed = gr::pmt::yaml::deserialize(yaml);
     if (!parsed) {
@@ -206,6 +214,7 @@ std::expected<Manifest, ManifestError> parseManifest(std::string_view yaml) {
         .liveLegend           = legendField(mapField(*parsed, "live"), "legend", ChartLegend::bottom),
         .fonts                = fontsField(mapField(*parsed, "fonts")),
         .sizes                = sizesField(mapField(*parsed, "sizes")),
+        .steps                = stepsField(mapField(*parsed, "steps")),
         .textColourLight      = textColourLight,
         .textColourDark       = textColourDark,
         .masters              = mastersField(mapField(*parsed, "masters")),

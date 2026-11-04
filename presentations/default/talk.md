@@ -414,6 +414,7 @@ The next key again.
 `. . .`, three spaced dots on a line of their own, is a plain pause, as in Pandoc; `:::step` carries a pause's
 options, and its times are seconds: `in=fade|rise|wipe|grow`, `from=left|right|above|below` for a rise or a wipe,
 `dur=`, `after=` counted from the end of the reveal before, and `with` to arrive together with the step before.
+`steps: { in: fade, dur: 0.3s }` in index.yml is how every step and pause arrives that names no way of its own.
 `Next` advances the step first and only then follows an edge, so a presenter never skips past half a slide. Any key
 still works during a timed step, and moving anywhere restarts its clock.
 :::
@@ -560,7 +561,8 @@ outline: on
 Any key in the layout directive other than its settings -- `source`, `portrait`, `anchor`, `transition`, `region`,
 `via`, `camera`, `grid`, `duration`, `advance`, `rotate`, `font`, `size` and `outline` -- names an area and what
 belongs in it. A box an author drew is a frame, not a stretch target. A `:::place` block adds boxes of its own over
-the drawing, at fractions of the slide, for what one slide needs and the master does not draw.
+the drawing, at fractions of the slide, for what one slide needs and the master does not draw. `grid:` rows divide
+the master's `content` box instead, `grid: [(a), (b), (c)], [(d), (e), (f)]` six cells without a coordinate.
 :::
 
 # Fit to View<br>an overfull Slide shrinks, down to a Floor {#autoscale}
@@ -625,15 +627,15 @@ grid: [(deck_md, 0.5), (deck)], [(box_md, 0.5), (box)], [(span_md, 0.5), (span)]
 # index.yml: the deck's own faces and sizes
 fonts:
   hand: fonts/PatrickHand-Regular.ttf  # a name of its own
-sizes: { title: 36pt, subtitle: 20pt, body: 18pt, floor: 12pt }
-colours: { text: "#000000" }  # or { light: ..., dark: ... }
+sizes: { title: 36pt, subtitle: 20pt, body: 18pt, floor: 12pt, caption: 13pt }
+colours: { text: { light: "#000000", dark: "#ffffff" } }  # or one for both
 ```
 :::
 
 :::deck {frame}
 A deck names TrueType faces in its package, by role (body, bold, italic, mono, title) or by a name of its own, and sets its sizes once.
 A slide picks one up with `font:` and `size:` in its `:::layout`.
-`colours: text` inks its words, once or per scheme, where the viewer's grey does not suit a master; `[a few words]{colour=#c00000}` ink only those.
+`colours: text` inks its words, once or per scheme; on a master each box takes the scheme's ink that suits the drawing under it, whatever the system's scheme. `[a few words]{colour=#c00000}` ink only those; `{size=caption}` sets the deck's caption size.
 :::
 
 :::box_md {frame size=95%}

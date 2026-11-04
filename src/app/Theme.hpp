@@ -24,6 +24,8 @@ struct Theme {
     ImU32        track          = 0u;
     ImU32        fill           = 0u; // brand orange, identical in both schemes
     ImU32        menuBackground = 0u;
+    ImU32        inkOnLight     = 0u; // a box on a light part of a master: the deck's light-scheme ink, else the viewer's
+    ImU32        inkOnDark      = 0u; // and on a dark part: the deck's dark-scheme ink, else the viewer's
 
     [[nodiscard]] ImVec4 backgroundColour() const noexcept { return ImGui::ColorConvertU32ToFloat4(background); }
 

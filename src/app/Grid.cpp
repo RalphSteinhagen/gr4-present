@@ -1,7 +1,6 @@
 #include "Grid.hpp"
 
 #include "Fonts.hpp"
-#include "SvgImage.hpp"
 
 #include <gr4-present/Number.hpp>
 
@@ -29,6 +28,7 @@ constexpr float kFooterBandEms    = 2.1f;
 constexpr float kMarginEms        = 2.6f;
 constexpr float kGutterEms        = 1.4f;
 constexpr float kMarginWidthShare = 0.08f;
+constexpr float kInBoxGutterShare = 0.03f; // of a master's box's shorter side, between the cells a grid divides it into
 // about 25 characters of prose; ems rather than pixels because the type is sized from the viewport diagonal
 constexpr float kMinCellEms           = 12.0f;
 constexpr float kSelfSizedHeightShare = 0.45f; // of the usable height: a self-sizing row must not swallow the slide
@@ -276,6 +276,50 @@ Layout declaredLayoutOf(std::span<const Area> fractions, float width, float heig
     return layout;
 }
 
-bool contradictsMaster(std::string_view source, std::string_view grid) noexcept { return !source.empty() && isSvgReference(source) && !grid.empty(); }
+std::vector<Area> gridAreasIn(std::span<const GridRow> rows, const Area& box, std::span<const std::string> filled) {
+    // cells keep their names, an unnamed one its reading-order position; an unfilled cell leaves its row, an empty row the grid
+    std::vector<GridRow> kept;
+    std::size_t          position = 0UZ;
+    for (const GridRow& row : rows) {
+        GridRow surviving{.cells = {}, .share = row.share};
+        for (const GridCell& cell : row.cells) {
+            ++position;
+            const std::string name = cell.name.empty() ? std::to_string(position) : cell.name;
+            if (filled.empty() || std::ranges::contains(filled, name)) {
+                surviving.cells.push_back(GridCell{.name = name, .share = cell.share});
+            }
+        }
+        if (!surviving.cells.empty()) {
+            kept.push_back(std::move(surviving));
+        }
+    }
+    const float gutter = std::min(box.width, box.height) * kInBoxGutterShare;
+    const float usable = box.height - gutter * static_cast<float>(std::max(kept.size(), 1UZ) - 1UZ);
+    float       shares = 0.0f;
+    for (const GridRow& row : kept) {
+        shares += row.share > 0.0f ? row.share : 1.0f;
+    }
+    std::vector<Area> areas;
+    float             y = box.y;
+    for (const GridRow& row : kept) {
+        const float rowHeight = usable * (row.share > 0.0f ? row.share : 1.0f) / shares;
+        const float available = box.width - gutter * static_cast<float>(row.cells.size() - 1UZ);
+        float       stated    = 0.0f;
+        float       unsized   = 0.0f;
+        for (const GridCell& cell : row.cells) {
+            stated += cell.share;
+            unsized += cell.share > 0.0f ? 0.0f : 1.0f;
+        }
+        const float loose = std::max(1.0f - stated, 0.0f);
+        float       x     = box.x;
+        for (const GridCell& cell : row.cells) {
+            const float cellWidth = available * (cell.share > 0.0f ? cell.share : loose / unsized);
+            areas.push_back(Area{.id = cell.name, .kind = {}, .step = 0, .x = x, .y = y, .width = cellWidth, .height = rowHeight, .backdropLight = box.backdropLight});
+            x += cellWidth + gutter;
+        }
+        y += rowHeight + gutter;
+    }
+    return areas;
+}
 
 } // namespace gr::present

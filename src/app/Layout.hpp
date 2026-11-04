@@ -31,6 +31,8 @@ struct Layout {
     /// fitted to the viewport rather than drawn: no proportions to letterbox into, type sized from the screen
     bool generated = false;
 
+    float backdropLight = -1.0f; // a drawn master's brightness as a whole, 0 to 1; negative if transparent or generated
+
     [[nodiscard]] const Area* find(std::string_view id) const noexcept;
 };
 

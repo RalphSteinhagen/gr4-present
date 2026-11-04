@@ -404,7 +404,10 @@ std::string_view Block::field(std::string_view name) const noexcept { return val
 
 const Reveal* Document::revealOf(int step) const noexcept {
     const auto found = std::ranges::find(stepReveals, step, &StepReveal::step);
-    return found == stepReveals.end() ? nullptr : &found->reveal;
+    if (found != stepReveals.end()) {
+        return &found->reveal;
+    }
+    return step > 0 && !stepDefault.kind.empty() ? &stepDefault : nullptr;
 }
 
 float Document::delayBefore(int step) const noexcept {
@@ -469,8 +472,9 @@ Document boxDocumentOf(std::span<const std::string> lines, const Document& slide
         prose += line;
         prose += '\n';
     }
-    Document contents  = parseMarkdown(prose);
-    contents.footnotes = slide.footnotes;
+    Document contents    = parseMarkdown(prose);
+    contents.footnotes   = slide.footnotes;
+    contents.stepDefault = slide.stepDefault;
     for (Block& block : contents.blocks) {
         block.step += firstStep;
         for (int& lineStep : block.lineSteps) {
@@ -540,8 +544,9 @@ std::vector<Section> sectionsOf(const Document& document, int level) {
 
     // every view carries all footnotes and the front matter, as a slide is drawn from its own section alone
     for (Section& section : sections) {
-        section.document.footnotes = document.footnotes;
-        section.document.front     = document.front;
+        section.document.footnotes   = document.footnotes;
+        section.document.front       = document.front;
+        section.document.stepDefault = document.stepDefault;
     }
 
     // steps are numbered across the whole document, so rebase each section's onto zero for its own (view, step) cursor
