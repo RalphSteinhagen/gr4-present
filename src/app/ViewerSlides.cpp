@@ -300,7 +300,7 @@ void drawSection(Viewer& viewer, const SectionVisual& visual, std::size_t step, 
         if (shader != visual.section->document.blocks.end()) {
             return drawShaderViewport(viewer, visual.section->id, *shader, boxes.charts);
         }
-        return live && liveGraphsAvailable() && drawLiveRegion(viewer, id, boxes);
+        return live && drawLiveRegion(viewer, id, boxes);
     };
     viewer.documentView.layout         = visual.layout;
     viewer.documentView.layoutBackdrop = nullptr;
@@ -477,27 +477,36 @@ EffectInputs effectInputsFor(const Viewer& viewer) {
     };
 }
 
-void settleCursor(Viewer& viewer, const Cursor& before) {
+void settleCursor(Viewer& viewer, const Cursor& before, Move move) {
+    if (const View* view = move == Move::jump ? viewer.navigator.graph.find(viewer.navigator.cursor.viewId) : nullptr; view != nullptr) {
+        viewer.navigator.cursor.step = view->stepCount - 1UZ;
+    }
     if (viewer.navigator.cursor == before) {
         return;
     }
+    // reveals animate going forward only: stepping back, a jump, a deep link or a reload shows the step as it is
+    const bool forward           = move == Move::forward;
     viewer.slides.heldForSeconds = 0.0f;
     viewer.slides.viewSince      = ImGui::GetTime();
-    // reveals animate going forward only: stepping back, a deep link or a reload shows the step as it is
-    const auto& views       = viewer.navigator.graph.views;
-    const auto  indexOf     = [&views](std::string_view id) { return std::ranges::find(views, id, &View::id) - views.begin(); };
-    const bool  sameView    = viewer.navigator.cursor.viewId == before.viewId;
-    viewer.slides.stepSince = sameView && viewer.navigator.cursor.step > before.step ? std::optional{ImGui::GetTime()} : std::nullopt;
-    viewer.slides.arrivedAt = !sameView && indexOf(viewer.navigator.cursor.viewId) > indexOf(before.viewId) ? std::optional{ImGui::GetTime()} : (sameView ? viewer.slides.arrivedAt : std::nullopt);
+    viewer.slides.runsByItself   = forward;
+    const auto& views            = viewer.navigator.graph.views;
+    const auto  indexOf          = [&views](std::string_view id) { return std::ranges::find(views, id, &View::id) - views.begin(); };
+    const bool  sameView         = viewer.navigator.cursor.viewId == before.viewId;
+    viewer.slides.stepSince      = forward && sameView && viewer.navigator.cursor.step > before.step ? std::optional{ImGui::GetTime()} : std::nullopt;
+    viewer.slides.arrivedAt      = forward && !sameView && indexOf(viewer.navigator.cursor.viewId) > indexOf(before.viewId) ? std::optional{ImGui::GetTime()} : (sameView ? viewer.slides.arrivedAt : std::nullopt);
     viewer.slides.infoSince.reset();
     viewer.zoom.reset();
-    beginTransition(viewer, before);
+    if (forward || (move == Move::back && sameView)) {
+        beginTransition(viewer, before);
+    } else {
+        viewer.transition.kind = Transition::Kind::none;
+    }
     if (viewer.slides.arrivedAt && viewer.transition.running()) {
         *viewer.slides.arrivedAt += static_cast<double>(viewer.transition.duration); // a box's clock starts when the move ends
     }
     publishCursor(viewer);
     if (viewer.navigator.cursor.viewId != before.viewId) {
-        viewer.videos.rewind(); // a reveal step within a view must not
+        viewer.videos.rewind(forward); // a reveal step within a view must not
     }
 }
 
@@ -560,7 +569,7 @@ void advanceOnItsOwn(Viewer& viewer, float seconds) {
     const auto      reveal    = document == nullptr || !viewer.slides.stepSince ? nullptr : document->revealOf(current);
     const float     arriving  = reveal == nullptr ? 0.0f : reveal->seconds.value_or(revealSecondsOf(viewer, reveal->kind));
     const float     waiting   = stepDelay >= 0.0f ? stepDelay + arriving : (held >= 0.0f ? held : viewer.loader.manifest().advanceSeconds);
-    if ((stepDelay < 0.0f && waiting <= 0.0f) || viewer.transition.running()) {
+    if (!viewer.slides.runsByItself || (stepDelay < 0.0f && waiting <= 0.0f) || viewer.transition.running()) {
         viewer.slides.heldForSeconds = viewer.transition.running() ? 0.0f : viewer.slides.heldForSeconds;
         return; // nothing asked for it here, or the move into this view is still running
     }
@@ -570,7 +579,7 @@ void advanceOnItsOwn(Viewer& viewer, float seconds) {
     }
     const Cursor before = viewer.navigator.cursor;
     viewer.navigator.next();
-    settleCursor(viewer, before);
+    settleCursor(viewer, before, Move::forward);
     viewer.slides.heldForSeconds = 0.0f; // at the end of a deck, where next() does nothing, it waits again
 }
 

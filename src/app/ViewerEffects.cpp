@@ -74,6 +74,11 @@ constexpr float kTouchScale     = 0.5f;  // where a background or viewport start
 constexpr float kSlowFrameShare = 0.9f;  // a frame rate under this share of the display's counts as too slow
 constexpr float kSlowSeconds    = 2.0f;
 
+constexpr double kPointerStillSeconds = 1.5; // the pointer stays this long after it last moved or was held
+constexpr double kPointerFadeSeconds  = 0.5; // and then fades out over this
+
+[[nodiscard]] constexpr float pointerOpacity(double stillForSeconds) noexcept { return static_cast<float>(std::clamp(1.0 - (stillForSeconds - kPointerStillSeconds) / kPointerFadeSeconds, 0.0, 1.0)); }
+
 /// an export, the presenter's window or a `?frozen` page: effects at their still time and given scale
 [[nodiscard]] bool frozen(const Viewer& viewer) noexcept { return viewer.exporting || viewer.presenter || viewer.options.contains("frozen"); }
 
@@ -248,7 +253,7 @@ EffectInstance* drawEffectInto(Viewer& viewer, std::string_view key, std::string
         list.AddCallback(ImDrawCallback_ResetRenderState, nullptr);
     }
     // a GL texture's first row is its bottom one
-    list.AddImage(static_cast<ImTextureID>(texture), min, max, ImVec2{0.0f, 1.0f}, ImVec2{1.0f, 0.0f});
+    list.AddImage(static_cast<ImTextureID>(texture), min, max, ImVec2{0.0f, 1.0f}, ImVec2{1.0f, 0.0f}, IM_COL32(255, 255, 255, static_cast<int>(std::lround(255.0f * std::clamp(run.opacity, 0.0f, 1.0f)))));
     return found;
 }
 
@@ -345,12 +350,23 @@ void drawPointer(Viewer& viewer) {
         return;
     }
     ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+    const ImGuiIO& io              = ImGui::GetIO();
+    const int      frame           = ImGui::GetFrameCount();
+    const bool     stirred         = viewer.effectRuns.pointerFrame != frame - 1 || io.MouseDelta.x != 0.0f || io.MouseDelta.y != 0.0f || ImGui::IsAnyMouseDown();
+    viewer.effectRuns.pointerFrame = frame;
+    if (stirred) {
+        viewer.effectRuns.pointerStirredAt = ImGui::GetTime();
+    }
+    const float opacity = pointerOpacity(ImGui::GetTime() - viewer.effectRuns.pointerStirredAt);
+    if (opacity <= 0.0f) {
+        return; // not drawn, so the next move restarts its trail from where the pointer is
+    }
     const std::string_view spec     = viewer.loader.manifest().pointer.empty() ? std::string_view{"laser"} : std::string_view{viewer.loader.manifest().pointer};
     const ImGuiViewport*   viewport = ImGui::GetMainViewport();
     const ImVec2           low      = viewport->Pos;
     const ImVec2           high{viewport->Pos.x + viewport->Size.x, viewport->Pos.y + viewport->Size.y};
     // drawn into the slide's list, so it zooms with the slide
-    EffectInstance* instance = drawEffectInto(viewer, "pointer", spec, *list, low, high, EffectRun{.scale = 1.0f});
+    EffectInstance* instance = drawEffectInto(viewer, "pointer", spec, *list, low, high, EffectRun{.scale = 1.0f, .opacity = opacity});
     if (instance == nullptr) {
         return;
     }

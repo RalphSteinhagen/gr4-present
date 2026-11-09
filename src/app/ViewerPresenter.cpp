@@ -142,14 +142,16 @@ void drawNotes(Viewer& viewer, float interfacePixelsPerPoint) {
         viewer.presenterTools.lastNotesPress  = now;
         viewer.presenterTools.lastNotesAction = asked;
         const Cursor before                   = viewer.navigator.cursor;
+        Move         move                     = Move::forward;
         if (asked == NotesOverlay::Action::nextStep) {
             viewer.navigator.next();
         } else if (asked == NotesOverlay::Action::nextSlide) {
             viewer.navigator.nextView();
         } else {
             viewer.navigator.previous();
+            move = Move::back;
         }
-        settleCursor(viewer, before);
+        settleCursor(viewer, before, move);
     }
     if (viewer.notes.compact && viewer.notes.visible) {
         drawMiniature(viewer, viewer.navigator.cursor, viewer.notes.miniatures[0], "##miniature-now");
@@ -183,7 +185,7 @@ void buildSideMenu(Viewer& viewer) {
                 [&viewer, id = candidate.id] {
                     const Cursor before = viewer.navigator.cursor;
                     viewer.navigator.jumpTo(id);
-                    settleCursor(viewer, before);
+                    settleCursor(viewer, before, Move::jump);
                 },
             .separatorBefore = false,
             .mnemonic        = {}});

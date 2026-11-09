@@ -212,17 +212,24 @@ void followRemoteCursor(Viewer& viewer) {
         if (before.viewId == view && before.step == parsed) {
             continue;
         }
-        // a step back in the other window is a step back here too, so Previous keeps its meaning
-        auto& history = viewer.navigator.history;
-        if (!history.empty() && history.back().viewId == view && history.back().step == parsed) {
+        // a step back or forward in the other window is one here too, so Previous keeps its meaning and Next its move;
+        // an address the reader typed is a jump, to the view's last step unless it names one
+        const bool typed   = std::string_view{pending} == "gr4AddressPending";
+        auto&      history = viewer.navigator.history;
+        Move       move    = typed && !remote.contains("step") ? Move::jump : Move::exact;
+        if (!typed && !history.empty() && history.back().viewId == view && history.back().step == parsed) {
             viewer.navigator.previous();
+            move = Move::back;
+        } else if (const Cursor next = viewer.navigator.nextCursor(); !typed && next.viewId == view && next.step == parsed) {
+            viewer.navigator.next();
+            move = Move::forward;
         } else if (viewer.navigator.jumpTo(view)) {
             viewer.navigator.cursor.step = parsed;
         } else {
             continue;
         }
         viewer.followingRemote = true;
-        settleCursor(viewer, before);
+        settleCursor(viewer, before, move);
         viewer.followingRemote = false;
     }
 #else
@@ -330,7 +337,7 @@ void publishRegionBounds(const Viewer& viewer) {
             links += std::format("{}[{},{},{},{},{}]", links.empty() ? "" : ",", std::lround(link.area.x), std::lround(link.area.y), std::lround(link.area.width), std::lround(link.area.height), quoted(link.target));
         }
     }
-    const std::string  script = std::format("window.gr4TextRuns = [{}]; window.gr4Links = [{}]; window.gr4Regions = {{{}}}; window.gr4ChartType = [{:.2f}, {:.4f}, {:.4f}]; window.gr4Zoom = [{:.3f}, {:.1f}, {:.1f}]; window.gr4VideoButtons = [{}]; window.gr4VideoPosition = {:.2f}; window.gr4InfoBox = [{}]; window.gr4CameraFrame = [{:.3f},{:.3f},{:.3f},{:.3f}]; window.gr4CameraRotation = {:.1f}; window.gr4PhoneCode = {}; window.gr4NotesButtons = [{}]; window.gr4MenuEntries = [{}]; window.gr4FileEntries = [{}]; window.gr4NotesArea = [{}]; window.gr4LiveSource = {{{}}}; window.gr4Toolbars = {{{}}}; window.gr4Graphs = {{{}}}; window.gr4Miniatures = [{}];", textRuns, links, regions, chartBodyPixels(), small, tiny, viewer.zoom.scale, viewer.zoom.offsetX, viewer.zoom.offsetY, buttons, clipPosition, infoBox, frameDrawn.x, frameDrawn.y, frameDrawn.width, frameDrawn.height, viewer.documentView.cameraRotation, viewer.presenterTools.phoneCodeShown ? "true" : "false", notesButtons, menuEntries, fileEntries, notesArea, liveSources, toolbars, graphs, miniatures);
+    const std::string  script = std::format("window.gr4TextRuns = [{}]; window.gr4Links = [{}]; window.gr4Regions = {{{}}}; window.gr4ChartType = [{:.2f}, {:.4f}, {:.4f}]; window.gr4Zoom = [{:.3f}, {:.1f}, {:.1f}]; window.gr4VideoButtons = [{}]; window.gr4VideoPosition = {:.2f}; window.gr4InfoBox = [{}]; window.gr4CameraFrame = [{:.3f},{:.3f},{:.3f},{:.3f}]; window.gr4CameraRotation = {:.1f}; window.gr4PhoneCode = {}; window.gr4NotesButtons = [{}]; window.gr4MenuEntries = [{}]; window.gr4FileEntries = [{}]; window.gr4NotesArea = [{}]; window.gr4LiveSource = {{{}}}; window.gr4Toolbars = {{{}}}; window.gr4Graphs = {{{}}}; window.gr4Miniatures = [{}]; window.gr4Moving = {};", textRuns, links, regions, chartBodyPixels(), small, tiny, viewer.zoom.scale, viewer.zoom.offsetX, viewer.zoom.offsetY, buttons, clipPosition, infoBox, frameDrawn.x, frameDrawn.y, frameDrawn.width, frameDrawn.height, viewer.documentView.cameraRotation, viewer.presenterTools.phoneCodeShown ? "true" : "false", notesButtons, menuEntries, fileEntries, notesArea, liveSources, toolbars, graphs, miniatures, viewer.transition.running() ? "true" : "false");
     static std::string published;
     if (script != published) {
         published = script;

@@ -41,8 +41,9 @@ struct VideoCache {
     /// opens an audio device for the clip, which is off unless the author asked for it
     [[nodiscard]] const PlayingVideo* get(std::string_view reference, bool autoplay, bool loop, bool sound = false);
 
-    /// every clip back to its first frame, paused or playing as its author asked; called when the view changes
-    void rewind();
+    /// every clip back to its first frame, paused, or playing where its author asked and `autoplay` lets it; called
+    /// when the view changes
+    void rewind(bool autoplay);
 
     /// starts or stops every clip that is loaded, which is what the presenter's key does
     void toggle();

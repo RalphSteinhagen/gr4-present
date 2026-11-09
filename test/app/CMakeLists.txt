@@ -326,6 +326,10 @@ set_tests_properties(
              TIMEOUT
              120)
 
+add_executable(qa_NotesOverlay qa_NotesOverlay.cpp)
+target_link_libraries(qa_NotesOverlay PRIVATE ut gr4-present-app-under-test)
+add_test(NAME qa_NotesOverlay COMMAND qa_NotesOverlay)
+
 add_executable(qa_DocumentView qa_DocumentView.cpp)
 target_compile_definitions(qa_DocumentView
                            PRIVATE GR4_PRESENT_PACKAGE_DIRECTORY="${CMAKE_SOURCE_DIR}/presentations/default")

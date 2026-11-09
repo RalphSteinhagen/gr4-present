@@ -532,13 +532,18 @@ const suite<"Markdown"> markdownTests = [] {
         expect(notes->fields.empty()) << "a sentence with a colon became a setting";
         expect(eq(notes->lines.size(), 2UZ));
         expect(eq(notes->lines.front(), std::string{"Remember: the corner is at 100 Hz."}));
-        expect(eq(notesOf(document), std::string{"Remember: the corner is at 100 Hz.\nPause here."}));
+        expect(eq(notesOf(document), std::string{"Remember: the corner is at 100 Hz. Pause here."})) << "the lines of a paragraph join";
     };
 
     "every notes block in a view is collected, and a view without one has none"_test = [] {
         const Document two = parseMarkdown(":::notes\nfirst\n:::\n\nbody\n\n:::notes\nsecond\n:::\n");
         expect(eq(notesOf(two), std::string{"first\nsecond"}));
         expect(notesOf(parseMarkdown("# nothing to say\n")).empty());
+    };
+
+    "notes are paragraphs as in Markdown: lines join, a blank line separates, a list item keeps its line"_test = [] {
+        const Document document = parseMarkdown(":::notes\nPress right arrow to advance. The address bar\nfollows the cursor.\n\n\nSecond paragraph\nends here.\n- an item\n  wrapped on\n  - nested\n2. numbered\n:::\n");
+        expect(eq(notesOf(document), std::string{"Press right arrow to advance. The address bar follows the cursor.\n\nSecond paragraph ends here.\n- an item wrapped on\n  - nested\n2. numbered"}));
     };
 
     "notes never reach the slide's own blocks"_test = [] {

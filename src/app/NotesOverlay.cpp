@@ -1,11 +1,13 @@
 #include "NotesOverlay.hpp"
 
+#include "DocumentView.hpp"
 #include "Fonts.hpp"
 #include "ScopedWindow.hpp"
 
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
+#include <functional>
 #include <string>
 
 namespace gr::present {
@@ -15,8 +17,6 @@ namespace {
 constexpr float kViewportHeightFraction    = 0.32f;
 constexpr float kPaddingLineHeights        = 0.6f;
 constexpr float kCompactNotesScreenShare   = 0.60f;
-constexpr float kSmallestNotesFraction     = 0.6f;  // below this the notes scroll rather than shrink
-constexpr float kNotesPoints               = 16.0f; // the notes' text in interface points, the size of the side menu's slide names
 constexpr float kThumbTargetCssPixels      = 48.0f;
 constexpr float kSlideHeightToWidth        = 9.0f / 16.0f;
 constexpr float kMiniatureColumnWidthShare = 0.45f;
@@ -37,19 +37,22 @@ void drawMark(ImDrawList* canvas, NotesOverlay::Action action, ImVec2 low, ImVec
     }
 }
 
-[[nodiscard]] float fittingSize(std::string_view text, float size, float width, float height) {
-    float fitted = size;
-    for (int attempt = 0; attempt < 4; ++attempt) { // a smaller size wraps differently, so re-measure
-        const float tall = ImGui::GetFont()->CalcTextSizeA(fitted, FLT_MAX, width, text.data(), text.data() + text.size()).y;
-        if (tall <= height) {
-            break;
-        }
-        fitted = std::max(size * kSmallestNotesFraction, fitted * std::sqrt(height / tall));
-    }
-    return fitted;
+/// how tall `text` stands, wrapped at `width`, at a size in pixels; a smaller size wraps differently
+[[nodiscard]] std::function<float(float)> tallWrappedAt(std::string_view text, float width) {
+    return [text, width, font = ImGui::GetFont()](float size) { return font->CalcTextSizeA(size, FLT_MAX, width, text.data(), text.data() + text.size()).y; };
 }
 
 } // namespace
+
+float NotesOverlay::fittingPixels(float largest, float smallest, float room, const std::function<float(float)>& tallAt) {
+    const float atLargest = tallAt(largest);
+    if (atLargest <= room) {
+        return largest;
+    }
+    const float floor    = smallest / largest;
+    const float estimate = std::clamp(std::sqrt(room / atLargest), floor, 1.0f); // the text's area goes with the square of its size
+    return largest * largestFitting<bool>(floor, estimate, [&](float scale) { return std::pair{tallAt(largest * scale) <= room, true}; }).first;
+}
 
 NotesOverlay::Action NotesOverlay::draw(const Theme& theme, std::string_view notes, std::string_view position, std::string_view nextTitle, float interfacePixelsPerPoint) {
     buttons        = {};
@@ -179,11 +182,16 @@ NotesOverlay::Action NotesOverlay::draw(const Theme& theme, std::string_view not
         drawMark(canvas, action, low, high, dimmed(theme.text, 0.85f));
     }
 
-    const float baseNotes = kNotesPoints * interfacePixelsPerPoint;
+    const float largest  = kLargestPoints * interfacePixelsPerPoint;
+    const float smallest = kSmallestPoints * interfacePixelsPerPoint;
     if (!compact) {
         // not laid out by DocumentView: notes are not slide content and a second pass would cost frame time
+        const float wrapWidth = text.x + text.width - laptopNotesCursor.x;
+        const float room      = height - laptopNotesCursor.y - pad;
+        notesPixels           = notes.empty() ? largest : fittingPixels(largest, smallest, room, tallWrappedAt(notes, wrapWidth));
+        notesArea             = Rectangle{.x = origin.x + laptopNotesCursor.x, .y = origin.y + laptopNotesCursor.y, .width = wrapWidth, .height = room};
         ImGui::SetCursorPos(laptopNotesCursor);
-        const ScopedFont body(baseNotes);
+        const ScopedFont body(notesPixels);
         if (notes.empty()) {
             ImGui::TextDisabled("no notes for this view");
             return pressed;
@@ -192,7 +200,6 @@ NotesOverlay::Action NotesOverlay::draw(const Theme& theme, std::string_view not
         ImFont* const    font       = ImGui::GetFont();
         const float      size       = ImGui::GetFontSize();
         const float      lineHeight = ImGui::GetTextLineHeight();
-        const float      wrapWidth  = text.x + text.width - ImGui::GetCursorPosX();
         const ImVec2     start      = ImGui::GetCursorScreenPos();
         const ImU32      ink        = ImGui::GetColorU32(ImGuiCol_Text);
         float            y          = start.y;
@@ -222,7 +229,7 @@ NotesOverlay::Action NotesOverlay::draw(const Theme& theme, std::string_view not
     }
 
     // ImGui scrolls with a wheel only, so a drag over the notes is turned into scrolling below
-    notesPixels = notes.empty() ? baseNotes : fittingSize(notes, baseNotes, text.width - pad, text.height);
+    notesPixels = notes.empty() ? largest : fittingPixels(largest, smallest, text.height, tallWrappedAt(notes, text.width - pad));
     ImGui::SetCursorPos(ImVec2{text.x, text.y});
     if (const ScopedChild notesText{"##notes-text", ImVec2{text.width, text.height}, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoNav}; notesText) {
         const ScopedFont body(notesPixels);

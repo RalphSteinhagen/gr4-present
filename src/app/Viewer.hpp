@@ -16,6 +16,7 @@
 #include "ShaderTransition.hpp"
 #include "SideMenu.hpp"
 #include "SvgImage.hpp"
+#include "SwipeNavigation.hpp"
 #include "Texture.hpp"
 #include "Theme.hpp"
 #include "Transition.hpp"
@@ -59,6 +60,7 @@ struct EffectRun {
     std::optional<float> scale        = {}; // absent: 1, or 0.5 for a background or viewport on touch
     float                fps          = 0.0f;
     bool                 keepsRunning = false;
+    float                opacity      = 1.0f; // 0 … 1 over the drawn effect, as the pointer fades
 };
 
 struct EffectInstance {
@@ -171,13 +173,16 @@ struct Viewer {
         std::optional<double> stepSince      = {};   // empty arrives at once
         std::optional<double> arrivedAt      = {};   // empty arrives at once
         double                viewSince      = 0.0;  // when the cursor last moved
+        bool                  runsByItself   = true; // false after a step back or a jump, until the next step forward
         ShaderTransition      shaderTransition;
     } slides;
 
-    struct {                                                                      // owned by ViewerEffects.cpp and ViewerStage.cpp
-        std::map<std::string, EffectInstance, std::less<>> instances;             // key: "background:<spec>", "viewport:<id>", …
-        std::map<std::string, StageState, std::less<>>     stages;                // key: "<view>/<stage id>"
-        float                                              slowForSeconds = 0.0f; // seconds the frame rate has been too low while effects drew
+    struct {                                                                        // owned by ViewerEffects.cpp and ViewerStage.cpp
+        std::map<std::string, EffectInstance, std::less<>> instances;               // key: "background:<spec>", "viewport:<id>", …
+        std::map<std::string, StageState, std::less<>>     stages;                  // key: "<view>/<stage id>"
+        float                                              slowForSeconds   = 0.0f; // seconds the frame rate has been too low while effects drew
+        double                                             pointerStirredAt = 0.0;  // ImGui time the pointer last moved or was held
+        int                                                pointerFrame     = -2;   // the frame `L` last had it on; a gap shows it at once
     } effectRuns;
 
     struct { // owned by ViewerInput.cpp
@@ -188,6 +193,7 @@ struct Viewer {
         bool          pinching      = false;
         float         pinchDistance = 0.0f;
         ImVec2        pinchCentre{0.0f, 0.0f};
+        Fingers       fingers;
         TextSelection selection;
     } input;
 
@@ -305,9 +311,8 @@ void applyVideoButtons(Viewer& viewer);
 void applyLinkClicks(Viewer& viewer);
 void applyTextSelection(Viewer& viewer);
 void applyZoomToDrawData(Viewer& viewer);
-#ifdef GR4_PRESENT_HAS_OPENDIGITIZER
+void trackFinger(Viewer& viewer, const SDL_Event& event);
 void applyTouchNavigation(Viewer& viewer);
-#endif
 
 [[nodiscard]] Rectangle     stopRegionOf(const Viewer& viewer, std::string_view source, std::string_view text);
 [[nodiscard]] SectionVisual visualFor(Viewer& viewer, const Cursor& cursor);
@@ -342,8 +347,12 @@ void drawBreakScreen(Viewer& viewer);
 [[nodiscard]] EffectInputs effectInputsFor(const Viewer& viewer);
 /// the default duration of a reveal `kind`: an effect's `@duration`, else the CPU reveals' pace
 [[nodiscard]] float revealSecondsOf(Viewer& viewer, std::string_view kind);
+/// how the cursor got where it is: only a step forward animates the move and starts what runs by itself (a reveal's
+/// fade, `after=` and `advance:`, a clip's autoplay); a step back retraces a camera stop within its view but cuts
+/// between views, a jump cuts to its view's last step, an exact move cuts to the cursor as set (Home, another window's)
+enum class Move { forward, back, jump, exact };
 /// everything a cursor change entails, from any source: the move, the address bar, and clips rewound on a view change
-void settleCursor(Viewer& viewer, const Cursor& before);
+void settleCursor(Viewer& viewer, const Cursor& before, Move move);
 void advanceOnItsOwn(Viewer& viewer, float seconds);
 void advanceTransition(Viewer& viewer, float seconds);
 void drawCurrentSection(Viewer& viewer);

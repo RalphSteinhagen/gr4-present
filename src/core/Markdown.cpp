@@ -457,8 +457,29 @@ std::string notesOf(const Document& document) {
         if (block.kind != BlockKind::directive || block.info != kNotesDirective) {
             continue;
         }
+        bool inParagraph = false;
         for (const std::string& line : block.lines) {
-            notes.append(line).push_back('\n');
+            const std::string_view text = trim(line);
+            const bool             item = listMarkerOf(line).found;
+            if (text.empty()) {
+                if (inParagraph) {
+                    notes.append("\n\n");
+                }
+                inParagraph = false;
+                continue;
+            }
+            if (inParagraph && !item) {
+                notes.append(" ").append(text);
+                continue;
+            }
+            if (inParagraph) {
+                notes.push_back('\n');
+            }
+            notes.append(item ? std::string_view{line}.substr(0UZ, line.find_last_not_of(" \t") + 1UZ) : text); // a nested item keeps its indent
+            inParagraph = true;
+        }
+        if (inParagraph) {
+            notes.push_back('\n');
         }
     }
     while (!notes.empty() && std::isspace(static_cast<unsigned char>(notes.back())) != 0) {

@@ -1577,7 +1577,8 @@ break:
 :::
 
 :::content
-`L` turns the pointer into a laser dot with a fading trail, over the slide and under the menus.
+`L` turns the pointer into a laser dot with a fading trail, over the slide and under the menus;
+left still with no button held, the dot fades out after a moment and returns with the next move.
 
 `B` covers the slide with the break effect and counts down "back in 10:00";
 `+` and `-` add or take a minute, and any navigation key ends the break where the talk left off.
