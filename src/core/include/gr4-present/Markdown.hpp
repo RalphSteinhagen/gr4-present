@@ -184,7 +184,9 @@ struct SchemeFiles {
 /// the anchor a heading gets when it carries no explicit `{#id}`: lowercase, spaces and punctuation to hyphens
 [[nodiscard]] std::string slugOf(std::string_view heading);
 
-/// the presenter notes of a document, joined from every `:::notes` block it holds; empty when it has none
+/// the presenter notes of a document, joined from every `:::notes` block it holds; empty when it has none.
+/// As in Markdown, the lines of a paragraph join with a space and a blank line separates paragraphs; a list item keeps
+/// a line of its own, so each line of the result is a paragraph or an item and an empty line the gap between them
 [[nodiscard]] std::string notesOf(const Document& document);
 
 } // namespace gr::present

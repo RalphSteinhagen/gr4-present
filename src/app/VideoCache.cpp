@@ -94,10 +94,10 @@ void VideoCache::rewindEntry(Entry& entry, double clock) {
     entry.state.position = 0.0;
 }
 
-void VideoCache::rewind() {
+void VideoCache::rewind(bool autoplay) {
     for (auto& [reference, entry] : _playing) {
         rewindEntry(entry, clock);
-        entry.state.playing = entry.autoplay;
+        entry.state.playing = autoplay && entry.autoplay;
     }
 }
 

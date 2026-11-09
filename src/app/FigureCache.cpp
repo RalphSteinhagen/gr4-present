@@ -18,9 +18,9 @@ constexpr std::uint32_t kWidthQuantumPixels = 64U;
 const Texture* FigureCache::get(std::string_view reference, std::uint32_t targetWidth) { return get(reference, targetWidth, {}); }
 
 const Texture* FigureCache::get(std::string_view reference, std::uint32_t targetWidth, std::span<const std::string> hiddenIds) {
-    // keyed by reference, mask and width; the width is rounded so a window dragged by a pixel does not re-rasterise
+    // the width is rounded so a window dragged by a pixel does not re-rasterise
     const std::uint32_t rounded = isSvgReference(reference) ? (std::max(targetWidth, 1U) + kWidthQuantumPixels / 2U) / kWidthQuantumPixels * kWidthQuantumPixels : 0U;
-    const std::string   key     = std::string{reference} + "\x1f" + std::to_string(rounded) + (hiddenIds.empty() ? "" : "\x1fmasked");
+    const std::string   key     = drawingKey(reference, hiddenIds) + "\x1f" + std::to_string(rounded);
 
     const auto showing = [this](const Frames& frames) -> const Texture* {
         if (frames.textures.empty()) {

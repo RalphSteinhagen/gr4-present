@@ -8,10 +8,6 @@
 
 #include <SDL3/SDL.h>
 
-#ifdef GR4_PRESENT_HAS_OPENDIGITIZER
-#include <common/TouchHandler.hpp>
-#endif
-
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
@@ -31,6 +27,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace gr::present {
@@ -77,14 +74,17 @@ void applyNavigationKeys(Viewer& viewer) {
     }
 
     const Cursor before = viewer.navigator.cursor;
+    Move         move   = Move::forward;
     if (home && !viewer.navigator.graph.views.empty()) {
         viewer.navigator.jumpTo(viewer.navigator.graph.views.front().id);
+        move = Move::exact;
     } else if (forward) {
         viewer.navigator.next();
     } else if (backward) {
         viewer.navigator.previous();
+        move = Move::back;
     }
-    settleCursor(viewer, before);
+    settleCursor(viewer, before, move);
 }
 
 /// wheel and pinch zoom, drag pans, double click or Escape resets; the slide wins over charts, so a chart never sees
@@ -94,12 +94,11 @@ void applyZoomInput(Viewer& viewer) {
     const ImVec2& size     = ImGui::GetMainViewport()->Size;
     bool          twoTouch = false;
 
-#ifdef GR4_PRESENT_HAS_OPENDIGITIZER
-    using Touch = DigitizerUi::TouchHandler<>;
-    if (Touch::nFingers == 2UZ) {
-        twoTouch              = true;
-        const ImVec2 a        = Touch::fingerPos[0];
-        const ImVec2 b        = Touch::fingerPos[1];
+    const std::vector<Fingers::Finger>& onGlass = viewer.input.fingers.onGlass;
+    if (onGlass.size() == 2UZ) {
+        twoTouch = true;
+        const ImVec2 a{onGlass[0].x, onGlass[0].y};
+        const ImVec2 b{onGlass[1].x, onGlass[1].y};
         const float  distance = std::hypot(a.x - b.x, a.y - b.y);
         const ImVec2 centre   = ImVec2{0.5f * (a.x + b.x), 0.5f * (a.y + b.y)};
         if (viewer.input.pinching && viewer.input.pinchDistance > 1.0f) {
@@ -109,10 +108,9 @@ void applyZoomInput(Viewer& viewer) {
         viewer.input.pinching      = true;
         viewer.input.pinchDistance = distance;
         viewer.input.pinchCentre   = centre;
-    } else if (Touch::nFingers == 0UZ) {
+    } else if (onGlass.empty()) {
         viewer.input.pinching = false;
     }
-#endif
 
     if (io.WantCaptureMouse) {
         return; // the side menu and the notes handle their own pointer
@@ -187,7 +185,7 @@ void applyLinkClicks(Viewer& viewer) {
         const Cursor before = viewer.navigator.cursor;
         const bool   jumped = viewer.navigator.jumpTo(std::string_view{target}.substr(1UZ));
         if (jumped) {
-            settleCursor(viewer, before);
+            settleCursor(viewer, before, Move::jump);
         }
         return;
     }
@@ -304,17 +302,26 @@ void applyZoomToDrawData(Viewer& viewer) {
     viewer.zoomedLists.clear();
 }
 
-#ifdef GR4_PRESENT_HAS_OPENDIGITIZER
-// turns a finger's flick into navigation on OpenDigitizer's finger tracking (`src/ui/common/TouchHandler.hpp`)
-void applyTouchNavigation(Viewer& viewer) {
-    using Touch = DigitizerUi::TouchHandler<>;
-    if (!Touch::fingerUp || Touch::nFingers != 0UZ) {
-        return; // still on the glass, or nothing lifted since the last frame
+void trackFinger(Viewer& viewer, const SDL_Event& event) {
+    FingerChange change = FingerChange::motion;
+    switch (event.type) {
+    case SDL_EVENT_FINGER_DOWN: change = FingerChange::down; break;
+    case SDL_EVENT_FINGER_UP: change = FingerChange::up; break;
+    case SDL_EVENT_FINGER_CANCELED: change = FingerChange::cancelled; break;
+    case SDL_EVENT_FINGER_MOTION: break;
+    default: return;
     }
-    // a flick is one finger, so index zero
-    const ImVec2     from  = Touch::fingerPosDown[0];
+    const ImVec2 size = ImGui::GetIO().DisplaySize;
+    track(viewer.input.fingers, FingerEvent{.change = change, .finger = static_cast<std::uint64_t>(event.tfinger.fingerID), .x = event.tfinger.x, .y = event.tfinger.y, .nanoseconds = event.tfinger.timestamp}, size.x, size.y);
+}
+
+void applyTouchNavigation(Viewer& viewer) {
+    const std::optional<Flick> lifted = std::exchange(viewer.input.fingers.lifted, std::nullopt);
+    if (!lifted.has_value()) {
+        return;
+    }
     const Rectangle& panel = viewer.menu.drawnPanel;
-    if (panel.width > 0.0f && from.x < panel.x + panel.width) {
+    if (panel.width > 0.0f && lifted->fromX < panel.x + panel.width) {
         return; // a flick that began on the side menu picks an entry; it must not also step the deck
     }
     // a flick across a live chart turns the slide; a slow drag still pans the chart
@@ -322,22 +329,14 @@ void applyTouchNavigation(Viewer& viewer) {
         return; // on a magnified slide a finger pans it, and lifting the last finger of a pinch is not a page turn
     }
 
-    const ImVec2 to = Touch::fingerPosUp[0];
-    if (to.x < 0.0f || to.y < 0.0f) {
-        return;
-    }
-    const auto  held = std::chrono::duration_cast<std::chrono::milliseconds>(Touch::fingerUpTimeStamp[0] - Touch::fingerDownTimeStamp[0]);
-    const Flick flick{.fromX = from.x, .fromY = from.y, .toX = to.x, .toY = to.y, .duration = held};
-
     const Cursor      before = viewer.navigator.cursor;
-    const SwipeAction action = swipeActionOf(flick, ImGui::GetMainViewport()->Size.x);
+    const SwipeAction action = swipeActionOf(*lifted, ImGui::GetMainViewport()->Size.x);
     if (action == SwipeAction::next) {
         viewer.navigator.next();
     } else if (action == SwipeAction::previous) {
         viewer.navigator.previous();
     }
-    settleCursor(viewer, before);
+    settleCursor(viewer, before, action == SwipeAction::previous ? Move::back : Move::forward);
 }
-#endif
 
 } // namespace gr::present

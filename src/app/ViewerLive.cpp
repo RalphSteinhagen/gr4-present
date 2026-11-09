@@ -100,6 +100,17 @@ static void                                   requestDevicesOf(const Viewer& vie
             }
         }
     }
+    if (!liveGraphsAvailable()) {
+        if (!drawFallback(viewer, *entry, box)) { // said in the region, so an audience is not left looking at an empty frame
+            constexpr float kRounding = 6.0f;
+            ImDrawList*     canvas    = ImGui::GetWindowDrawList();
+            const char*     note      = "no live graph: this viewer was built without OpenDigitizer";
+            const ImVec2    text      = ImGui::CalcTextSize(note);
+            canvas->AddRect(ImVec2{box.x, box.y}, ImVec2{box.x + box.width, box.y + box.height}, dimmed(viewer.theme.text, 0.3f), kRounding);
+            canvas->AddText(ImVec2{box.x + (box.width - text.x) * 0.5f, box.y + (box.height - text.y) * 0.5f}, dimmed(viewer.theme.text, 0.7f), note);
+        }
+        return true;
+    }
     const bool deviceless = viewer.exporting && !entry->binding.needs.empty(); // an export asks for no device
     if (viewer.presenter || (deviceless && entry->binding.standby.empty())) {
         return drawFallback(viewer, *entry, box); // the presenter's window runs no graph

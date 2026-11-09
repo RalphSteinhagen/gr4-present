@@ -104,8 +104,9 @@ void renderFrame(Viewer& viewer) {
         if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
             viewer.isRunning = false;
         }
+        trackFinger(viewer, event);
 #ifdef GR4_PRESENT_HAS_OPENDIGITIZER
-        DigitizerUi::TouchHandler<>::processSDLEvent(event);
+        DigitizerUi::TouchHandler<>::processSDLEvent(event); // its own finger state, for touching the charts
 #endif
         // a browser grants a touch its activation as the finger lifts, a click and a key as they go down; a click on the
         // side menu is the menu's: going full screen would use its activation up, and Load's picker needs it
@@ -128,8 +129,8 @@ void renderFrame(Viewer& viewer) {
         buildSideMenu(viewer); // its "dark colours" box shows the scheme; rebuilt here, outside the menu's drawing, where its own click changed it
     }
 
+    releaseStale(viewer.input.fingers, SDL_GetTicksNS());
 #ifdef GR4_PRESENT_HAS_OPENDIGITIZER
-    // pinch and rotation go unused here, but this also recovers a finger whose lift event never arrived
     DigitizerUi::TouchHandler<>::updateGestures();
 #endif
     tendLiveGraphs(viewer);
@@ -142,20 +143,13 @@ void renderFrame(Viewer& viewer) {
     }
     ImGui::NewFrame();
 
-#ifdef GR4_PRESENT_HAS_OPENDIGITIZER
-    // the flick is read first: endFrame() clears the per-frame finger flags, and a flick read twice advances twice
     if (!viewer.sections.empty()) {
         applyZoomInput(viewer);
         applyTouchNavigation(viewer);
-        if (DigitizerUi::TouchHandler<>::nFingers == 0UZ) {
-            viewer.input.pinching = false;
-        }
     }
+    viewer.input.fingers.lifted.reset(); // a flick made while no deck was shown turns no page later
+#ifdef GR4_PRESENT_HAS_OPENDIGITIZER
     DigitizerUi::TouchHandler<>::endFrame();
-#else
-    if (!viewer.sections.empty()) {
-        applyZoomInput(viewer);
-    }
 #endif
 
     tendDeckFiles(viewer);
