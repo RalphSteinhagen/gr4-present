@@ -26,7 +26,8 @@ struct LiveRegion {
     bool operator==(const LiveRegion&) const = default;
 };
 
-/// `workflow` with every relative `uri:` value joined onto `packageBase`; absolute paths and values with a scheme stay
+/// `workflow` with every relative `uri:` value joined onto `packageBase`, on a line of its own, a list item or in a flow
+/// map; absolute paths and values with a scheme stay
 [[nodiscard]] std::string withPackageUris(std::string_view workflow, std::string_view packageBase);
 
 [[nodiscard]] LiveRegion liveRegionFrom(const std::vector<std::pair<std::string, std::string>>& fields);

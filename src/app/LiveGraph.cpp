@@ -33,18 +33,30 @@
 #include <blocks/ImPlotSink.hpp>
 #include <blocks/TestSpectrumGenerator.hpp>
 
-// naming a type pulls its registration out of an Emscripten archive; whole archives grew the binary 6.9 to 29.9 MB
 #include <gnuradio-4.0/BlockRegistry.hpp>
+#include <gnuradio-4.0/GrAnalogBlocks.hpp>
+#include <gnuradio-4.0/GrAudioBlocks.hpp>
+#include <gnuradio-4.0/GrBasicBlocks.hpp>
+#include <gnuradio-4.0/GrBeamformingBlocks.hpp>
+#include <gnuradio-4.0/GrDigitalBlocks.hpp>
+#include <gnuradio-4.0/GrElectricalBlocks.hpp>
+#include <gnuradio-4.0/GrFileIoBlocks.hpp>
+#include <gnuradio-4.0/GrFilterBlocks.hpp>
+#include <gnuradio-4.0/GrFourierBlocks.hpp>
+#include <gnuradio-4.0/GrHttpBlocks.hpp>
+#include <gnuradio-4.0/GrLocalisationBlocks.hpp>
+#include <gnuradio-4.0/GrMathBlocks.hpp>
+#include <gnuradio-4.0/GrMeasurementBlocks.hpp>
+#include <gnuradio-4.0/GrTestingBlocks.hpp>
+#include <gnuradio-4.0/GrTriggerBlocks.hpp>
 #include <gnuradio-4.0/audio/AudioBlocks.hpp>
-#include <gnuradio-4.0/basic/ClockSource.hpp>
-#include <gnuradio-4.0/basic/FunctionGenerator.hpp>
-#include <gnuradio-4.0/basic/SignalGenerator.hpp>
 #include <gnuradio-4.0/basic/StreamToDataSet.hpp>
-#include <gnuradio-4.0/fileio/WavBlocks.hpp>
-#include <gnuradio-4.0/fourier/fft.hpp>
-#include <gnuradio-4.0/math/Math.hpp>
+#include <gnuradio-4.0/filter/FrequencyEstimator.hpp>
+#include <gnuradio-4.0/filter/time_domain_filter.hpp>
 #include <gnuradio-4.0/thread/thread_pool.hpp>
 #include <gnuradio-4.0/trigger/SchmittTrigger.hpp>
+#include <gnuradio-4.0/trigger/TimeInterval.hpp>
+#include <gnuradio-4.0/trigger/ValueTrigger.hpp>
 
 #include <algorithm>
 #include <array>
@@ -274,13 +286,23 @@ bool liveDeviceGranted(std::string_view device) {
 #endif
 }
 
-void requestLiveDevice(std::string_view device) {
+bool requestLiveDevice(std::string_view device, bool askedBefore) {
 #ifdef __EMSCRIPTEN__
-    if (gr::blocks::common::DeviceBase* found = gr::blocks::common::DeviceRegistry::instance().find(device); found != nullptr && !found->isGranted()) {
+    gr::blocks::common::DeviceBase* found = gr::blocks::common::DeviceRegistry::instance().find(device);
+    if (found == nullptr) {
+        return false; // not registered yet: asked for on a later visit
+    }
+    // `DeviceBase` cannot tell an open request from a refused one; the microphone keeps its own record
+    // (`EmscriptenAudioBackend.hpp`: 1 granted, -1 refused, 0 open or never asked)
+    const bool refused = device == gr::audio::detail::WebAudioDevice::kId && EM_ASM_INT({ return globalThis.__grAudioMicGranted < 0 ? 1 : 0; }) == 1;
+    if (!found->isGranted() && (!askedBefore || refused)) {
         found->requestPermission();
     }
+    return true;
 #else
     (void)device;
+    (void)askedBefore;
+    return true;
 #endif
 }
 
@@ -297,29 +319,42 @@ bool liveGraphThreadsAvailable() {
 namespace {
 /// referring to a type pulls its registration out of its archive; see the includes above
 void registerTheBlocksTheWorkflowsName() {
-    gr::registerBlock<gr::basic::SignalGenerator<float>, "">(gr::globalBlockRegistry());
-    gr::registerBlock<gr::basic::FunctionGenerator<float>, "">(gr::globalBlockRegistry());
-    // the spectrum form emits one magnitude/phase DataSet per transform; the primary `FFT<T>` takes complex input
-    gr::registerBlock<gr::blocks::fft::FFT<float, gr::DataSet<float>>, "">(gr::globalBlockRegistry());
-    gr::registerBlock<gr::basic::DefaultClockSource, "gr::basic::ClockSource">(gr::globalBlockRegistry());
-    // under the names GNU Radio's own block library gives them
-    gr::registerBlock<"gr::blocks::math::Add", gr::blocks::math::MathOpMultiPortImpl, gr::BlockParameters<float, std::plus<float>>>(gr::globalBlockRegistry());
-    gr::registerBlock<"gr::blocks::math::Multiply", gr::blocks::math::MathOpMultiPortImpl, gr::BlockParameters<float, std::multiplies<float>>>(gr::globalBlockRegistry());
-    // the live audio slide: the microphone and the recording standing in for it
-    gr::globalBlockRegistry().insert<gr::audio::AudioSourceMultiplexed<float>>("gr::audio::AudioSourceMultiplexed", "float"); // one port per channel
-    gr::registerBlock<gr::audio::AudioSink<float>, "">(gr::globalBlockRegistry());
-    gr::registerBlock<gr::blocks::fileio::WavSource<float>, "">(gr::globalBlockRegistry());
-    // the recording's stereo split and the clap trigger
+    // the live audio slide's microphone, one port per channel
+    gr::globalBlockRegistry().insert<gr::audio::AudioSourceMultiplexed<float>>("gr::audio::AudioSourceMultiplexed", "float");
+    // the recording's stereo split, the time chart's envelope and the clap trigger's dead time
     gr::registerBlock<gr::present::blocks::Deinterleave<float>, "">(gr::globalBlockRegistry());
-    gr::registerBlock<gr::present::blocks::PeakDecimator<float>, "">(gr::globalBlockRegistry()); // the time chart's envelope
+    gr::registerBlock<gr::present::blocks::PeakDecimator<float>, "">(gr::globalBlockRegistry());
     gr::registerBlock<gr::present::blocks::DebounceTagBlock<float>, "">(gr::globalBlockRegistry());
+    // the spellings the workflows use where GR4 registers another
     gr::globalBlockRegistry().insert<gr::blocks::trigger::SchmittTrigger<float, gr::trigger::InterpolationMethod::NO_INTERPOLATION>>("gr::blocks::trigger::SchmittTriggerNoInterpolation", "float");
     gr::globalBlockRegistry().insert<gr::basic::StreamFilterImpl<float, false>>("gr::basic::StreamToDataSet", "float");
+    gr::globalBlockRegistry().insert<gr::blocks::trigger::ValueTrigger<float, gr::blocks::trigger::ValueCondition::level>>("gr::blocks::trigger::LevelTrigger", "float");
+    // spelt out in full: Clang leaves a template argument equal to its default out of a type's name (`TimeInterval<>`,
+    // `Resampling<>`) and GCC keeps it, so the name a block registers itself under depends on the compiler
+    gr::globalBlockRegistry().insert<gr::blocks::trigger::TimeInterval<double>>("=gr::blocks::trigger::TimeInterval<float64>");
+    gr::globalBlockRegistry().insert<gr::filter::BasicFilterProto<float, gr::Resampling<1UZ, 1UZ, false>>>("=gr::filter::BasicFilterProto<float32, gr::Resampling<1, 1, false>>");
+    gr::globalBlockRegistry().insert<gr::filter::IQDemodulator<float, gr::Resampling<1024U, 1U, false>>>("=gr::filter::IQDemodulator<float32, gr::Resampling<1024, 1, false>>");
 }
 } // namespace
 
 void prepareLiveGraphs() {
     static const bool once = [] {
+        // every block of GR4's libraries, then the spellings the workflows add
+        std::ignore = gr::blocklib::initGrAnalogBlocks(gr::globalBlockRegistry());
+        std::ignore = gr::blocklib::initGrAudioBlocks(gr::globalBlockRegistry());
+        std::ignore = gr::blocklib::initGrBasicBlocks(gr::globalBlockRegistry());
+        std::ignore = gr::blocklib::initGrBeamformingBlocks(gr::globalBlockRegistry());
+        std::ignore = gr::blocklib::initGrDigitalBlocks(gr::globalBlockRegistry());
+        std::ignore = gr::blocklib::initGrElectricalBlocks(gr::globalBlockRegistry());
+        std::ignore = gr::blocklib::initGrFileIoBlocks(gr::globalBlockRegistry());
+        std::ignore = gr::blocklib::initGrFilterBlocks(gr::globalBlockRegistry());
+        std::ignore = gr::blocklib::initGrFourierBlocks(gr::globalBlockRegistry());
+        std::ignore = gr::blocklib::initGrHttpBlocks(gr::globalBlockRegistry());
+        std::ignore = gr::blocklib::initGrLocalisationBlocks(gr::globalBlockRegistry());
+        std::ignore = gr::blocklib::initGrMathBlocks(gr::globalBlockRegistry());
+        std::ignore = gr::blocklib::initGrMeasurementBlocks(gr::globalBlockRegistry());
+        std::ignore = gr::blocklib::initGrTestingBlocks(gr::globalBlockRegistry());
+        std::ignore = gr::blocklib::initGrTriggerBlocks(gr::globalBlockRegistry());
         registerTheBlocksTheWorkflowsName();
 
         // OpenDigitizer's one setup call: ImPlot context, chart fonts (added to the atlas), chart blocks and plot sink
@@ -385,7 +420,7 @@ void                     LiveGraph::restyle() {}
 void                     applyLiveGraphScheme(bool) {}
 bool                     liveGraphsAvailable() noexcept { return false; }
 bool                     liveDeviceGranted(std::string_view) { return false; }
-void                     requestLiveDevice(std::string_view) {}
+bool                     requestLiveDevice(std::string_view, bool) { return true; }
 bool                     liveGraphThreadsAvailable() { return true; }
 float                    chartBodyPixels() { return 0.0f; }
 void                     prepareLiveGraphs() {}

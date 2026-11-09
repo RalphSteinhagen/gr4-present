@@ -93,8 +93,9 @@ void drawSessionStatusBar();
 /// whether the browser device a workflow needs, such as "audio", is granted; natively a device needs no grant
 [[nodiscard]] bool liveDeviceGranted(std::string_view device);
 
-/// asks the browser for that device alone: asking every registered device would also open a USB picker
-void requestLiveDevice(std::string_view device);
+/// asks the browser for that device alone (asking every registered device would also open a USB picker); asked before,
+/// only again after a refusal, never while a request is open; false while the device is not registered
+bool requestLiveDevice(std::string_view device, bool askedBefore);
 
 /// loads the fonts, palette and dockspace the charts draw with; call once from `main`, after the ImGui context exists
 /// and while the font atlas can still be added to

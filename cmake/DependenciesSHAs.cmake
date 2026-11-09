@@ -1,17 +1,14 @@
-# Its own name: OpenDigitizer's dependency file force-sets GIT_SHA_GNURADIO4 to its pin, and would win otherwise
+# main (2026-11-11), as a full SHA: GitHub serves a commit by its full id only. Its own name: OpenDigitizer's dependency
+# file force-sets GIT_SHA_GNURADIO4 to its pin, and would win otherwise.
 set(GR4_PRESENT_GIT_REF_GNURADIO4
-    f0f48976111f55b0604e109381a3e09894212e12
-    CACHE STRING "" FORCE) # main (2026-10-29): the trigger module merged (#864 renames: kUpperCamel tag constants, the
-                           # Schmitt trigger's threshold as the level, hysteresis, dead_time, named edges),
-                           # StreamToDataSet capture modes and hold-off, canonical settings through their tag alias. A
-                           # full SHA: GitHub serves a commit by its full id only.
+    02d6a41100fc6265d92cacb631b77319c7b87e21
+    CACHE STRING "" FORCE)
 
+# main (2026-11-12) past the merge of #533, on the GR4 pin above. A merged branch's head is unreachable once the branch
+# is deleted, so the pin follows main.
 set(GIT_REF_OPENDIGITIZER
-    155aad8ff4fbbc1fba35cf6358372f236e07e6ac
-    CACHE STRING "" FORCE) # main (2026-10-30) past the merge of bumpGR4 (#521): the GR4 pin above and its API (tag
-                           # constants, gr::emit, std::pmr strings for the signal settings), SignalGenerator in place of
-                           # SineSource. A merged branch's head is unreachable once the branch is deleted, so the pin
-                           # follows main.
+    730f4243f2223904e305a12be5c0dd4736e4c507
+    CACHE STRING "" FORCE)
 
 set(GIT_SHA_UT
     v2.3.1

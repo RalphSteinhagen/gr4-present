@@ -127,7 +127,10 @@ if(GR4_PRESENT_WITH_OPENDIGITIZER)
             gnuradio4::gnuradio-core
             gnuradio4::gr-audio
             gnuradio4::gr-fileio
-            gnuradio4::gr-trigger)
+            gnuradio4::gr-trigger
+            gnuradio4::gr-localisation
+            gnuradio4::gr-filter
+            gr4-present-block-libraries)
   add_test(NAME qa_LiveGraph COMMAND qa_LiveGraph)
   set_tests_properties(qa_LiveGraph PROPERTIES TIMEOUT 120)
 endif()

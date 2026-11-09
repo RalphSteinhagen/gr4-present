@@ -231,6 +231,7 @@ struct Viewer {
         std::map<std::string, std::unique_ptr<LiveGraph>, std::less<>>            graphs;
         std::map<std::string, std::chrono::steady_clock::time_point, std::less<>> retryAfter;
         std::string                                                               tendedView;   // the view the graphs were last tended for
+        std::vector<std::string>                                                  devicesAsked; // asked again only after a refusal
         std::map<std::string, std::string, std::less<>>                           sources;      // key: region id; "workflow" or "standby"
         std::map<std::string, Rectangle, std::less<>>                             toolbarBoxes; // key: region id
     } live;
