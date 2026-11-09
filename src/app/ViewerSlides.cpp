@@ -344,10 +344,9 @@ void drawSection(Viewer& viewer, const SectionVisual& visual, std::size_t step, 
         const std::vector<std::string> hidden = hiddenAt(*visual.layout, static_cast<int>(step));
         viewer.documentView.layoutHidden      = hidden;
         // a drawing far larger than the view is one the camera moves into: rasterised at its own size, up to a limit
-        constexpr float kLargestDrawingWidth = 4096.0f;
-        const float     viewWidth            = ImGui::GetMainViewport()->Size.x;
-        const float     rasterWidth          = visual.layout->width > viewWidth * 1.25f ? std::min(visual.layout->width, kLargestDrawingWidth) : viewWidth;
-        viewer.documentView.layoutBackdrop   = viewer.figures.get(visual.source, static_cast<std::uint32_t>(rasterWidth), hidden);
+        const float viewWidth              = ImGui::GetMainViewport()->Size.x;
+        const float rasterWidth            = visual.layout->width > viewWidth * 1.25f ? std::min(visual.layout->width, kSvgMostPixelsWide) : viewWidth;
+        viewer.documentView.layoutBackdrop = viewer.figures.get(visual.source, static_cast<std::uint32_t>(rasterWidth), hidden);
     }
 
     viewer.documentView.areaContent   = visual.areaContent;

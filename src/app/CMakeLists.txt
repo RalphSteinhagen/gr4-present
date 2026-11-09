@@ -160,8 +160,7 @@ target_link_libraries(
 # header needs. ImGui and the RAII wrapper arrive through this layer rather than being named again here: ImGui is an
 # object library, and naming it twice puts every object on the link line twice and fails with several hundred multiple
 # definitions. Without OpenDigitizer the same two are taken directly.
-if(GR4_PRESENT_WITH_OPENDIGITIZER AND GR4_PRESENT_ENABLE_EXPORT)
-  # writing a PDF needs GR4's fileio to deliver it, so the export comes with the runtime
+if(GR4_PRESENT_HAS_EXPORT)
   target_compile_definitions(${target_name} PRIVATE GR4_PRESENT_HAS_EXPORT)
   target_link_libraries(${target_name} PRIVATE gr4-present-export)
 endif()

@@ -240,7 +240,10 @@ if(NOT TARGET lunasvg)
     lunasvg
     GIT_REPOSITORY https://github.com/sammycage/lunasvg.git
     GIT_TAG ${GIT_TAG_LUNASVG}
-    SYSTEM EXCLUDE_FROM_ALL)
+    # to be offered upstream: a line drawn right to left or upwards had a box of negative size, which asserts in a debug
+    # build and puts the area of a master's element in the wrong place in a release one
+    PATCH_COMMAND ${CMAKE_COMMAND} -DPATCH=${CMAKE_SOURCE_DIR}/cmake/patches/lunasvg-line-box.patch -P
+                  ${CMAKE_SOURCE_DIR}/cmake/ApplyPatch.cmake SYSTEM EXCLUDE_FROM_ALL)
   FetchContent_MakeAvailable(lunasvg)
 
   # every translation unit in a shared-memory build must agree about atomics, and lunasvg does not know it is being
@@ -356,7 +359,9 @@ if(NOT TARGET microtex)
     microtex
     GIT_REPOSITORY https://github.com/NanoMichael/MicroTeX.git
     GIT_TAG ${GIT_SHA_MICROTEX}
-    SYSTEM EXCLUDE_FROM_ALL)
+    # to be offered upstream: `strtod` and `strtol` are used without `<cstdlib>`, which libc++ no longer brings in
+    PATCH_COMMAND ${CMAKE_COMMAND} -DPATCH=${CMAKE_SOURCE_DIR}/cmake/patches/microtex-cstdlib.patch -P
+                  ${CMAKE_SOURCE_DIR}/cmake/ApplyPatch.cmake SYSTEM EXCLUDE_FROM_ALL)
   FetchContent_MakeAvailable(microtex)
   # upstream is not warning-clean and is not ours to fix; -Werror would stop the build on code we do not maintain
   target_compile_options(microtex PRIVATE -w)

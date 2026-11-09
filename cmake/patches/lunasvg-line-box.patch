@@ -1,0 +1,13 @@
+diff --git a/source/svggeometryelement.cpp b/source/svggeometryelement.cpp
+index e2c9708..a50c0d0 100644
+--- a/source/svggeometryelement.cpp
++++ b/source/svggeometryelement.cpp
+@@ -186,7 +186,7 @@ Rect SVGLineElement::updateShape(Path& path)
+ 
+     path.moveTo(x1, y1);
+     path.lineTo(x2, y2);
+-    return Rect(x1, y1, x2 - x1, y2 - y1);
++    return Rect(std::min(x1, x2), std::min(y1, y2), std::abs(x2 - x1), std::abs(y2 - y1));
+ }
+ 
+ SVGRectElement::SVGRectElement(Document* document)

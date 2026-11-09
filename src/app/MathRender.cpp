@@ -204,10 +204,12 @@ private:
     }
     void finish(bool filled) {
         // the engine speaks 0xAARRGGBB, a recording 0xAABBGGRR
-        const std::uint32_t colour = (_colour & 0xFF00FF00U) | ((_colour & 0x00FF0000U) >> 16U) | ((_colour & 0x000000FFU) << 16U);
-        _path.fill                 = filled ? colour : 0U;
-        _path.stroke               = filled ? 0U : colour;
-        _path.strokeWidth          = filled ? 0.0f : _stroke.lineWidth * std::sqrt(std::abs(_matrix.a * _matrix.d - _matrix.b * _matrix.c));
+        const std::uint32_t colour            = (_colour & 0xFF00FF00U) | ((_colour & 0x00FF0000U) >> 16U) | ((_colour & 0x000000FFU) << 16U);
+        _path.fill                            = filled ? colour : 0U;
+        _path.stroke                          = filled ? 0U : colour;
+        constexpr float kPdfDefaultMiterLimit = 10.0f;
+        _path.strokeWidth                     = filled ? 0.0f : _stroke.lineWidth * uniformScaleOf(_matrix);
+        _path.miterLimit                      = kPdfDefaultMiterLimit;
         _drawing.paths.push_back(std::move(_path));
         _path = VectorPath{};
     }

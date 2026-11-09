@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <variant>
 #include <vector>
@@ -85,15 +86,37 @@ struct RecordedLink {
 
 using RecordedPrimitive = std::variant<RecordedText, RecordedShape, RecordedImage, RecordedLink>;
 
-/// one outline of a drawing: moves, lines, cubic curves and closes, filled, stroked or both
+/// a part of a drawing that is pixels rather than outlines (an embedded bitmap, a gradient's fill, a masked or filtered
+/// element), upright over `at` in the drawing's coordinates
+struct VectorPicture {
+    RecordedPixels pixels;
+    Rectangle      at;
+    bool           photograph = false; // an embedded bitmap, which may embed as JPEG where it is opaque
+};
+
+/// one outline of a drawing: moves, lines, cubic curves and closes, filled, stroked or both; or a picture in its place
 struct VectorPath {
     enum class Step : std::uint8_t { move, line, cubic, close };
-    std::vector<Step>  steps;
-    std::vector<float> points;           // x, y pairs: one for a move or a line, three for a cubic, none for a close
-    std::uint32_t      fill        = 0U; // 0xAABBGGRR; a zero alpha is no fill
-    std::uint32_t      stroke      = 0U; // likewise: a zero alpha is no stroke
-    float              strokeWidth = 0.0f;
-    bool               evenOdd     = false; // the fill rule; non-zero winding otherwise
+    enum class Join : std::uint8_t { miter, round, bevel };
+    enum class Cap : std::uint8_t { butt, round, square };
+    std::vector<Step>            steps       = {};
+    std::vector<float>           points      = {}; // x, y pairs: one for a move or a line, three for a cubic, none for a close
+    std::uint32_t                fill        = 0U; // 0xAABBGGRR; a zero alpha is no fill
+    std::uint32_t                stroke      = 0U; // likewise: a zero alpha is no stroke
+    float                        strokeWidth = 0.0f;
+    bool                         evenOdd     = false;       // the fill rule; non-zero winding otherwise
+    std::vector<std::uint32_t>   clips       = {};          // indices into the drawing's `clips`: drawn inside every one of them
+    std::optional<VectorPicture> picture     = {};          // drawn instead of the outline, where set
+    Join                         join        = Join::miter; // SVG's defaults, which differ from a PDF's in the miter limit
+    Cap                          cap         = Cap::butt;
+    float                        miterLimit  = 4.0f;
+};
+
+/// an outline a drawing draws some of its paths inside, in the drawing's coordinates
+struct VectorClip {
+    std::vector<VectorPath::Step> steps;
+    std::vector<float>            points;
+    bool                          evenOdd = false; // `clip-rule: evenodd`; non-zero winding otherwise
 };
 
 /// a drawing's words, placed as a drawing places them: on a baseline, anchored at its start, middle or end
@@ -115,7 +138,8 @@ struct VectorDrawing {
     float                    width  = 0.0f; // the extent the outlines are in, the same as the texture's
     float                    height = 0.0f;
     std::vector<VectorPath>  paths;
-    std::vector<DrawingText> texts; // words a drawing carries as text, in the same coordinates
+    std::vector<DrawingText> texts;      // words a drawing carries as text, in the same coordinates
+    std::vector<VectorClip>  clips = {}; // the outlines its paths are clipped to
 };
 
 struct PageRecording {

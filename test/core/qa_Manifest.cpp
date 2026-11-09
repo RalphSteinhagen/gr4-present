@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <format>
 #include <string_view>
 
 #include <gr4-present/Manifest.hpp>
@@ -100,6 +101,19 @@ export:
         expect(bare.has_value() && std::abs(bare->liveWaitSeconds - 1.5f) < 0.001f);
         const auto silent = parseManifest("format: gr4-presentation/1\nentry: talk.md\n");
         expect(silent.has_value() && std::abs(silent->liveWaitSeconds - 3.0f) < 0.001f) << "three seconds unless the deck says otherwise";
+    };
+
+    "an export says how many pixels per inch its pictures keep at most, and keeps all of them unless asked"_test = [] {
+        const auto stated = parseManifest("format: gr4-presentation/1\nentry: talk.md\nexport:\n  dpi: 150\n");
+        expect(stated.has_value() && eq(stated->exportDpi, 150.0f));
+        const auto silent = parseManifest("format: gr4-presentation/1\nentry: talk.md\n");
+        expect(silent.has_value() && eq(silent->exportDpi, 0.0f)) << "no limit";
+        const auto misspelt = parseManifest("format: gr4-presentation/1\nentry: talk.md\nexport:\n  dpi: high\n");
+        expect(misspelt.has_value() && eq(misspelt->exportDpi, 0.0f)) << "a value that is no number sets no limit";
+        for (const std::string_view odd : {"inf", "nan", "-150"}) {
+            const auto parsed = parseManifest(std::format("format: gr4-presentation/1\nentry: talk.md\nexport:\n  dpi: {}\n", odd));
+            expect(parsed.has_value() && eq(parsed->exportDpi, 0.0f)) << odd << " sets no limit";
+        }
     };
 
     "a deck says once where its live charts share their legend, and a misspelt position keeps the default"_test = [] {

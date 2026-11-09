@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <charconv>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <format>
@@ -99,6 +100,19 @@ namespace {
     }
     gr::log::warning("sizes: {}: '{}' is no size (14pt, 14, 80% or 1.2em); {} pt is used", key, text, fallback);
     return fallback;
+}
+
+/// `export: { dpi: 150 }`; absent, or not a number of pixels per inch, keeps every picture's pixels
+[[nodiscard]] float dpiField(const gr::property_map& map) {
+    const std::string text = stringField(map, "dpi");
+    if (text.empty()) {
+        return 0.0f;
+    }
+    if (const auto dpi = parseNumber<float>(text); dpi.has_value() && std::isfinite(*dpi) && *dpi >= 0.0f) {
+        return *dpi;
+    }
+    gr::log::warning("export: dpi: '{}' is not a number of pixels per inch; every picture keeps its pixels", text);
+    return 0.0f;
 }
 
 [[nodiscard]] TypeScale sizesField(const gr::property_map& sizes) {
@@ -211,6 +225,7 @@ std::expected<Manifest, ManifestError> parseManifest(std::string_view yaml) {
         .transitionSeconds    = secondsField(mapField(*parsed, "transition"), "duration", kDefaultTransitionSeconds),
         .advanceSeconds       = secondsField(mapField(*parsed, "transition"), "advance", 0.0f),
         .liveWaitSeconds      = secondsField(mapField(*parsed, "export"), "live_wait", 3.0f),
+        .exportDpi            = dpiField(mapField(*parsed, "export")),
         .liveLegend           = legendField(mapField(*parsed, "live"), "legend", ChartLegend::bottom),
         .fonts                = fontsField(mapField(*parsed, "fonts")),
         .sizes                = sizesField(mapField(*parsed, "sizes")),

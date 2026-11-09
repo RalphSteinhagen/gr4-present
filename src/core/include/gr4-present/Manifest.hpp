@@ -58,6 +58,9 @@ struct Manifest {
     /// `export: { live_wait: 3s }`: how long a live chart runs before an exported page takes its picture
     float liveWaitSeconds = 3.0f;
 
+    /// `export: { dpi: 150 }`: the most pixels per inch an exported picture keeps where it is drawn; zero keeps them all
+    float exportDpi = 0.0f;
+
     /// `live: { legend: bottom }`: where a live region's charts share their legend unless the region says otherwise
     ChartLegend liveLegend = ChartLegend::bottom;
 
