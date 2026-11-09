@@ -1,7 +1,7 @@
 // `:::step {in=fade}` and `{in=rise}` reveal blocks by brightness and by rising into place; each reveal runs two
 // seconds so a screenshot catches it.
 
-import { openPage, withViewer } from "../devtools/browser_harness.mjs";
+import { kHeadlessQuery, openPage, withViewer } from "../devtools/browser_harness.mjs";
 import { decodePng, pixelAt } from "../devtools/png.mjs";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -53,7 +53,7 @@ try {
   writeFileSync(deck, text);
 
   await withViewer(copy, async ({ server, browser }) => {
-    const page = await openPage(browser, `${server.origin}/index.html#view=steps&step=0`);
+    const page = await openPage(browser, `${server.origin}/index.html?${kHeadlessQuery}#view=steps&step=0`);
     await page.command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
     await page.waitFor("document.getElementById('canvas') && window.gr4Zoom && (globalThis.gr4Location || '').includes('view=steps') ? 1 : false");
     await page.evaluate("document.getElementById('canvas').focus()");
@@ -113,7 +113,7 @@ try {
   if (boxDeck === readFileSync(deck, "utf8")) throw new Error("the grid slide's box a is not where this test expects it");
   writeFileSync(deck, boxDeck);
   await withViewer(copy, async ({ server, browser }) => {
-    const page = await openPage(browser, `${server.origin}/index.html#view=steps&step=0`);
+    const page = await openPage(browser, `${server.origin}/index.html?${kHeadlessQuery}#view=steps&step=0`);
     await page.command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
     // the link's fragment exists before the deck has loaded, so the deck's published state is awaited
     await page.waitFor("document.getElementById('canvas') && window.gr4Zoom && (globalThis.gr4Location || '').includes('view=steps') ? 1 : false");
@@ -159,15 +159,23 @@ try {
     throw new Error("the steps slide's wipe and timed step are not where this test expects them");
   writeFileSync(deck, timedDeck);
   await withViewer(copy, async ({ server, browser }) => {
-    const page = await openPage(browser, `${server.origin}/index.html#view=steps&step=2`);
+    const page = await openPage(browser, `${server.origin}/index.html?${kHeadlessQuery}#view=steps&step=2`);
     await page.command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
     await page.waitFor("document.getElementById('canvas') && window.gr4Zoom && (globalThis.gr4Location || '').includes('view=steps&step=2') ? 1 : false");
     await page.evaluate("document.getElementById('canvas').focus()");
+    // timed in the page, when the viewer publishes each location: polled from outside, a loaded machine sees step 3 late
+    await page.evaluate(`(() => {
+      let location = globalThis.gr4Location;
+      globalThis.gr4LocationSince = {};
+      Object.defineProperty(globalThis, "gr4Location", { configurable: true, get: () => location, set: (next) => {
+        globalThis.gr4LocationSince[next] ??= performance.now();
+        location = next;
+      } });
+    })()`);
     await page.press(...kRight);
-    await page.waitFor("(globalThis.gr4Location || '').includes('step=3') ? 1 : false");
-    const reached = Date.now();
     await page.waitFor("(globalThis.gr4Location || '').includes('step=4') ? 1 : false", 10000);
-    const waited = (Date.now() - reached) / 1000;
+    const sinceOf = (step) => `Object.entries(globalThis.gr4LocationSince).find(([at]) => at.includes('view=steps&step=${step}'))?.[1]`;
+    const waited = (await page.evaluate(`(${sinceOf(4)} - ${sinceOf(3)}) / 1000`)) ?? Number.NaN;
     expect(waited >= 2.4 && waited < 3.5, `the timed step arrives 1 s after the 1.5 s wipe has finished: after ${waited.toFixed(2)} s`);
     await page.close();
   });

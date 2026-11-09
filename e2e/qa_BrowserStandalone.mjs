@@ -31,6 +31,10 @@ const expect = (condition, description) => {
 };
 
 const nextFrame = () => new Promise((resolve) => setTimeout(resolve, 100));
+// an older Emscripten marks each pool worker `loaded` and keeps the busy ones in `runningWorkers`; a newer one has neither,
+// and starts main() only once its whole pool has loaded, so a pool beside a deck on screen has
+const kWorkersLoaded =
+  "(globalThis.gr4Location || '').includes('view=') && typeof PThread !== 'undefined' && (PThread.runningWorkers ? PThread.unusedWorkers.concat(PThread.runningWorkers).some((worker) => worker.loaded) : PThread.unusedWorkers.length + Object.keys(PThread.pthreads).length > 0)";
 const click = async (page, point) => {
   await page.command("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y });
   await nextFrame();
@@ -136,7 +140,7 @@ try {
       await carriedPage.command("Page.navigate", { url: `${host.origin}/index.html` });
       expect(await reached("window.crossOriginIsolated === true"), "served without headers, the worker's reload makes the carried page cross-origin isolated");
       expect(await reached("(globalThis.gr4Location || '').includes('view=')"), "the deck opens without any address");
-      expect(await reached("typeof PThread !== 'undefined' && PThread.unusedWorkers.concat(PThread.runningWorkers).some((worker) => worker.loaded)", 60_000), "pthread workers start");
+      expect(await reached(kWorkersLoaded, 60_000), "pthread workers start");
       const requested = new Set();
       for (const event of carriedPage.eventsSeen()) {
         if (event.method === "Network.requestWillBeSent" && !event.params.request.url.startsWith("blob:")) {
@@ -211,7 +215,7 @@ try {
     await launched([], async (page) => {
       const reached = (expression, timeoutMs = 120_000) => page.waitFor(expression, timeoutMs).catch(() => false);
       expect(await reached("(globalThis.gr4Location || '').includes('view=')"), "the deck under default/ opens without a server");
-      expect(await reached("window.crossOriginIsolated === false && typeof PThread !== 'undefined' && PThread.unusedWorkers.concat(PThread.runningWorkers).some((worker) => worker.loaded)", 60_000), "threads run, without isolation");
+      expect(await reached(`window.crossOriginIsolated === false && ${kWorkersLoaded}`, 60_000), "threads run, without isolation");
       expect(readFileSync(join(folder, "default.files"), "utf8").split("\n").includes("index.yml"), "the script listed the deck's files for the page");
       if (failures.length > 0) {
         console.error("launched page status: " + (await page.evaluate("(document.getElementById('status') || {}).textContent || ''")));

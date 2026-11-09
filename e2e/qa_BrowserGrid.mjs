@@ -1,7 +1,7 @@
 // The deck's grid slide draws its boxes as separated columns and keeps its title size; the arithmetic is qa_Grid's
 // the strip left of kMenuEdge is ignored: a synthesised pointer does not reliably leave the side menu that opens there
 
-import { openPage, withViewer } from "../devtools/browser_harness.mjs";
+import { kHeadlessQuery, openPage, withViewer } from "../devtools/browser_harness.mjs";
 import { decodePng, pixelAt } from "../devtools/png.mjs";
 
 const directory = process.argv[2];
@@ -77,7 +77,7 @@ const titleLineHeight = (image) => {
 };
 
 await withViewer(directory, async ({ server, browser }) => {
-  const page = await openPage(browser, `${server.origin}/index.html`);
+  const page = await openPage(browser, `${server.origin}/index.html?${kHeadlessQuery}`);
   await page.command("Emulation.setDeviceMetricsOverride", {
     width: 1280,
     height: 720,

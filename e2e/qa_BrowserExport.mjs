@@ -1,6 +1,6 @@
 // The browser's PDF export (`?export=slides`) through GR4's fileio; an audience tab open beside it must not move
 // Ground truth: the deck's Markdown, one page per level-one heading outside fenced code, every heading readable as text
-// the PDF is read back by Poppler, independently of the writer
+// the PDF is read back by Poppler, independently of the writer; a build without the export must say so when asked
 
 import { openPage, withViewer } from "../devtools/browser_harness.mjs";
 import { execFileSync } from "node:child_process";
@@ -58,6 +58,13 @@ try {
       outcome = await page.evaluate("globalThis.gr4Export ? JSON.stringify(globalThis.gr4Export) : null");
     }
     const report = JSON.parse(outcome ?? "{}");
+    if (process.env.GR4_PRESENT_HAS_EXPORT === "0") {
+      expect(
+        report.outcome === "failed: this viewer was built without the PDF export" && report.pages === 0,
+        `built without the export, a request is refused rather than ignored: ${outcome} after ${((Date.now() - started) / 1000).toFixed(0)} s`,
+      );
+      return;
+    }
     expect(
       typeof report.outcome === "string" && report.outcome.startsWith("exported"),
       `the export says it is done: ${outcome} after ${((Date.now() - started) / 1000).toFixed(0)} s`,

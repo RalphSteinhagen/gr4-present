@@ -2,7 +2,7 @@
 // Ground truth: the region box published in window.gr4Regions; the ladder in points (1 pt = 1.333 px at 1280 x 720)
 // the left edge is not measured: the side menu opens over it and a synthesised pointer does not reliably close it
 
-import { openPage, withViewer } from "../devtools/browser_harness.mjs";
+import { openPage, withOpenDigitizer, withViewer } from "../devtools/browser_harness.mjs";
 import { decodePng, pixelAt } from "../devtools/png.mjs";
 
 const directory = process.argv[2];
@@ -107,7 +107,9 @@ await withViewer(directory, async ({ server, browser }) => {
   await page.close();
 });
 
-for (const [width, height] of kShapes) {
+// the live charts are OpenDigitizer's, which a build without it (WASM-Minimal) replaces by their recordings
+if (!withOpenDigitizer) console.log("  skip  the live charts: this build has no OpenDigitizer");
+for (const [width, height] of withOpenDigitizer ? kShapes : []) {
   await withViewer(directory, async ({ server, browser }) => {
     const page = await openPage(browser, `${server.origin}/index.html`);
     await page.command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });

@@ -1,7 +1,7 @@
 // The deck on a phone, upright and turned: the slide fits the screen and quick swipes move the deck without freezing it.
 // Chrome emulation covers CSS size, pixel density and touch input of the named phones, not their browser engines.
 
-import { openPage, withViewer } from "../devtools/browser_harness.mjs";
+import { openPage, withOpenDigitizer, withViewer } from "../devtools/browser_harness.mjs";
 import { decodePng } from "../devtools/png.mjs";
 import { createHash } from "node:crypto";
 
@@ -18,6 +18,9 @@ const expect = (condition, description) => {
     failures.push(description);
   }
 };
+
+// swipes are read by OpenDigitizer's touch handler and the live chart is OpenDigitizer's; a build without it
+// (WASM-Minimal) has neither
 
 const kPhones = [
   { name: "Galaxy S20 Ultra", width: 412, height: 915, density: 3.5 },
@@ -60,6 +63,7 @@ const picturesOver2s = async (page, [x, y, width, height], cssWidth) => {
 const viewOf = async (page) => (await page.evaluate("(globalThis.gr4Location || '')")).replace(/^#view=([^&]*).*$/, "$1");
 
 await withViewer(directory, async ({ server, browser }) => {
+  if (!withOpenDigitizer) console.log("  skip  the live chart: this build has no OpenDigitizer");
   for (const phone of kPhones) {
     for (const upright of [true, false]) {
       const width = upright ? phone.width : phone.height;
@@ -111,6 +115,10 @@ await withViewer(directory, async ({ server, browser }) => {
       await settle(page, 40);
       expect((await viewOf(page)) !== before, `${label}: eight quick swipes backwards move it back, ${before} -> ${await viewOf(page)}`);
 
+      if (!withOpenDigitizer) {
+        await page.close();
+        continue;
+      }
       // by keys, because the viewer reads its address only as it loads
       for (let press = 0; press < 120 && (await viewOf(page)) !== "live"; ++press) {
         const before = await page.evaluate("(globalThis.gr4Location || '')");

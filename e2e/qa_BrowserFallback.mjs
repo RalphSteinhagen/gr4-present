@@ -1,7 +1,7 @@
 // A live region that cannot run (here: a missing workflow) shows its `fallback:` recording, marked as recorded
 // Ground truth: the recording, an opaque PNG written here; the region must show its mean colour once fitted in the box
 
-import { openPage, withViewer } from "../devtools/browser_harness.mjs";
+import { openPage, withOpenDigitizer, withViewer } from "../devtools/browser_harness.mjs";
 import { decodePng, pixelAt } from "../devtools/png.mjs";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -148,11 +148,14 @@ try {
           working.region !== undefined && distance < 12,
           `the presenter's window shows the recording of a working region, ${distance.toFixed(1)} levels from it`,
         );
-      } else {
+      } else if (withOpenDigitizer) {
         expect(
           working.region !== undefined && distance > 20,
           `while the audience's window shows the live chart there, ${distance.toFixed(1)} levels from the recording`,
         );
+      } else {
+        // the live chart is OpenDigitizer's, which a build without it (WASM-Minimal) replaces by the recording
+        console.log("  skip  the audience's live chart: this build has no OpenDigitizer");
       }
       await page.close();
     });

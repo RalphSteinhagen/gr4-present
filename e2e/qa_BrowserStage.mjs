@@ -2,7 +2,7 @@
 // Ground truth: the box shows `from`, then neither slide in flight,
 // then `to` as the deck with `from` and `to` swapped shows it at step 0.
 
-import { openPage, withViewer } from "../devtools/browser_harness.mjs";
+import { kHeadlessQuery, openPage, withViewer } from "../devtools/browser_harness.mjs";
 import { decodePng } from "../devtools/png.mjs";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -58,7 +58,7 @@ const rowLight = (image, box) => {
 };
 
 const opened = async (browser, server, step) => {
-  const page = await openPage(browser, `${server.origin}/index.html#view=transitions&step=${step}`);
+  const page = await openPage(browser, `${server.origin}/index.html?${kHeadlessQuery}#view=transitions&step=${step}`);
   await page.command("Emulation.setDeviceMetricsOverride", { width: kWidth, height: kHeight, deviceScaleFactor: 1, mobile: false });
   await page.waitFor("(globalThis.gr4Location || '').includes('view=transitions') && window.gr4Zoom ? 1 : false");
   await page.evaluate("document.getElementById('canvas').focus()");

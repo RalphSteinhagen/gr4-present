@@ -16,8 +16,28 @@ if(EMSCRIPTEN)
       GLOB _browser_tests
       RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
       CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/qa_Browser*.mjs)
+    # wholly about live graphs, which come with GR4's runtime and OpenDigitizer (not in WASM-Minimal)
+    set(_runtime_browser_tests
+        qa_BrowserDashboard
+        qa_BrowserLiveAudio
+        qa_BrowserLiveRapid
+        qa_BrowserLiveWalk
+        qa_BrowserToolbar)
+    # the other suites skip only their checks of live graphs; without the export, qa_BrowserExport checks the refusal
+    # instead
+    set(_with_opendigitizer 0)
+    if(GR4_PRESENT_WITH_OPENDIGITIZER)
+      set(_with_opendigitizer 1)
+    endif()
+    set(_with_export 0)
+    if(GR4_PRESENT_HAS_EXPORT)
+      set(_with_export 1)
+    endif()
     foreach(_browser_test_file IN LISTS _browser_tests)
       get_filename_component(_browser_test ${_browser_test_file} NAME_WE)
+      if(NOT _with_opendigitizer AND _browser_test IN_LIST _runtime_browser_tests)
+        continue()
+      endif()
       add_test(NAME ${_browser_test} COMMAND ${GR4_PRESENT_NODE} ${CMAKE_CURRENT_SOURCE_DIR}/${_browser_test_file}
                                              $<TARGET_FILE_DIR:gr4-present>)
       set_tests_properties(
@@ -27,7 +47,9 @@ if(EMSCRIPTEN)
                    TIMEOUT
                    600
                    RUN_SERIAL
-                   TRUE)
+                   TRUE
+                   ENVIRONMENT
+                   "GR4_PRESENT_WITH_OPENDIGITIZER=${_with_opendigitizer};GR4_PRESENT_HAS_EXPORT=${_with_export}")
     endforeach()
   else()
     message(STATUS "browser tests disabled (node: ${GR4_PRESENT_NODE}, browser: ${GR4_PRESENT_BROWSER})")
@@ -37,9 +59,7 @@ endif()
 
 # the native viewer exports the demo deck and poppler reads it back
 find_program(GR4_PRESENT_PDFINFO pdfinfo)
-if(GR4_PRESENT_PDFINFO
-   AND GR4_PRESENT_WITH_OPENDIGITIZER
-   AND GR4_PRESENT_ENABLE_EXPORT)
+if(GR4_PRESENT_PDFINFO AND GR4_PRESENT_HAS_EXPORT)
   add_test(
     NAME qa_ExportPdf
     COMMAND

@@ -7,6 +7,13 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+// ctest sets this per build: WASM-Minimal has no live graphs and no OpenDigitizer touch handling; unset means a full build
+export const withOpenDigitizer = process.env.GR4_PRESENT_WITH_OPENDIGITIZER !== "0";
+
+// windowed: the first key asks for full screen, which a headless browser answers by shrinking the canvas to 800x600;
+// dark: ink is counted as light on dark, and a headless browser prefers light
+export const kHeadlessQuery = "mode=windowed&theme=dark";
+
 const kBrowserCandidates = ["google-chrome", "chromium", "chromium-browser", "google-chrome-stable"];
 const kDefaultTimeoutMs = 60_000;
 

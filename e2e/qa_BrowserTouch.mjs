@@ -21,6 +21,7 @@ const expect = (condition, description) => {
 
 const kRight = ["ArrowRight", "ArrowRight", 39];
 const kLeft = ["ArrowLeft", "ArrowLeft", 37];
+// a flick is read by OpenDigitizer's touch handler, which a build without it (WASM-Minimal) does not have
 
 const kViewports = [
   {
