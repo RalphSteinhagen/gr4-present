@@ -27,16 +27,19 @@ struct PdfDocument {
     float                pageHeightPoints    = 540.0f;  // points: 7.5 in
     float                recordedWidthPixels = 1920.0f; // pixels of the frame the pages were recorded in
     std::vector<PdfFont> fonts               = {};      // the body face first: any face without its own bytes is set in it
+    float                imageDpi            = 0.0f;    // above zero, no picture keeps more pixels per inch than this where drawn
 
-    /// a picture as outlines, where the viewer can make them (a formula, a drawing)
-    std::function<std::optional<VectorDrawing>(const RecordedImage&)> vectorFor = {};
+    /// a picture as outlines, where the viewer can make them (a formula, a drawing); null where it cannot; a drawing
+    /// stays where it is until `writePdf` returns
+    std::function<const VectorDrawing*(const RecordedImage&)> vectorFor = {};
 
     /// a picture's own pixels, uncropped, where it is not outlines and was not read back from the frame
     std::function<std::optional<RecordedPixels>(const RecordedImage&)> pixelsFor = {};
 };
 
 /// one PDF page per recording, in libharu: text stays searchable text in embedded faces, shapes and outlined pictures
-/// are paths, any other picture embeds as JPEG (photographs) or losslessly; errors are returned, never thrown
+/// are paths, any other picture embeds as JPEG (photographs, and opaque pictures that deflate poorly) or losslessly,
+/// averaged down to `imageDpi` where it has more pixels (a QR code excepted); errors are returned, never thrown
 [[nodiscard]] std::expected<std::vector<std::uint8_t>, std::string> writePdf(const PdfDocument& document, std::span<const PageRecording> pages);
 
 } // namespace gr::present

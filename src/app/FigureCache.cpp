@@ -70,10 +70,7 @@ std::span<const SvgLink> FigureCache::links(std::string_view reference) {
 }
 
 std::span<const DrawnLabel> FigureCache::labels(std::string_view reference, std::span<const std::string> hiddenIds) {
-    std::string key{reference};
-    for (const std::string& id : hiddenIds) {
-        key += "\x1f" + id;
-    }
+    std::string key = drawingKey(reference, hiddenIds);
     if (const auto found = _labels.find(key); found != _labels.end()) {
         return found->second;
     }
@@ -82,7 +79,7 @@ std::span<const DrawnLabel> FigureCache::labels(std::string_view reference, std:
         return {};
     }
     std::vector<DrawnLabel> found;
-    if (const auto drawing = outlineSvg(bytes, hiddenIds); drawing.has_value() && drawing->width > 0.0f && drawing->height > 0.0f) {
+    if (const auto drawing = outlineSvg(bytes, hiddenIds, SvgPictures::leftOut); drawing.has_value() && drawing->width > 0.0f && drawing->height > 0.0f) {
         // measured in the deck's own face, the fallback for drawing text that names none
         ImFont* const font = ImGui::GetFont();
         for (const DrawingText& text : drawing->texts) {

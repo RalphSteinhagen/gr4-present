@@ -71,6 +71,23 @@ if(GR4_PRESENT_PDFINFO
                "GR4_PRESENT_GL32=1"
                RESOURCE_LOCK
                pdf-export)
+  # a master whose clip is in its element's own box cannot be outlined: it is a picture, one per step, as each step
+  # hides other elements
+  add_test(
+    NAME qa_ExportPdfClippedMaster
+    COMMAND
+      ${CMAKE_COMMAND} -DVIEWER=$<TARGET_FILE:gr4-present>
+      -DDECK=${CMAKE_SOURCE_DIR}/test/fixtures/clipped-master/talk.md
+      -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/qa_ExportPdfClippedMaster.pdf -DOPEN_DECK=ON -DMODE=steps -DEXPECT_PAGES=2
+      -DEXPECT_IMAGES=2 "-DEXPECT_LOG=stays a picture in the PDF" -P ${CMAKE_CURRENT_SOURCE_DIR}/qa_ExportPdf.cmake)
+  set_tests_properties(
+    qa_ExportPdfClippedMaster
+    PROPERTIES LABELS
+               "gui"
+               TIMEOUT
+               120
+               RESOURCE_LOCK
+               pdf-export)
 endif()
 
 # The toolbar's controls and the presenter's buttons, clicked as a person would: the native viewer under Xvfb, driven

@@ -6,6 +6,7 @@
 
 #ifdef GR4_PRESENT_HAS_EXPORT
 #include <gnuradio-4.0/algorithm/fileio/FileIo.hpp>
+#include <gr4-present/Number.hpp>
 #include <gr4-present/export/PdfWriter.hpp>
 #endif
 
@@ -74,9 +75,19 @@ void startExport(Viewer& viewer, std::string_view mode, bool exitWhenDone) {
     viewer.exporting = std::move(walk);
     SDL_SetWindowSize(viewer.window, 1920, 1080); // page layout size, whatever the screen
 #else
-    (void)viewer;
+    // answered as a finished export is, so a page waiting on `gr4Export` and a script waiting for the exit both hear it
     (void)mode;
+    constexpr const char* kUnavailable = "failed: this viewer was built without the PDF export";
+#ifdef __EMSCRIPTEN__
+    (void)viewer;
     (void)exitWhenDone;
+    publishExport(0, kUnavailable);
+#else
+    std::println(stderr, "{}", kUnavailable);
+    if (exitWhenDone) {
+        viewer.isRunning = false;
+    }
+#endif
 #endif
 }
 
@@ -176,33 +187,37 @@ static void writeExport(Viewer& viewer) {
         .author                 = front.author,
         .recordedWidthPixels    = walk.recordedWidthPixels, //
         .fonts                  = builtinFonts};
+    // `--export-dpi` (or `?export-dpi=`) over the deck's `export: { dpi: }`
+    document.imageDpi = viewer.loader.manifest().exportDpi;
+    if (const auto asked = viewer.options.value("export-dpi"); asked.has_value()) {
+        if (const auto dpi = parseNumber<float>(*asked); dpi.has_value() && std::isfinite(*dpi) && *dpi >= 0.0f) {
+            document.imageDpi = *dpi;
+        } else [[unlikely]] {
+            gr::log::warning("--export-dpi {} is not a number of pixels per inch; {} applies", *asked, document.imageDpi);
+        }
+    }
     for (const Fonts::DeckFace& deckFace : Fonts::instance().deckFaces()) {
         document.fonts.push_back(PdfFont{.face = RecordedFace::body, .ttf = deckFace.ttf, .deckFace = deckFace.name});
     }
     // formulas and drawings are outlined again as vectors; a master is outlined once per set of hidden elements
     std::map<std::string, std::optional<VectorDrawing>> drawings;
-    document.vectorFor = [&viewer, &drawings](const RecordedImage& image) -> std::optional<VectorDrawing> {
-        if (image.kind == RecordedImageKind::formula && image.size > 0.0f) {
-            auto outlined = outlineFormula(image.source, image.size, image.tint | 0xFF000000U, image.display);
-            return outlined.has_value() ? std::optional{std::move(*outlined)} : std::nullopt;
+    document.vectorFor = [&viewer, &drawings](const RecordedImage& image) -> const VectorDrawing* {
+        const bool          formula = image.kind == RecordedImageKind::formula && image.size > 0.0f;
+        const bool          figure  = image.kind == RecordedImageKind::figure || image.kind == RecordedImageKind::master;
+        const std::uint32_t colour  = image.tint | 0xFF000000U;
+        if (!formula && !figure) {
+            return nullptr;
         }
-        if (image.kind != RecordedImageKind::figure && image.kind != RecordedImageKind::master) {
-            return std::nullopt;
-        }
-        std::string key = image.source;
-        for (const std::string& hidden : image.hidden) {
-            key += '\n' + hidden;
-        }
-        auto [cached, added] = drawings.try_emplace(key);
+        auto [cached, added] = drawings.try_emplace(formula ? std::format("formula {} {:08X} {}\n{}", image.size, colour, image.display, image.source) : "drawing\n" + drawingKey(image.source, image.hidden));
         if (added) {
-            auto outlined = outlineSvg(viewer.loader.figureBytes(image.source), image.hidden);
+            auto outlined = formula ? outlineFormula(image.source, image.size, colour, image.display) : outlineSvg(viewer.loader.figureBytes(image.source), image.hidden);
             if (outlined.has_value()) {
                 cached->second = std::move(*outlined);
-            } else {
+            } else if (!formula) {
                 gr::log::warning("{} stays a picture in the PDF: {}", image.source, outlined.error());
             }
         }
-        return cached->second;
+        return cached->second.has_value() ? &*cached->second : nullptr;
     };
     // a picture's pixels at its file's resolution, not the screen's; a QR code large enough for many pixels per module
     document.pixelsFor = [&viewer](const RecordedImage& image) -> std::optional<RecordedPixels> {
@@ -210,6 +225,13 @@ static void writeExport(Viewer& viewer) {
             constexpr int kQrPixels = 1024;
             auto          code      = renderQr(image.source, kQrPixels);
             return code.has_value() ? std::optional{RecordedPixels{.width = code->width, .height = code->height, .rgba = std::move(code->rgba)}} : std::nullopt;
+        }
+        // a drawing `vectorFor` refused, as the slide drew it; `decodeAnimation` reads no SVG
+        if ((image.kind == RecordedImageKind::figure || image.kind == RecordedImageKind::master) && isSvgReference(image.source)) {
+            const float drawnWidth  = image.at.width / std::max(image.uv.width, 1e-3f);
+            const auto  targetWidth = static_cast<std::uint32_t>(std::clamp(drawnWidth * kSvgOversampling, 1.0f, kSvgMostPixelsWide));
+            auto        raster      = rasteriseSvg(viewer.loader.figureBytes(image.source), targetWidth, image.hidden);
+            return raster.has_value() ? std::optional{RecordedPixels{.width = raster->width, .height = raster->height, .rgba = std::move(raster->rgba)}} : std::nullopt;
         }
         if (image.kind != RecordedImageKind::picture && image.kind != RecordedImageKind::figure) {
             return std::nullopt;
@@ -242,7 +264,7 @@ static void writeExport(Viewer& viewer) {
     }
 #endif
 #else
-    viewer.exporting->outcome = "failed: this viewer was built without the PDF export";
+    (void)viewer; // never called: without the export, startExport begins no walk
 #endif
 }
 

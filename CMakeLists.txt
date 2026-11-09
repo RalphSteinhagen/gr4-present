@@ -37,6 +37,12 @@ option(GR4_PRESENT_ENABLE_TESTING "Enable unit tests" ON)
 option(GR4_PRESENT_WARNINGS_AS_ERRORS "Treat gr4-present compiler warnings as errors" ON)
 option(GR4_PRESENT_WITH_OPENDIGITIZER "Build the OpenDigitizer/GR4 live-region viewer" ON)
 option(GR4_PRESENT_ENABLE_EXPORT "Build the PDF export (libharu)" ON)
+# writing a PDF needs GR4's fileio to deliver it, so the export comes with the runtime
+if(GR4_PRESENT_WITH_OPENDIGITIZER AND GR4_PRESENT_ENABLE_EXPORT)
+  set(GR4_PRESENT_HAS_EXPORT ON)
+else()
+  set(GR4_PRESENT_HAS_EXPORT OFF)
+endif()
 option(GR4_PRESENT_COVERAGE "Instrument gr4-present's own targets for llvm-cov (Clang)" OFF)
 
 # the test engine instruments ImGui, so it is built only where tests are

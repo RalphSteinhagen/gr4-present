@@ -5,6 +5,7 @@
 
 #include <gr4-present/RegionGeometry.hpp>
 
+#include <cmath>
 #include <cstdint>
 #include <expected>
 #include <optional>
@@ -45,13 +46,33 @@ struct SvgLink {
 /// whose step has not arrived; the counter is the section's own, so one press of Next advances prose and drawing
 [[nodiscard]] std::vector<std::string> hiddenAt(const Layout& layout, int step);
 
+/// what a cache of a drawing drawn with `hiddenIds` left out knows it by
+[[nodiscard]] std::string drawingKey(std::string_view reference, std::span<const std::string> hiddenIds);
+
 /// the numbers of an SVG number list (`viewBox`, `points`), up to the first text that is not one
 [[nodiscard]] std::vector<float> numbersOf(std::string_view list);
 
+/// whether the parts outlines cannot paint (an embedded bitmap, a gradient's fill) are rasterised into the drawing,
+/// as the PDF wants, or left out, as a reader of its words alone wants
+enum class SvgPictures : bool { leftOut, rasterised };
+
 /// a drawing as outlines in its own width and height, for a page that draws vectors; hidden ids are left out as in
-/// `rasteriseSvg`; supports rect, circle, ellipse, line, polyline, polygon, path and text with transforms and styles
-/// anything else (image, gradient, clip, filter, marker) is refused with what it used
-[[nodiscard]] std::expected<VectorDrawing, std::string> outlineSvg(std::span<const std::uint8_t> source, std::span<const std::string> hiddenIds);
+/// `rasteriseSvg`; supports rect, circle, ellipse, line, polyline, polygon, path and text with transforms and styles,
+/// clip paths (in user units), `use`, `symbol`, markers, and editors' own elements, which draw nothing; an image, a
+/// shape a gradient or pattern paints, and a masked or filtered element are pictures over what they cover; anything
+/// else is refused with what it used
+[[nodiscard]] std::expected<VectorDrawing, std::string> outlineSvg(std::span<const std::uint8_t> source, std::span<const std::string> hiddenIds, SvgPictures pictures = SvgPictures::rasterised);
+
+/// a drawing rasterised for a page has this many pixels per pixel it is drawn with, at most this many across; the PDF's
+/// `imageDpi` averages them down
+inline constexpr float kSvgOversampling   = 2.0f;
+inline constexpr float kSvgMostPixelsWide = 4096.0f;
+
+/// the factor a 2-D affine transform (`a b c d e f`, as plutovg and SVG write it) scales lengths by
+template<typename TMatrix>
+[[nodiscard]] float uniformScaleOf(const TMatrix& matrix) noexcept {
+    return std::sqrt(std::abs(matrix.a * matrix.d - matrix.b * matrix.c));
+}
 
 /// an element's id and `data-present` kind, read from the text: lunasvg has no traversal and drops unknown attributes
 struct SvgElementName {

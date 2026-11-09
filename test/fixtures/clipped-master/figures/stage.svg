@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 1600 900" width="1600" height="900">
+  <title>a master with a clip in its element's own box, which outlines cannot follow, and an element of the second step</title>
+  <defs>
+    <clipPath id="round" clipPathUnits="objectBoundingBox"><circle cx="0.5" cy="0.5" r="0.4"/></clipPath>
+  </defs>
+  <rect x="0" y="0" width="1600" height="900" fill="#f4f4f0"/>
+  <rect x="1050" y="200" width="500" height="500" fill="#2a6f97" clip-path="url(#round)"/>
+  <rect id="content" data-present="markdown" x="90" y="60" width="900" height="780" fill="none"/>
+  <rect id="later" data-step="1" x="1100" y="760" width="400" height="60" fill="#F36F21"/>
+</svg>
