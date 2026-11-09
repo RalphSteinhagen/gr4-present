@@ -59,6 +59,13 @@ const suite<"LiveRegion"> liveRegionTests = [] {
 
     "a quoted relative uri is joined too"_test = [] { expect(withPackageUris("      uri: 'media/a b.wav'", "base") == "      uri: \"base/media/a b.wav\""); };
 
+    "a relative uri in a flow map is joined, and the map's other keys stay as written"_test = [] {
+        expect(withPackageUris("    parameters: { name: take, uri: media/take.wav, repeat: true }", "base") == "    parameters: { name: take, uri: \"base/media/take.wav\", repeat: true }");
+        expect(withPackageUris("  - { uri: 'media/a.wav' }\n  - {name: b,uri:media/b.wav}", "base") == "  - { uri: \"base/media/a.wav\" }\n  - {name: b,uri:\"base/media/b.wav\"}");
+        expect(withPackageUris("  - uri: media/c.wav", "base") == "  - uri: \"base/media/c.wav\"") << "a list item's key";
+        expect(withPackageUris("  data-uri: media/d.wav\n  # uri: media/e.wav", "base") == "  data-uri: media/d.wav\n  # uri: media/e.wav") << "another key ending in uri, and a comment";
+    };
+
     "absolute paths and uris with a scheme are left as written"_test = [] {
         for (const std::string_view line : {"  uri: /data/clap.wav", "  uri: https://example.org/clap.wav", "  uri: file:/tmp/clap.wav", "  uri: \"http://x/y.wav\"", "  uri:", "  name: media/clap.wav"}) {
             expect(withPackageUris(line, "https://host/default") == line) << line;

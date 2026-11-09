@@ -39,6 +39,8 @@ void Diagnostics::report(DiagnosticKind kind, std::string subject, std::string d
     const std::string text = entries.back().message();
     if (fatal) {
         gr::log::error("{}", text);
+    } else if (kind == DiagnosticKind::fontFallback) {
+        gr::log::info("{}", text); // a face drawn by hand often lacks an arrow or a Greek letter: shown, but no warning
     } else {
         gr::log::warning("{}", text);
     }

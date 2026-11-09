@@ -1,6 +1,8 @@
 #include "LiveGraph.hpp"
 
 #include <gnuradio-4.0/BlockRegistry.hpp>
+#include <gnuradio-4.0/Graph_yaml_importer.hpp>
+#include <gnuradio-4.0/PluginLoader.hpp>
 #include <gnuradio-4.0/YamlPmt.hpp>
 #include <gnuradio-4.0/thread/thread_pool.hpp>
 
@@ -10,6 +12,7 @@
 #include <implot.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -118,6 +121,26 @@ int main() {
         expect(gt(checked, 0UZ)) << "no parameter of any workflow was checked";
     };
 
+    // Ground truth: the shipped workflows carry data only; GR4 #881 put event ports first, so a stale index names one
+    "every connection of a shipped workflow joins two data ports of one type"_test = [] {
+        std::size_t checked = 0UZ;
+        for (const auto& entry : std::filesystem::directory_iterator{std::filesystem::path{GR4_PRESENT_PACKAGE_DIRECTORY} / "workflows"}) {
+            const std::string file  = entry.path().filename().string();
+            auto              graph = gr::loadGrc(gr::globalPluginLoader(), contentsOf(file));
+            expect(fatal(graph.has_value())) << file << ": " << (graph.has_value() ? std::string{} : graph.error().message);
+            for (const gr::Edge& edge : (*graph)->edges()) {
+                const auto source      = edge.sourceBlock()->dynamicOutputPort(edge.sourcePortDefinition());
+                const auto destination = edge.destinationBlock()->dynamicInputPort(edge.destinationPortDefinition());
+                expect(fatal(source.has_value() && destination.has_value())) << file << ": a connection of " << edge.sourceBlock()->name() << " names no port";
+                const std::string from = (*source)->typeName();
+                const std::string to   = (*destination)->typeName();
+                expect(from == to && from != gr::meta::type_name<gr::property_map_view>()) << file << ": " << edge.sourceBlock()->name() << "." << (*source)->metaInfo.name.value << " (" << from << ") -> " << edge.destinationBlock()->name() << "." << (*destination)->metaInfo.name.value << " (" << to << ")";
+                ++checked;
+            }
+        }
+        expect(gt(checked, 0UZ)) << "no connection of any workflow was checked";
+    };
+
     "the graph's own blocks are not offered as charts"_test = [] {
         LiveGraph graph{contentsOf("controlled-sines.grc")};
         expect(graph.problem().empty()) << graph.problem();
@@ -223,6 +246,30 @@ int main() {
         // their loader logs an unbuildable block rather than throwing, so only a region drawing nothing is promised
         expect(!graph.problem().empty()) << "a workflow naming an unknown block was accepted";
         expect(graph.charts().empty());
+    };
+
+    // Ground truth: every id the workflows of a deck outside this repository name (beams and echoes: trigger,
+    // localisation, filter, spectra), as they spell them
+    "a block a deck's own workflow names can be built under its spelling"_test = [] {
+        constexpr std::array kNamed{"DigitizerUi::ImControlNumber", "gr::audio::AudioSink<float32>", "gr::audio::AudioSourceMultiplexed<float32>", "gr::basic::SignalGenerator<float32>", "gr::basic::StreamsToTensor<float32>", "gr::basic::StreamToDataSet<float32>", "gr::basic::TensorToStreams<float32>", //
+            "gr::blocks::fft::FFT<float32, gr::DataSet<float32>>", "gr::blocks::fft::STFT<float32>", "gr::blocks::fileio::WavSource<float32>", "gr::blocks::fourier::PeakDetector", "gr::blocks::math::Add<float32, std::plus<float32>>", "gr::blocks::math::ExpressionSISO<float32>",                         //
+            "gr::blocks::math::Histogram<float32>", "gr::blocks::math::Multiply<float32, std::multiplies<float32>>", "gr::blocks::math::SubtractPair<float32, std::minus<float32>>", "gr::blocks::trigger::Coincidence", "gr::blocks::trigger::LevelTrigger<float32>",                                         //
+            "gr::blocks::trigger::MultiChannelRecorder<float32>", "gr::blocks::trigger::SchmittTriggerNoInterpolation<float32>", "gr::blocks::trigger::TimeInterval<float64>", "gr::blocks::type::converter::Convert<float64, float32>",                                                                       //
+            "gr::filter::BasicFilterProto<float32, gr::Resampling<1, 1, false>>", "gr::filter::Correlator<float32>", "gr::filter::IQDemodulator<float32, gr::Resampling<1024, 1, false>>", "gr::filter::PhaseUnwrap<float32>", "gr::localisation::PairCrossCorrelation<float32>",                              //
+            "gr::localisation::PairCrossSpectra<float32>", "gr::localisation::PairDelay<float32>", "gr::localisation::PhaseSlopeDelay<float32>", "gr::localisation::SourceFromDelays<float32>", "gr::present::blocks::Deinterleave<float32>", "gr::testing::NullSink<float32>",                                //
+            "opendigitizer::Arithmetic<float32>", "opendigitizer::ImPlotSink<float32>", "opendigitizer::ImPlotSink<gr::DataSet<float32>>", "opendigitizer::ImPlotSink<gr::Tensor<float32>>", "opendigitizer::charts::LocalisationChart", "opendigitizer::charts::TensorRowsChart"};
+        for (const std::string_view id : kNamed) {
+            expect(gr::globalBlockRegistry().create(id, {}) != nullptr) << id << " is not a block the registry builds";
+        }
+    };
+
+    // Ground truth: one block of each GR4 library the workflows above name none of, as the registry spells it
+    "a block of every GR4 block library can be built, not only those the shipped workflows name"_test = [] {
+        constexpr std::array kOnePerLibrary{"gr::analog::FMDemodulator<float32>", "gr::digital::SymbolSync<float32>", "gr::beamforming::ConventionalBeamformer<float32, gr::beamforming::Constraint::conventional>", //
+            "gr::blocks::measurement::Frequency<float32, gr::blocks::measurement::Quantity::frequency>", "gr::electrical::PowerFactor<float32, 1>", "gr::localisation::SteeredPowerMap<float32>"};
+        for (const std::string_view id : kOnePerLibrary) {
+            expect(gr::globalBlockRegistry().create(id, {}) != nullptr) << id << " is not a block the registry builds";
+        }
     };
 
     return 0;

@@ -165,10 +165,31 @@ if(GR4_PRESENT_HAS_EXPORT)
   target_link_libraries(${target_name} PRIVATE gr4-present-export)
 endif()
 if(GR4_PRESENT_WITH_OPENDIGITIZER)
+  # every GR4 block library, so a deck's workflow may name any block (prepareLiveGraphs initialises each); onnx needs
+  # onnxruntime and is left out
+  add_library(gr4-present-block-libraries INTERFACE)
+  foreach(
+    _library
+    Analog
+    Audio
+    Basic
+    Beamforming
+    Digital
+    Electrical
+    FileIo
+    Filter
+    Fourier
+    Http
+    Localisation
+    Math
+    Measurement
+    Testing
+    Trigger)
+    target_link_libraries(gr4-present-block-libraries INTERFACE gnuradio4::Gr${_library}BlocksShared)
+  endforeach()
   target_compile_definitions(${target_name} PRIVATE GR4_PRESENT_HAS_OPENDIGITIZER)
   # `charts` rather than `ui-common`: it is the layer that carries OpenDigitizer's own blocks, `ImPlotSink` among them,
-  # and it brings `ui-common` with it, so TouchHandler still arrives. It also brings GNU Radio's block libraries, which
-  # is what lets a workflow name `gr::basic::SignalGenerator` and get one.
+  # and it brings `ui-common`, whose TouchHandler the charts answer touch with
   target_link_libraries(
     ${target_name}
     PRIVATE opendigitizer::flowgraph-editor
@@ -177,7 +198,10 @@ if(GR4_PRESENT_WITH_OPENDIGITIZER)
             gnuradio4::gnuradio-core
             gnuradio4::gr-audio
             gnuradio4::gr-fileio
-            gnuradio4::gr-trigger)
+            gnuradio4::gr-trigger
+            gnuradio4::gr-localisation
+            gnuradio4::gr-filter
+            gr4-present-block-libraries)
 else()
   target_link_libraries(${target_name} PRIVATE imgui raii_wrapper)
 endif()
@@ -205,6 +229,15 @@ if(EMSCRIPTEN)
     -pthread
     --shell-file
     ${CMAKE_CURRENT_SOURCE_DIR}/shell.html)
+  if(GR4_PRESENT_WITH_OPENDIGITIZER)
+    # every GR4 block library's static data, about 22 MB, past the default 16 MB a module starts with; the in-app
+    # download holds the 178 MB module and its archive at once, past the default 2 GB ceiling with the deck's own data
+    target_link_options(
+      ${target_name}
+      PRIVATE
+      "SHELL:-s INITIAL_MEMORY=64MB"
+      "SHELL:-s MAXIMUM_MEMORY=4GB")
+  endif()
   set_target_properties(${target_name} PROPERTIES LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/shell.html OUTPUT_NAME index)
   # gzip takes about 60 % off the WASM; devtools/serve.mjs sends these copies to a browser that accepts gzip
   find_program(GR4_PRESENT_GZIP gzip REQUIRED)

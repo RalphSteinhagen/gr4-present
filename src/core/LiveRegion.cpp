@@ -11,33 +11,43 @@
 namespace gr::present {
 
 std::string withPackageUris(std::string_view workflow, std::string_view packageBase) {
-    constexpr std::string_view kKey = "uri:";
-    const auto                 base = packageBase.ends_with('/') ? packageBase.substr(0UZ, packageBase.size() - 1UZ) : packageBase;
+    constexpr std::string_view kKey    = "uri:";
+    constexpr std::string_view kBlanks = " \t";
+    const auto                 base    = packageBase.ends_with('/') ? packageBase.substr(0UZ, packageBase.size() - 1UZ) : packageBase;
     std::string                resolved;
     resolved.reserve(workflow.size());
-    for (const auto lineRange : workflow | std::views::split('\n')) {
-        std::string_view line{lineRange.begin(), lineRange.end()};
-        const auto       keyAt = line.find_first_not_of(" \t");
-        if (!resolved.empty() || lineRange.begin() != workflow.begin()) {
-            resolved += '\n';
-        }
-        if (keyAt == std::string_view::npos || !line.substr(keyAt).starts_with(kKey)) {
-            resolved += line;
+    std::size_t copied = 0UZ;
+    for (std::size_t at = workflow.find(kKey); at != std::string_view::npos; at = workflow.find(kKey, at + kKey.size())) {
+        // a key where a key can stand: first on its line or list item, or after a flow map's `{` or `,`
+        const std::size_t before = at == 0UZ ? std::string_view::npos : workflow.find_last_not_of(kBlanks, at - 1UZ);
+        const char        lead   = before == std::string_view::npos ? '\n' : workflow[before];
+        const bool        inFlow = lead == '{' || lead == ',';
+        if (!inFlow && lead != '\n' && !(lead == '-' && before + 1UZ < at)) {
             continue;
         }
-        std::string_view value = line.substr(keyAt + kKey.size());
-        value.remove_prefix(std::min(value.find_first_not_of(" \t"), value.size()));
-        value.remove_suffix(value.size() - std::min(value.find_last_not_of(" \t\r") + 1UZ, value.size()));
-        if (value.size() >= 2UZ && (value.front() == '"' || value.front() == '\'') && value.back() == value.front()) {
-            value = value.substr(1UZ, value.size() - 2UZ);
+        std::size_t      from = std::min(workflow.find_first_not_of(kBlanks, at + kKey.size()), workflow.size());
+        std::size_t      to   = 0UZ;
+        std::string_view value;
+        if (from < workflow.size() && (workflow[from] == '"' || workflow[from] == '\'')) {
+            to = workflow.find(workflow[from], from + 1UZ);
+            if (to == std::string_view::npos) {
+                continue;
+            }
+            value = workflow.substr(from + 1UZ, to - from - 1UZ);
+            ++to;
+        } else {
+            to    = std::min(workflow.find_first_of(inFlow ? ",}\n" : "\n", from), workflow.size());
+            to    = std::max(from, std::min(workflow.find_last_not_of(" \t\r", to - 1UZ) + 1UZ, to));
+            value = workflow.substr(from, to - from);
         }
         const bool relative = !value.empty() && !value.starts_with('/') && value.find(':') == std::string_view::npos;
-        if (!relative) {
-            resolved += line;
-            continue;
+        if (relative) {
+            resolved += workflow.substr(copied, from - copied);
+            resolved += std::format("\"{}/{}\"", base, value);
+            copied = to;
         }
-        resolved += std::format("{}{} \"{}/{}\"", line.substr(0UZ, keyAt), kKey, base, value);
     }
+    resolved += workflow.substr(copied);
     return resolved;
 }
 

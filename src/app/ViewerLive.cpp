@@ -33,7 +33,7 @@ constexpr auto kLiveGraphRetryDelay = std::chrono::seconds{2};
 [[nodiscard]] static bool                     graphFailed(const Viewer& viewer, std::string_view workflow);
 [[nodiscard]] static std::string_view         activeWorkflow(const Viewer& viewer, const LiveRegion& binding);
 [[nodiscard]] static std::vector<std::string> workflowsOf(const Viewer& viewer, std::string_view viewId, bool neighbour = false);
-static void                                   requestDevicesOf(const Viewer& viewer, std::string_view viewId);
+static void                                   requestDevicesOf(Viewer& viewer, std::string_view viewId);
 [[nodiscard]] static float                    statedAspect(const Viewer& viewer, std::string_view region);
 
 /// the region's `fallback:` recording shown in place of a graph that could not be built, is missing or has stalled
@@ -203,15 +203,18 @@ static void                                   requestDevicesOf(const Viewer& vie
     return workflows;
 }
 
-/// asks once, on entering a view, for the devices its live regions need: the key press is the gesture a browser wants
-static void requestDevicesOf(const Viewer& viewer, std::string_view viewId) {
+/// asks, on entering a view, for the devices its live regions need: the key press is the gesture a browser wants; a
+/// device asked for before is asked again only after a refusal, which the browser answers without a second prompt
+static void requestDevicesOf(Viewer& viewer, std::string_view viewId) {
     const auto section = sectionOf(viewer.sections, viewId);
     if (section == nullptr) {
         return;
     }
     for (const Block& block : section->document.blocks) {
-        if (block.kind == BlockKind::directive && block.info == "gr4" && !block.field("needs").empty()) {
-            requestLiveDevice(block.field("needs"));
+        const std::string_view device      = block.kind == BlockKind::directive && block.info == "gr4" ? block.field("needs") : std::string_view{};
+        const bool             askedBefore = std::ranges::contains(viewer.live.devicesAsked, device);
+        if (!device.empty() && requestLiveDevice(device, askedBefore) && !askedBefore) {
+            viewer.live.devicesAsked.emplace_back(device);
         }
     }
 }
