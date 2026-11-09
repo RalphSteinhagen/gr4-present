@@ -2,7 +2,7 @@
 // Ground truth: the arriving heading's ink edge in each frame, the leaving slide's best-matching shift,
 // and the ink share halfway through.
 
-import { openPage, withViewer } from "../devtools/browser_harness.mjs";
+import { kHeadlessQuery, openPage, withViewer } from "../devtools/browser_harness.mjs";
 import { decodePng, pixelAt } from "../devtools/png.mjs";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -63,7 +63,7 @@ for (const kind of ["push", "zoom", "push-down", "fade-through"]) {
     writeFileSync(deck, text.slice(0, second + 1) + `\n:::layout\ntransition: ${kind}\nduration: ${seconds}\n:::\n` + text.slice(second + 1));
 
     await withViewer(copy, async ({ server, browser }) => {
-      const page = await openPage(browser, `${server.origin}/index.html`);
+      const page = await openPage(browser, `${server.origin}/index.html?${kHeadlessQuery}`);
       await page.command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
       await page.waitFor("(globalThis.gr4Location || '').includes('view=intro') && (globalThis.gr4Location || '').includes('step=0')");
       await page.evaluate("document.getElementById('canvas').focus()");
@@ -93,8 +93,9 @@ for (const kind of ["push", "zoom", "push-down", "fade-through"]) {
         );
         // a heading still entering is cut by the screen's edge, so only one wholly on screen has a right edge of its own
         const kEnteringMargin = 24; // px: wider than a glyph's own gaps at the 36 pt title size
-        // the leaving heading may still be the widest ink early on, so follow from the frame the heading is furthest right
-        const seen = inFlight.map((each) => each.heading.right);
+        // the leaving heading may still be the widest ink early on, so follow from the frame the heading is furthest right;
+        // every sample, as a heading ending left of centre is whole on screen only in the push's last third, where it eases in
+        const seen = samples.map((each) => each.heading.right);
         const arrived = seen.indexOf(Math.max(...seen));
         const rights = seen.slice(Math.max(0, arrived)).filter((right) => right > settled.right + 2 && right < 1280 - kEnteringMargin);
         expect(rights.length >= 4, `push: the heading is seen wholly on screen while still moving in ${rights.length} frames`);
@@ -167,7 +168,7 @@ for (const kind of ["push", "zoom", "push-down", "fade-through"]) {
     writeFileSync(deck, text.slice(0, next + 1) + slide + text.slice(next + 1));
     await withViewer(copy, async ({ server, browser }) => {
       const settledRow = async (view) => {
-        const page = await openPage(browser, `${server.origin}/index.html#view=${view}&step=0`);
+        const page = await openPage(browser, `${server.origin}/index.html?${kHeadlessQuery}#view=${view}&step=0`);
         await page.command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
         await page.waitFor(
           `(globalThis.gr4Location || '').includes('view=${view}&') && window.gr4TextRuns && window.gr4TextRuns.some((run) => run[4].startsWith('Slides')) ? 1 : false`,
@@ -184,7 +185,7 @@ for (const kind of ["push", "zoom", "push-down", "fade-through"]) {
       const from = await settledRow("intro");
       const to = await settledRow("again");
       expect(to.y > from.y + 60, `the paragraph is lower on the second slide, ${from.y} -> ${to.y}`);
-      const page = await openPage(browser, `${server.origin}/index.html#view=intro&step=0`);
+      const page = await openPage(browser, `${server.origin}/index.html?${kHeadlessQuery}#view=intro&step=0`);
       await page.command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
       await page.waitFor("(globalThis.gr4Location || '').includes('view=intro&') && window.gr4Zoom ? 1 : false");
       await page.evaluate("document.getElementById('canvas').focus()");

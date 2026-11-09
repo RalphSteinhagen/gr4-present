@@ -2,7 +2,7 @@
 // Ground truth: claims about the picture (Wally's stripes, tour ends frame the same scene), Solvay regions from talk.md
 // stops are compared with each other, not by absolute colour: a region spans different source pixels per zoom
 
-import { openPage, withViewer } from "../devtools/browser_harness.mjs";
+import { kHeadlessQuery, openPage, withViewer } from "../devtools/browser_harness.mjs";
 import { decodePng, pixelAt, describePixel } from "../devtools/png.mjs";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -64,7 +64,7 @@ const settledOn = async (page, key, wanted) => {
 const kLeft = ["ArrowLeft", "ArrowLeft", 37];
 
 const openDeck = async (browser, server) => {
-  const page = await openPage(browser, `${server.origin}/index.html`);
+  const page = await openPage(browser, `${server.origin}/index.html?${kHeadlessQuery}`);
   await page.command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
   await page.waitFor("(globalThis.gr4Location || '').includes('view=') && (globalThis.gr4Location || '').includes('step=0')");
   await page.evaluate("document.getElementById('canvas').focus()");
@@ -295,7 +295,7 @@ for (const [width, height] of [
   await withViewer(directory, async ({ server, browser }) => {
     const page = await openPage(browser, "about:blank");
     await page.command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
-    await page.command("Page.navigate", { url: `${server.origin}/index.html` });
+    await page.command("Page.navigate", { url: `${server.origin}/index.html?${kHeadlessQuery}` });
     await page.waitFor(
       "document.getElementById('canvas') && (globalThis.gr4Location || '').includes('view=') && (globalThis.gr4Location || '').includes('step=0') ? 1 : false",
     );
@@ -432,7 +432,8 @@ await withViewer(directory, async ({ server, browser }) => {
         const page = await openPage(browser, "about:blank");
         await page.command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
         await page.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }] });
-        await page.command("Page.navigate", { url: `${server.origin}/index.html` });
+        // windowed only: the scheme under test is the one the browser prefers
+        await page.command("Page.navigate", { url: `${server.origin}/index.html?mode=windowed` });
         await page.waitFor(
           "document.getElementById('canvas') && (globalThis.gr4Location || '').includes('view=') && (globalThis.gr4Location || '').includes('step=0') ? 1 : false",
         );

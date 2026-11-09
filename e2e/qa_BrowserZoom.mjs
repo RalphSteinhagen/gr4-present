@@ -2,7 +2,7 @@
 // the arithmetic is qa_ZoomPan's.
 // Ground truth: geometry, the point under the pointer stays fixed and the scale read from glyph height and from heading distance must agree.
 
-import { openPage, withViewer } from "../devtools/browser_harness.mjs";
+import { kHeadlessQuery, openPage, withViewer } from "../devtools/browser_harness.mjs";
 import { compareImages, decodePng, pixelAt } from "../devtools/png.mjs";
 
 const directory = process.argv[2];
@@ -20,6 +20,7 @@ const expect = (condition, description) => {
 };
 
 const kMenuEdge = 0.36; // share of the width, clear of the side menu
+// two fingers are read by OpenDigitizer's touch handler, which a build without it (WASM-Minimal) does not have
 const isLit = (pixel) => pixel.r + pixel.g + pixel.b > 110;
 const litRow = (image, y) => {
   for (let x = Math.floor(image.width * kMenuEdge); x < image.width * 0.9; x += 2) {
@@ -62,7 +63,7 @@ const wheel = async (page, x, y, deltaY, notches) => {
 };
 
 await withViewer(directory, async ({ server, browser }) => {
-  const page = await openPage(browser, `${server.origin}/index.html?mode=windowed`);
+  const page = await openPage(browser, `${server.origin}/index.html?${kHeadlessQuery}`);
   await page.command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
   await page.waitFor("(globalThis.gr4Location || '').includes('view=') && (globalThis.gr4Location || '').includes('step=0')");
   await page.evaluate("document.getElementById('canvas').focus()");

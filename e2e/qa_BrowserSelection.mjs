@@ -1,7 +1,8 @@
 // Selecting drawn text and copying it in the browser: a drag from a word selects, Ctrl+C copies, a finger never selects.
 // Ground truth: the demo deck's Markdown, words as written, wrapped lines joined by a space.
 
-import { openPage, withViewer } from "../devtools/browser_harness.mjs";
+import { kHeadlessQuery, openPage, withViewer } from "../devtools/browser_harness.mjs";
+import { decodePng, pixelAt } from "../devtools/png.mjs";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -166,6 +167,51 @@ await withViewer(fixture, async ({ server, browser }) => {
     );
     const all = await labelsAt(3);
     expect(all.length === 6, `at step 3 it offers all six: ${JSON.stringify(all)}`);
+  }
+  {
+    // Ground truth: the drawing opened at step 3, against the same drawing stepped there from step 0
+    const shot = async (page) => decodePng(Buffer.from((await page.command("Page.captureScreenshot", { format: "png" })).result.data, "base64"));
+    const settled = async (page) => {
+      await frames(page, 40);
+      return shot(page);
+    };
+    const openStaged = async (step) => {
+      const page = await openPage(browser, `${server.origin}/index.html?${kHeadlessQuery}#view=staged&step=${step}`);
+      await page.command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
+      await page.waitFor(`(globalThis.gr4Location || '').includes('view=staged&step=${step}') ? 1 : false`);
+      await page.command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1100, y: 600 });
+      return page;
+    };
+    // the share of pixels that differ visibly, right of the side menu
+    const differing = (a, b) => {
+      let differ = 0;
+      let all = 0;
+      for (let y = 0; y < a.height; y += 2) {
+        for (let x = 340; x < a.width; x += 2) {
+          const [p, q] = [pixelAt(a, x, y), pixelAt(b, x, y)];
+          differ += Math.abs(p.r - q.r) + Math.abs(p.g - q.g) + Math.abs(p.b - q.b) > 60 ? 1 : 0;
+          ++all;
+        }
+      }
+      return differ / all;
+    };
+    const page = await openStaged(0);
+    const atStart = await settled(page);
+    await page.evaluate("document.getElementById('canvas').focus()");
+    for (let press = 0; press < 3; ++press) {
+      await page.press("ArrowRight", "ArrowRight", 39);
+      await settled(page);
+    }
+    const stepped = await settled(page);
+    await page.close();
+    const opened = await openStaged(3);
+    const direct = await settled(opened);
+    await opened.close();
+    const [apart, off] = [differing(atStart, direct), differing(stepped, direct)];
+    expect(
+      off < apart / 4,
+      `stepped to step 3 the drawing shows its later stages as opened there: ${(100 * off).toFixed(2)} % differ, against ${(100 * apart).toFixed(2)} % from step 0`,
+    );
   }
   {
     const page = await openAt(browser, server, "markdown");

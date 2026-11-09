@@ -1,7 +1,7 @@
 // Effect shaders used other than as a transition, on the default deck's effects slides
 // Ground truth: what each use is for, not how it is drawn; a page opened on the step or the deck without it
 
-import { openPage, withViewer } from "../devtools/browser_harness.mjs";
+import { kHeadlessQuery, openPage, withViewer } from "../devtools/browser_harness.mjs";
 import { decodePng } from "../devtools/png.mjs";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -123,7 +123,9 @@ try {
     {
       const { page } = await opened(browser, server, "effect-pointer");
       const kAt = [900, 500];
-      const move = async () => page.command("Input.dispatchMouseEvent", { type: "mouseMoved", x: kAt[0], y: kAt[1] });
+      // a pixel back and forth, so each frame sees the pointer move
+      let nudge = 0;
+      const move = async () => page.command("Input.dispatchMouseEvent", { type: "mouseMoved", x: kAt[0] + (++nudge % 2), y: kAt[1] });
       await move();
       const without = await shot(page);
       await page.press("l", "KeyL", 76);
@@ -136,6 +138,27 @@ try {
         redNear(pointing, ...kAt) > 20 + redNear(without, ...kAt),
         `pointer: a red dot under the pointer, ${redNear(pointing, ...kAt)} red pixels against ${redNear(without, ...kAt)} before`,
       );
+      // the viewer shows it 1.5 s past the last move, then fades it over 0.5 s
+      const leftAt = Date.now();
+      let still = null;
+      while (Date.now() - leftAt < 3000) {
+        still = await shot(page);
+      }
+      expect(redNear(still, ...kAt) <= redNear(without, ...kAt) + 2, `pointer: gone once left still, ${redNear(still, ...kAt)} red pixels`);
+      let moved = null;
+      for (let frame = 0; frame < 10; ++frame) {
+        await move();
+        moved = await shot(page);
+      }
+      expect(redNear(moved, ...kAt) > 20 + redNear(without, ...kAt), `pointer: back with the next move, ${redNear(moved, ...kAt)} red pixels`);
+      await page.command("Input.dispatchMouseEvent", { type: "mousePressed", x: kAt[0], y: kAt[1], button: "left", clickCount: 1 });
+      const heldAt = Date.now();
+      let held = null;
+      while (Date.now() - heldAt < 3000) {
+        held = await shot(page);
+      }
+      await page.command("Input.dispatchMouseEvent", { type: "mouseReleased", x: kAt[0], y: kAt[1], button: "left", clickCount: 1 });
+      expect(redNear(held, ...kAt) > 20 + redNear(without, ...kAt), `pointer: kept while a button is held, ${redNear(held, ...kAt)} red pixels`);
       await page.press("l", "KeyL", 76);
       let off = null;
       for (let frame = 0; frame < 20; ++frame) {
@@ -249,8 +272,8 @@ try {
   );
   writeFileSync(deck, original.slice(0, at) + `${kMarkdownGrid}\ntransition: zoom invert\nduration: 2` + original.slice(at + kMarkdownGrid.length));
   await withViewer(copy, async ({ server, browser }) => {
-    const truth = await opened(browser, server, "markdown");
-    const { page } = await opened(browser, server, "intro");
+    const truth = await opened(browser, server, "markdown", 0, `?${kHeadlessQuery}`);
+    const { page } = await opened(browser, server, "intro", 0, `?${kHeadlessQuery}`);
     const meanLight = (image) => {
       let sum = 0;
       let all = 0;

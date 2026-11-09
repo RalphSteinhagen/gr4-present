@@ -28,7 +28,8 @@ const capture = async (deckDirectory, sampleMove) => {
   await withViewer(deckDirectory, async ({ server, browser }) => {
     const page = await openPage(browser, "about:blank");
     await page.command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
-    await page.command("Page.navigate", { url: `${server.origin}/index.html#view=ring&step=0` });
+    // windowed: the key asks for full screen, which a headless browser answers by shrinking the canvas to 800x600
+    await page.command("Page.navigate", { url: `${server.origin}/index.html?mode=windowed#view=ring&step=0` });
     await page.waitFor("document.getElementById('canvas') && window.gr4Zoom && (globalThis.gr4Location || '').includes('view=ring') ? 1 : false");
     await page.evaluate("document.getElementById('canvas').focus()");
     for (let settle = 0; settle < 40; ++settle) {

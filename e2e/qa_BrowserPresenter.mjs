@@ -1,6 +1,6 @@
 // A presenter window (`?presenter` in a second tab) shares one cursor with the audience window and runs no live graph.
 
-import { openPage, withViewer } from "../devtools/browser_harness.mjs";
+import { kHeadlessQuery, openPage, withOpenDigitizer, withViewer } from "../devtools/browser_harness.mjs";
 import { decodePng, pixelAt } from "../devtools/png.mjs";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -42,8 +42,9 @@ const front = async (page) => {
 const follows = (page, wanted) => page.waitFor(`(globalThis.gr4Location || '') === ${JSON.stringify(wanted)} ? 1 : false`);
 
 await withViewer(directory, async ({ server, browser }) => {
-  const audience = await open(browser, `${server.origin}/index.html`);
-  const presenter = await open(browser, `${server.origin}/index.html?presenter&mode=windowed`);
+  // the notes panel's rule is found as a lit row between unlit ones
+  const audience = await open(browser, `${server.origin}/index.html?${kHeadlessQuery}`);
+  const presenter = await open(browser, `${server.origin}/index.html?presenter&${kHeadlessQuery}`);
 
   await front(audience);
   for (let press = 0; press < 2; ++press) {
@@ -109,10 +110,15 @@ await withViewer(directory, async ({ server, browser }) => {
   const graphs = async (page) => Object.values(JSON.parse(await page.evaluate("JSON.stringify(window.gr4Graphs || {})")));
   const inAudience = await graphs(audience);
   const inPresenter = await graphs(presenter);
-  expect(
-    inAudience.includes("RUNNING") && inPresenter.length === 0,
-    `only the audience window runs live graphs: ${JSON.stringify(inAudience)} against ${JSON.stringify(inPresenter)}`,
-  );
+  // live graphs run through OpenDigitizer, which a build without it (WASM-Minimal) replaces by their recordings
+  if (withOpenDigitizer) {
+    expect(
+      inAudience.includes("RUNNING") && inPresenter.length === 0,
+      `only the audience window runs live graphs: ${JSON.stringify(inAudience)} against ${JSON.stringify(inPresenter)}`,
+    );
+  } else {
+    console.log("  skip  only the audience window runs live graphs: this build has no OpenDigitizer");
+  }
 
   await presenter.close();
   await audience.close();
