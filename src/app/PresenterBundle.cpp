@@ -4,8 +4,10 @@
 #include <gr4-present/Tar.hpp>
 
 #include <algorithm>
+#include <deque>
 #include <format>
 #include <ranges>
+#include <span>
 #include <utility>
 
 namespace gr::present {
@@ -264,15 +266,6 @@ NOTES
   The site itself works without a network once it has been visited: {1}
 )gr4";
 
-[[nodiscard]] std::vector<std::byte> bytesOf(std::string_view text) {
-    return text | std::views::transform([](char c) { return static_cast<std::byte>(c); }) | std::ranges::to<std::vector<std::byte>>();
-}
-
-[[nodiscard]] std::vector<std::byte> bytesOf(std::span<const std::uint8_t> bytes) {
-    const auto asBytes = std::as_bytes(bytes);
-    return {asBytes.begin(), asBytes.end()};
-}
-
 [[nodiscard]] std::string_view textOf(std::span<const std::uint8_t> bytes) { return {reinterpret_cast<const char*>(bytes.data()), bytes.size()}; }
 
 /// Windows reads a script line by line and wants each ended by CR LF
@@ -299,21 +292,23 @@ NOTES
 } // namespace
 
 std::expected<std::vector<std::byte>, std::string> packPresenterBundle(std::string_view folder, const PresenterBundle& bundle) {
-    std::vector<gr::compression::TarEntry> entries;
-    const auto                             add = [&](std::string_view path, std::vector<std::byte> bytes, std::uint32_t mode = 0644U) { entries.push_back({.path = std::format("{}/{}", folder, path), .bytes = std::move(bytes), .mode = mode}); };
+    std::deque<std::string>                 written; // the texts made here; the files are read where the caller holds them
+    std::vector<gr::compression::TarSource> sources;
+    const auto                              add  = [&](std::string_view path, std::span<const std::byte> bytes, std::uint32_t mode = 0644U) { sources.push_back({.path = std::format("{}/{}", folder, path), .bytes = bytes, .mode = mode}); };
+    const auto                              text = [&written](std::string made) { return std::as_bytes(std::span{written.emplace_back(std::move(made))}); };
     for (const PackageFile& file : bundle.siteFiles) {
-        add(file.path, file.path == "index.html" ? bytesOf(pageNamingSite(textOf(file.bytes), bundle.site)) : bytesOf(file.bytes));
+        add(file.path, file.path == "index.html" ? text(pageNamingSite(textOf(file.bytes), bundle.site)) : std::as_bytes(file.bytes));
     }
     for (const PackageFile& file : bundle.deckFiles) {
-        add(std::format("default/{}", file.path), bytesOf(file.bytes));
+        add(std::format("default/{}", file.path), std::as_bytes(file.bytes));
     }
-    add("serve.sh", bytesOf(kServeSh), 0755U);
-    add("serve.cmd", bytesOf(withCrLf(kServeCmd)));
-    add("serve.ps1", bytesOf(withCrLf(kServePs1)));
-    add("launch-chromium.sh", bytesOf(kLaunchChromiumSh), 0755U);
-    add("launch-chromium.cmd", bytesOf(withCrLf(kLaunchChromiumCmd)));
-    add("README.txt", bytesOf(std::format(kReadme, bundle.title.empty() ? std::string_view{"untitled"} : bundle.title, bundle.site)));
-    return packTarGz(entries);
+    add("serve.sh", std::as_bytes(std::span{kServeSh}), 0755U);
+    add("serve.cmd", text(withCrLf(kServeCmd)));
+    add("serve.ps1", text(withCrLf(kServePs1)));
+    add("launch-chromium.sh", std::as_bytes(std::span{kLaunchChromiumSh}), 0755U);
+    add("launch-chromium.cmd", text(withCrLf(kLaunchChromiumCmd)));
+    add("README.txt", text(std::format(kReadme, bundle.title.empty() ? std::string_view{"untitled"} : bundle.title, bundle.site)));
+    return packTarGz(sources);
 }
 
 } // namespace gr::present

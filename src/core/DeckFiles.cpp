@@ -5,8 +5,10 @@
 #include <gnuradio-4.0/Compression.hpp>
 
 #include <algorithm>
+#include <array>
 #include <format>
 #include <fstream>
+#include <new>
 #include <ranges>
 
 namespace gr::present {
@@ -33,24 +35,52 @@ std::string deckFolderName(std::string_view title, std::string_view folder) {
 }
 
 std::expected<std::vector<std::byte>, std::string> packDeck(std::span<const PackageFile> files, std::string_view folder) {
-    const auto inFolder = [folder](const PackageFile& file) {
-        const auto bytes = std::as_bytes(file.bytes);
-        return gr::compression::TarEntry{.path = std::format("{}/{}", folder, file.path), .bytes = {bytes.begin(), bytes.end()}};
-    };
-    const auto entries = files | std::views::transform(inFolder) | std::ranges::to<std::vector<gr::compression::TarEntry>>();
-    return packTarGz(entries);
+    const auto inFolder = [folder](const PackageFile& file) { return gr::compression::TarSource{.path = std::format("{}/{}", folder, file.path), .bytes = std::as_bytes(file.bytes)}; };
+    const auto sources  = files | std::views::transform(inFolder) | std::ranges::to<std::vector<gr::compression::TarSource>>();
+    return packTarGz(sources);
 }
 
-std::expected<std::vector<std::byte>, std::string> packTarGz(std::span<const gr::compression::TarEntry> entries) {
-    const auto archive = gr::compression::packTar(entries);
-    if (!archive) {
-        return std::unexpected(archive.error());
+std::expected<std::vector<std::byte>, std::string> packTarGz(std::span<const gr::compression::TarSource> files) {
+    static constexpr std::array<std::byte, 2UZ * 512UZ> kZeros{};
+    gr::compression::StreamCompressor                   compressor;
+    std::vector<std::byte>                              packed;
+    std::vector<std::byte>                              chunk(1UZ << 16U); // on the heap: an Emscripten thread's stack is 64 kB
+    const auto                                          feed = [&](std::span<const std::byte> input, gr::compression::Flush flush) -> std::expected<void, std::string> {
+        while (true) {
+            const auto step = compressor.process(input, chunk, flush);
+            if (!step) [[unlikely]] {
+                return std::unexpected(std::format("gzip failed (error {})", static_cast<int>(step.error())));
+            }
+            packed.insert(packed.end(), chunk.begin(), chunk.begin() + static_cast<std::ptrdiff_t>(step->produced));
+            input = input.subspan(step->consumed);
+            if (step->finished() || (flush == gr::compression::Flush::none && input.empty() && step->status == gr::compression::StreamStatus::needInput)) {
+                return {};
+            }
+        }
+    };
+#if __cpp_exceptions
+    try {
+#endif
+        for (const gr::compression::TarSource& file : files) {
+            const auto header = gr::compression::tarHeader(file.path, file.bytes.size(), file.mode);
+            if (!header) {
+                return std::unexpected(header.error());
+            }
+            for (const std::span<const std::byte> part : {std::span<const std::byte>{*header}, file.bytes, std::span{kZeros}.first(gr::compression::tarPadding(file.bytes.size()))}) {
+                if (auto fed = feed(part, gr::compression::Flush::none); !fed) [[unlikely]] {
+                    return std::unexpected(fed.error());
+                }
+            }
+        }
+        if (auto ended = feed(kZeros, gr::compression::Flush::finish); !ended) [[unlikely]] {
+            return std::unexpected(ended.error());
+        }
+#if __cpp_exceptions
+    } catch (const std::bad_alloc&) {
+        return std::unexpected(std::format("not enough memory for the archive, {} MB packed so far", packed.size() >> 20U));
     }
-    auto packed = gr::compression::compress(*archive, gr::compression::Format::gzip);
-    if (!packed) {
-        return std::unexpected(std::format("gzip failed (error {})", static_cast<int>(packed.error())));
-    }
-    return std::move(*packed);
+#endif
+    return packed;
 }
 
 std::expected<std::string, std::string> deckBaseAmong(std::span<const std::string> paths) {

@@ -58,6 +58,56 @@ A page from the web reads a deck served on this computer (`node devtools/serve.m
 Chrome blocks a public page's requests to `localhost` unless _Local network access_ is allowed for the page's site (the lock icon in the address bar, or `chrome://settings/content/localNetworkAccess`), or `chrome://flags/#local-network-access-check` is disabled;
 until then the viewer keeps showing its built-in deck, and Load (`Ctrl+O`) opens the deck's folder without a server.
 
+## Releases
+
+Every push to main and every version tag publishes the web viewer as two archives with one `SHA256SUMS`: `full`, with live GNU Radio 4 graphs (OpenDigitizer) and the PDF export, and `minimal`, the viewer alone (about 3 MB packed).
+`https://github.com/RalphSteinhagen/gr4-present/releases/download/<version>/gr4-present-web-<flavour>-<version>.tar.gz`, where `<version>` is a tag such as `v0.1.0` or `latest`, the rolling build of main;
+`releases/latest/download/…` is GitHub's own redirect to the newest tagged release instead.
+Each unpacks to a folder of its name holding the viewer, the start scripts and `README.txt` of "download viewer + deck" above, and a one-slide deck under `default/` saying how to show a deck of one's own:
+
+- **offline:** put the deck's folder or `.tar.gz` beside `index.html` and run `sh serve.sh` (or `serve.cmd`) and open `?presentation=<name>`, or `sh launch-chromium.sh <name>` without a server; or replace `default/` with the deck;
+- **on another repository's GitHub Pages**, pinned to a release and independent of this site:
+
+```yaml
+# .github/workflows/pages.yml in the deck's repository; Settings > Pages > Source: GitHub Actions
+name: Pages
+on:
+  push:
+    branches: [main]
+jobs:
+  pages:
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: RalphSteinhagen/gr4-present/.github/actions/deck-site@v0.1.0
+        with:
+          deck: talk # the folder holding index.yml; `.` for the repository's root
+          version: v0.1.0 # the viewer's release; latest follows main
+          flavour: full # or minimal
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
+```
+
+Without Actions, the same in a shell (`.github/actions/deck-site/deck-site.sh` does it, checksum included):
+
+```bash
+v=v0.1.0; f=full; base=https://github.com/RalphSteinhagen/gr4-present/releases/download/$v
+curl -fsSLO "$base/gr4-present-web-$f-$v.tar.gz" -fsSLO "$base/SHA256SUMS"
+grep " gr4-present-web-$f-$v.tar.gz\$" SHA256SUMS | sha256sum -c - && tar -xzf "gr4-present-web-$f-$v.tar.gz"
+rm -rf "gr4-present-web-$f-$v/default" && cp -r talk "gr4-present-web-$f-$v/default"
+```
+
+The page's service worker supplies the isolation headers GitHub Pages does not send; `devtools/ci/web-archive.sh` makes an archive from a local WASM build.
+
 ## License and Copyright
 
 SPDX: `GPL-3.0-or-later` `CC-BY-4.0`

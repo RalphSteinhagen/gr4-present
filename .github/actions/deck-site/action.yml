@@ -1,0 +1,38 @@
+name: gr4-present deck site
+description: >-
+  A GitHub Pages site of one gr4-present deck with the web viewer beside it, pinned to a release of this repository:
+  downloads gr4-present-web-<flavour>-<version>.tar.gz, checks it against the release's SHA256SUMS, puts the deck in place
+  of the archive's stub deck as default/ (what the viewer opens without an address) and leaves the site in `out`, ready
+  for actions/upload-pages-artifact. The viewer's service worker supplies the isolation headers Pages cannot send.
+inputs:
+  deck:
+    description: "the deck's folder, the one holding index.yml"
+    required: true
+  flavour:
+    description: "full (live GNU Radio 4 and OpenDigitizer) or minimal"
+    default: "full"
+  version:
+    description: "a release tag, vX.Y.Z, or latest; name it to pin the viewer. Empty: the action's own tag where the runner reports one, else latest, with a warning"
+    default: ""
+  out:
+    description: "the folder the site is written to; it must not exist yet or be empty"
+    default: "_site"
+outputs:
+  site:
+    description: "the folder the site was written to"
+    value: ${{ steps.site.outputs.site }}
+runs:
+  using: composite
+  steps:
+    - id: site
+      shell: bash
+      env:
+        DECK: ${{ inputs.deck }}
+        FLAVOUR: ${{ inputs.flavour }}
+        VERSION: ${{ inputs.version }}
+        OUT: ${{ inputs.out }}
+        ACTION_REF: ${{ github.action_ref }}
+        ACTION_REPOSITORY: ${{ github.action_repository }}
+      run: |
+        "$GITHUB_ACTION_PATH/deck-site.sh" "$DECK" "$FLAVOUR" "$VERSION" "$OUT" "$ACTION_REPOSITORY" "${ACTION_REF:-${GITHUB_ACTION_REF:-}}"
+        echo "site=$OUT" >> "$GITHUB_OUTPUT"

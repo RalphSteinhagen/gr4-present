@@ -310,3 +310,20 @@ add_custom_target(
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/presentations ${_presentation_destination}
   DEPENDS ${target_name}
   COMMENT "stage the presentation packages beside the viewer")
+
+# the release archives' packer (devtools/ci/web-archive.sh); under Emscripten a Node program reading and writing the
+# host's files
+add_executable(gr4-present-bundle PresenterBundleTool.cpp PresenterBundle.cpp)
+target_link_libraries(gr4-present-bundle PRIVATE gr4-present-core gr4-present-options)
+set_target_properties(gr4-present-bundle PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tools)
+if(EMSCRIPTEN)
+  set_target_properties(gr4-present-bundle PROPERTIES SUFFIX ".js")
+  target_link_options(
+    gr4-present-bundle
+    PRIVATE
+    "SHELL:-s NODERAWFS=1"
+    "SHELL:-s ENVIRONMENT=node"
+    "SHELL:-s EXIT_RUNTIME=1"
+    # it holds the whole viewer, index.wasm and its packed copy, well past a fixed 16 MB heap
+    "SHELL:-s ALLOW_MEMORY_GROWTH=1")
+endif()
