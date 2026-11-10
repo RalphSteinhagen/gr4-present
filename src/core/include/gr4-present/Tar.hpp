@@ -29,6 +29,13 @@ struct TarEntry {
     bool operator==(const TarEntry&) const = default;
 };
 
+/// a file to pack, read where it is held
+struct TarSource {
+    std::string                path; // relative, `/`-separated
+    std::span<const std::byte> bytes;
+    std::uint32_t              mode = 0644U;
+};
+
 namespace detail::tar {
 
 inline constexpr std::size_t kBlock = 512UZ;
@@ -144,39 +151,51 @@ inline void putOctal(std::span<std::byte> field, std::size_t value) { putText(fi
 
 } // namespace detail::tar
 
+/// the header of a regular file of `size` bytes and `mode`, dated 0; its data follows, padded to whole blocks
+[[nodiscard]] inline std::expected<std::array<std::byte, detail::tar::kBlock>, std::string> tarHeader(std::string_view path, std::size_t size, std::uint32_t mode) {
+    using namespace detail::tar;
+    if (leavesTheArchive(path)) {
+        return std::unexpected(std::format("'{}' is no relative path inside the archive", path));
+    }
+    if (std::cmp_greater(size, kLargestSize)) {
+        return std::unexpected(std::format("'{}' is too large for a ustar header", path));
+    }
+    const auto split = splitPath(path);
+    if (!split) {
+        return std::unexpected(split.error());
+    }
+    std::array<std::byte, kBlock>      block{};
+    const std::span<std::byte, kBlock> header{block};
+    putText(fieldOf(header, kName), split->second);
+    putText(fieldOf(header, kPrefix), split->first);
+    putOctal(fieldOf(header, kMode), mode & 07777U);
+    putOctal(fieldOf(header, kUid), 0UZ);
+    putOctal(fieldOf(header, kGid), 0UZ);
+    putOctal(fieldOf(header, kSize), size);
+    putOctal(fieldOf(header, kModified), 0UZ);
+    putText(fieldOf(header, kType), "0");
+    putText(fieldOf(header, kMagic), std::string_view{"ustar\0", 6UZ});
+    putText(fieldOf(header, kVersion), "00");
+    putText(fieldOf(header, kChecksum), std::format("{:06o}", checksumOf(header)) + std::string{"\0 ", 2UZ});
+    return block;
+}
+
+/// the zero bytes after a file of `size` bytes, up to the next block
+[[nodiscard]] inline std::size_t tarPadding(std::size_t size) { return (detail::tar::kBlock - size % detail::tar::kBlock) % detail::tar::kBlock; }
+
 /// the files as one archive, each a file of its mode dated 0, ended by two zero blocks
 [[nodiscard]] inline std::expected<std::vector<std::byte>, std::string> packTar(std::span<const TarEntry> entries) {
-    using namespace detail::tar;
     std::vector<std::byte> archive;
     for (const TarEntry& entry : entries) {
-        if (leavesTheArchive(entry.path)) {
-            return std::unexpected(std::format("'{}' is no relative path inside the archive", entry.path));
+        const auto header = tarHeader(entry.path, entry.bytes.size(), entry.mode);
+        if (!header) {
+            return std::unexpected(header.error());
         }
-        if (std::cmp_greater(entry.bytes.size(), kLargestSize)) {
-            return std::unexpected(std::format("'{}' is too large for a ustar header", entry.path));
-        }
-        const auto split = splitPath(entry.path);
-        if (!split) {
-            return std::unexpected(split.error());
-        }
-        std::array<std::byte, kBlock>      block{};
-        const std::span<std::byte, kBlock> header{block};
-        putText(fieldOf(header, kName), split->second);
-        putText(fieldOf(header, kPrefix), split->first);
-        putOctal(fieldOf(header, kMode), entry.mode & 07777U);
-        putOctal(fieldOf(header, kUid), 0UZ);
-        putOctal(fieldOf(header, kGid), 0UZ);
-        putOctal(fieldOf(header, kSize), entry.bytes.size());
-        putOctal(fieldOf(header, kModified), 0UZ);
-        putText(fieldOf(header, kType), "0");
-        putText(fieldOf(header, kMagic), std::string_view{"ustar\0", 6UZ});
-        putText(fieldOf(header, kVersion), "00");
-        putText(fieldOf(header, kChecksum), std::format("{:06o}", checksumOf(header)) + std::string{"\0 ", 2UZ});
-        archive.insert(archive.end(), block.begin(), block.end());
+        archive.insert(archive.end(), header->begin(), header->end());
         archive.insert(archive.end(), entry.bytes.begin(), entry.bytes.end());
-        archive.resize(archive.size() + (kBlock - entry.bytes.size() % kBlock) % kBlock, std::byte{0});
+        archive.resize(archive.size() + tarPadding(entry.bytes.size()), std::byte{0});
     }
-    archive.resize(archive.size() + 2UZ * kBlock, std::byte{0});
+    archive.resize(archive.size() + 2UZ * detail::tar::kBlock, std::byte{0});
     return archive;
 }
 

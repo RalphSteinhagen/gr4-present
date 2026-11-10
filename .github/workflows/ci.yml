@@ -3,18 +3,22 @@ name: CI
 on:
   push:
     branches: [main]
+    # a version tag builds both web flavours and attaches their archives to its GitHub release
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
     inputs:
       wasmPreset:
-        description: "Emscripten preset to publish"
+        description: "Emscripten preset to publish on Pages (both flavours are built and released)"
         type: choice
         default: WASM-Release
         options: [WASM-Release, WASM-Minimal]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # only a pull request's run gives way to a newer one: main's and a tag's publish, and a release cancelled halfway
+  # would leave its assets half uploaded
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -44,7 +48,7 @@ jobs:
       tag: ${{ steps.tags.outputs.tag }}
       missing: ${{ steps.missing.outputs.flavours }}
       native: ${{ steps.tags.outputs.native }}
-      wasmConfigure: ${{ steps.tags.outputs.wasmConfigure }}
+      wasm: ${{ steps.tags.outputs.wasm }}
     steps:
       - uses: actions/checkout@v6
 
@@ -53,11 +57,13 @@ jobs:
       - name: Tags
         id: tags
         env:
-          WASM_PRESET: ${{ github.event_name == 'pull_request' && 'WASM-Minimal' || inputs.wasmPreset || 'WASM-Release' }}
+          PULL_REQUEST: ${{ github.event_name == 'pull_request' }}
         run: |
           devtools/ci/image-tags.sh >> "$GITHUB_OUTPUT"
           echo "native=$(jq -c '[.[] | select(.job == "native")]' devtools/ci/flavours.json)" >> "$GITHUB_OUTPUT"
-          echo "wasmConfigure=$(jq -r --arg preset "$WASM_PRESET" '.[] | select(.preset == $preset) | .configure' devtools/ci/flavours.json)" >> "$GITHUB_OUTPUT"
+          # a pull request builds the minimal viewer only; main, a tag and a manual run build both, for the release
+          echo "wasm=$(jq -c --argjson pr "$PULL_REQUEST" '[.[] | select(.job == "wasm") | select(($pr | not) or .preset == "WASM-Minimal")
+            | . + {flavour: (if .preset == "WASM-Minimal" then "minimal" else "full" end)}]' devtools/ci/flavours.json)" >> "$GITHUB_OUTPUT"
 
       - uses: docker/login-action@v3
         with:
@@ -283,13 +289,17 @@ jobs:
           if-no-files-found: ignore
 
   wasm:
-    name: wasm ${{ github.event_name == 'pull_request' && 'WASM-Minimal' || inputs.wasmPreset || 'WASM-Release' }}
+    name: wasm ${{ matrix.preset }}
     needs: [images, dependencies]
     # a flavour whose prewarm failed has no image, and its job fails at the pull; the others go ahead
     if: ${{ !cancelled() && needs.images.result == 'success' }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.images.outputs.wasm) }}
     container:
-      image: ${{ needs.images.outputs.repository }}:${{ github.event_name == 'pull_request' && 'WASM-Minimal' || inputs.wasmPreset || 'WASM-Release' }}-${{ needs.images.outputs.tag }}
+      image: ${{ needs.images.outputs.repository }}:${{ matrix.preset }}-${{ needs.images.outputs.tag }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -301,9 +311,9 @@ jobs:
       pull-requests: write
       statuses: write
     env:
-      # pull requests get the fast path; main publishes the full runtime, which needs GR4 and OpenDigitizer
-      PRESET: ${{ github.event_name == 'pull_request' && 'WASM-Minimal' || inputs.wasmPreset || 'WASM-Release' }}
-      OWN_CACHE_KEY: own-${{ github.event_name == 'pull_request' && 'WASM-Minimal' || inputs.wasmPreset || 'WASM-Release' }}-${{ needs.images.outputs.tag }}
+      # pull requests get the fast path; main and a tag also build the full runtime, which needs GR4 and OpenDigitizer
+      PRESET: ${{ matrix.preset }}
+      OWN_CACHE_KEY: own-${{ matrix.preset }}-${{ needs.images.outputs.tag }}
     steps:
       - uses: actions/checkout@v6
 
@@ -328,7 +338,7 @@ jobs:
         shell: bash
         run: |
           source "$EMSDK_HOME/emsdk_env.sh"
-          cmake --preset "$PRESET" -DGR_BUILD_PARALLEL_LEVEL=3 -DFETCHCONTENT_FULLY_DISCONNECTED=ON ${{ needs.images.outputs.wasmConfigure }}
+          cmake --preset "$PRESET" -DGR_BUILD_PARALLEL_LEVEL=3 -DFETCHCONTENT_FULLY_DISCONNECTED=ON ${{ matrix.configure }}
           cmake --build "cmake-build-$PRESET"
 
       - name: ccache statistics
@@ -358,14 +368,15 @@ jobs:
               core.info(`deleted ${cache.key}`);
             }
 
+      # the size bot measures the full viewer only: two legs would race for one status and one comment
       - uses: ./.github/actions/gr4-devtools
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && matrix.flavour == 'full'
         with:
           ref: ${{ env.GR4_DEVTOOLS_REF }}
 
       - name: WASM size
         id: wasm-size
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && matrix.flavour == 'full'
         run: |
           "$RUNNER_TEMP/qualitybot" wasm-size --build "cmake-build-$PRESET" --out wasm-size-report
 
@@ -390,9 +401,37 @@ jobs:
       - name: Keep the site
         uses: actions/upload-artifact@v7
         with:
-          name: site
+          name: site-${{ matrix.preset }}
           path: site
           include-hidden-files: true
+
+      # main's archives go to the rolling `latest` release under the version `latest`, so their addresses stay put; a
+      # tag's under its own name, which must be the version CMakeLists.txt carries
+      - name: Release archive
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          source "$EMSDK_HOME/emsdk_env.sh"
+          project=$(sed -nE '/^project\(/,/\)/s/.*VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' CMakeLists.txt | head -n 1)
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            version=$GITHUB_REF_NAME
+            if [[ "$version" != "v$project" ]]; then
+              echo "::error::tag $version does not match the version in CMakeLists.txt, v$project"
+              exit 1
+            fi
+          else
+            version=latest
+          fi
+          GR4_PRESENT_BUILD="v$project, built from ${GITHUB_SHA::7} on $(date -u +%Y-%m-%d)" \
+            devtools/ci/web-archive.sh "cmake-build-$PRESET" "${{ matrix.flavour }}" "$version" release
+
+      - name: Keep the release archive
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-${{ matrix.flavour }}
+          path: release/*.tar.gz
+          if-no-files-found: error
 
   # main's coverage and WASM size join the history on the ci-metrics branch; the only job here that may write to it
   record:
@@ -436,7 +475,8 @@ jobs:
   pages:
     name: deploy to GitHub Pages
     needs: [wasm, native]
-    if: ${{ !cancelled() && needs.wasm.result == 'success' && github.ref == 'refs/heads/main' }}
+    # the site is the full leg's: a failed minimal leg must not hold it back, and a failed full leg leaves no site to fetch
+    if: ${{ !cancelled() && needs.wasm.result != 'skipped' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -447,7 +487,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: site
+          name: site-${{ inputs.wasmPreset || 'WASM-Release' }}
           path: site
 
       - name: Main's coverage report
@@ -467,3 +507,63 @@ jobs:
 
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  # Both web flavours as downloadable archives with one SHA256SUMS: a tag's onto its own GitHub release, main's onto the
+  # rolling `latest` pre-release, whose tag follows main. The only job that may write releases and tags.
+  release:
+    name: release the web viewer
+    needs: wasm
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.wasm.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # never two at once for one release, and never cut short: assets half replaced would break the addresses
+    concurrency:
+      group: release-${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: web-*
+          path: release
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: release
+        run: |
+          ls -l
+          sha256sum -- *.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Tag release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" release/* --verify-tag --title "gr4-present $GITHUB_REF_NAME" \
+              --notes "The web viewer, full (live GNU Radio 4 and OpenDigitizer) and minimal, to present offline or beside a deck: see README.md, 'Releases'."
+          fi
+
+      # the tag moves first, then the new assets replace the old ones under the same names, then stale names go
+      - name: Rolling latest
+        if: github.ref == 'refs/heads/main'
+        run: |
+          if gh api "repos/$GH_REPO/git/ref/tags/latest" > /dev/null 2>&1; then
+            gh api -X PATCH "repos/$GH_REPO/git/refs/tags/latest" -f sha="$GITHUB_SHA" -F force=true > /dev/null
+          else
+            gh api -X POST "repos/$GH_REPO/git/refs" -f ref=refs/tags/latest -f sha="$GITHUB_SHA" > /dev/null
+          fi
+          notes="main at ${GITHUB_SHA::7}, rebuilt on every push: gr4-present-web-full-latest.tar.gz and gr4-present-web-minimal-latest.tar.gz. For a fixed version, use a vX.Y.Z release."
+          if gh release view latest > /dev/null 2>&1; then
+            gh release edit latest --prerelease --title "latest (main)" --notes "$notes"
+          else
+            gh release create latest --prerelease --title "latest (main)" --notes "$notes"
+          fi
+          gh release upload latest release/* --clobber
+          gh release view latest --json assets --jq '.assets[].name' | while read -r asset; do
+            [[ -f "release/$asset" ]] || gh release delete-asset latest "$asset" --yes
+          done
