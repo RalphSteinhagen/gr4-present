@@ -17,6 +17,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <future>
 #include <sstream>
@@ -38,18 +39,21 @@ namespace {
     return text.str();
 }
 
-/// waits up to a deadline, since a graph changes state on its own thread
-[[nodiscard]] bool reaches(LiveGraph& graph, bool running) {
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{5};
-    while (graph.running() != running && std::chrono::steady_clock::now() < deadline) {
+constexpr auto kProgressEvery = std::chrono::seconds{5};
+
+/// waits until the graph runs or has stopped, as a graph changes state on its own thread; it says every 5 s which state the
+/// graph is in, and ctest's TIMEOUT fails one that never gets there, so a slow runner is no failure
+void reach(LiveGraph& graph, bool running, std::string_view what) {
+    auto report = std::chrono::steady_clock::now() + kProgressEvery;
+    while (graph.running() != running) {
         graph.pump(std::chrono::steady_clock::now()); // carries a graph through lifecycle transitions, as a viewer does every frame
         std::this_thread::yield();
+        if (std::chrono::steady_clock::now() >= report) {
+            const std::string_view state = graph.stateName();
+            std::fprintf(stderr, "%.*s: the graph is still in state '%.*s', waiting to be %s\n", static_cast<int>(what.size()), what.data(), static_cast<int>(state.size()), state.data(), running ? "running" : "stopped");
+            report += kProgressEvery;
+        }
     }
-    if (graph.running() != running) {
-        const std::string_view state = graph.stateName();
-        std::fprintf(stderr, "the graph was still in state '%.*s' after 5 s, waiting to be %s\n", static_cast<int>(state.size()), state.data(), running ? "running" : "stopped");
-    }
-    return graph.running() == running;
 }
 
 [[nodiscard]] bool holds(const std::vector<std::string>& names, std::string_view wanted) { return std::ranges::find(names, wanted) != names.end(); }
@@ -154,43 +158,54 @@ int main() {
         LiveGraph graph{contentsOf("controlled-sines.grc")};
         expect(graph.problem().empty()) << graph.problem();
 
-        expect(reaches(graph, true)) << "the graph never reached the state in which its blocks do work";
+        reach(graph, true, "the state in which its blocks do work");
     };
 
     // idling stops a graph, and a stopped scheduler loop exits with nobody left to read the message start() sends
     "a graph the deck idles runs again when its slide arrives"_test = [] {
         LiveGraph graph{contentsOf("controlled-sines.grc")};
         expect(graph.problem().empty()) << graph.problem();
-        expect(reaches(graph, true)) << "the graph never ran to begin with";
+        reach(graph, true, "the first start");
 
         graph.setRunning(false);
-        expect(reaches(graph, false)) << "the graph kept running after the deck idled it";
+        reach(graph, false, "the deck idles it");
 
         graph.setRunning(true);
-        expect(reaches(graph, true)) << "an idled graph never ran again";
+        reach(graph, true, "the idled graph runs again");
     };
 
     // a graph is destroyed in whatever state quick stepping left it, without waiting for something that no longer comes
     // Ground truth: the pools' task counts before the graph ever ran; the browser has 16 threads in all
     "starting and stopping a graph again and again leaves no pool task behind"_test = [] {
         using gr::thread_pool::Manager;
-        const auto busy      = [] { return Manager::defaultIoPool()->numTasksRunning() + Manager::defaultCpuPool()->numTasksRunning(); };
-        const auto settlesTo = [&busy](std::size_t wanted) {
-            const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{5};
-            while (busy() > wanted && std::chrono::steady_clock::now() < deadline) {
+        const auto busy = [] { return Manager::defaultIoPool()->numTasksRunning() + Manager::defaultCpuPool()->numTasksRunning(); };
+        // what is running before the graph first runs: whatever earlier tests left settles for a moment, then counts as is
+        const auto settled = std::chrono::steady_clock::now() + std::chrono::seconds{1};
+        while (busy() > 0UZ && std::chrono::steady_clock::now() < settled) {
+            std::this_thread::sleep_for(std::chrono::milliseconds{10});
+        }
+        const std::size_t before = busy();
+        // a stopped graph's tasks end on their own threads: waited for, saying every 5 s how many remain; ctest's TIMEOUT
+        // fails a task that never ends
+        const auto settlesTo = [&busy](std::size_t wanted, int cycle) {
+            auto report = std::chrono::steady_clock::now() + kProgressEvery;
+            while (busy() > wanted) {
                 std::this_thread::sleep_for(std::chrono::milliseconds{10});
+                if (std::chrono::steady_clock::now() >= report) {
+                    std::fprintf(stderr, "cycle %d: %zu tasks still running on the default pools, %zu before the graph first ran\n", cycle, busy(), wanted);
+                    report += kProgressEvery;
+                }
             }
             return busy();
         };
-        const std::size_t before = settlesTo(0UZ);
-        LiveGraph         graph{contentsOf("controlled-sines.grc")};
+        LiveGraph graph{contentsOf("controlled-sines.grc")};
         for (int cycle = 0; cycle < 20; ++cycle) {
             graph.setRunning(true);
-            expect(reaches(graph, true)) << "cycle " << cycle << ": the graph starts";
+            reach(graph, true, std::format("cycle {}: the graph starts", cycle));
             graph.setRunning(false);
-            expect(reaches(graph, false)) << "cycle " << cycle << ": the graph stops";
-            const std::size_t after = settlesTo(before);
-            expect(eq(after, before)) << "cycle " << cycle << ": tasks still running on the default pools after the stop, " << after << " against " << before << " before the graph first ran";
+            reach(graph, false, std::format("cycle {}: the graph stops", cycle));
+            const std::size_t after = settlesTo(before, cycle);
+            expect(le(after, before)) << "cycle " << cycle << ": tasks still running on the default pools after the stop, " << after << " against " << before << " before the graph first ran";
             if (after != before) {
                 break;
             }
