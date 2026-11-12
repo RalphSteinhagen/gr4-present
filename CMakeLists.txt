@@ -1,10 +1,7 @@
 cmake_minimum_required(VERSION 3.27)
 
 # C as well as C++: the Theora decoder and stb are C, and a CXX-only project has no compile rule for them
-project(
-  gr4-present
-  VERSION 0.1.0
-  LANGUAGES C CXX)
+project(gr4-present VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -14,9 +11,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 
 # template-heavy GR4/OpenDigitizer translation units have measured over 7 GB each: the binding constraint is memory, not
 # cores. Raise only after measuring peak RSS.
-set(GR_BUILD_PARALLEL_LEVEL
-    "4"
-    CACHE STRING "Maximum parallel compile/link jobs")
+set(GR_BUILD_PARALLEL_LEVEL "4" CACHE STRING "Maximum parallel compile/link jobs")
 
 # gnuradio4 sets its release flags as a directory-scoped variable, so they never reach the cache and our own targets
 # fall through to CMake's default -O3. -O2 is what the dependencies are built and measured with.
@@ -27,9 +22,7 @@ if(CMAKE_CXX_COMPILER MATCHES "/em\\+\\+(-[a-zA-Z0-9.])?$") # unless already set
   set(EMSCRIPTEN ON)
 endif()
 
-set(GR_MAX_WASM_THREAD_COUNT
-    "16"
-    CACHE STRING "Size of the Emscripten pthread pool")
+set(GR_MAX_WASM_THREAD_COUNT "16" CACHE STRING "Size of the Emscripten pthread pool")
 
 include(CMakeDependentOption)
 
@@ -62,9 +55,7 @@ include(cmake/PreventInSourceBuilds.cmake)
 include(cmake/Cache.cmake)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT EMSCRIPTEN)
-  set(GR4_USE_LIBCXX
-      ON
-      CACHE BOOL "Force libc++ when compiling with Clang" FORCE)
+  set(GR4_USE_LIBCXX ON CACHE BOOL "Force libc++ when compiling with Clang" FORCE)
   add_compile_options(-stdlib=libc++ -Wno-unused-command-line-argument)
   add_link_options(-stdlib=libc++)
 endif()
@@ -100,10 +91,7 @@ include(cmake/Dependencies.cmake)
 
 if(CMAKE_GENERATOR MATCHES "Ninja")
   get_property(_job_pools GLOBAL PROPERTY JOB_POOLS)
-  if(NOT
-     _job_pools
-     MATCHES
-     "compile_pool=")
+  if(NOT _job_pools MATCHES "compile_pool=")
     set_property(GLOBAL APPEND PROPERTY JOB_POOLS compile_pool=${GR_BUILD_PARALLEL_LEVEL} link_pool=2)
   endif()
 endif()

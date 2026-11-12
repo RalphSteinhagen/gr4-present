@@ -8,25 +8,14 @@ function(gr4_present_fetch_opendigitizer source_subdirectory)
   # it, because refetching what cannot have moved is only slower
   set(FETCHCONTENT_UPDATES_DISCONNECTED_OPENDIGITIZER OFF)
   if(source_subdirectory STREQUAL "")
-    FetchContent_Declare(
-      opendigitizer
-      GIT_REPOSITORY https://github.com/fair-acc/opendigitizer.git
-      GIT_TAG ${GIT_REF_OPENDIGITIZER}
-      SYSTEM EXCLUDE_FROM_ALL)
+    FetchContent_Declare(opendigitizer GIT_REPOSITORY https://github.com/fair-acc/opendigitizer.git
+                         GIT_TAG ${GIT_REF_OPENDIGITIZER} SYSTEM EXCLUDE_FROM_ALL)
   else()
-    FetchContent_Declare(
-      opendigitizer
-      GIT_REPOSITORY https://github.com/fair-acc/opendigitizer.git
-      GIT_TAG ${GIT_REF_OPENDIGITIZER}
-      SOURCE_SUBDIR
-      ${source_subdirectory}
-      SYSTEM
-      EXCLUDE_FROM_ALL)
+    FetchContent_Declare(opendigitizer GIT_REPOSITORY https://github.com/fair-acc/opendigitizer.git
+                         GIT_TAG ${GIT_REF_OPENDIGITIZER} SOURCE_SUBDIR ${source_subdirectory} SYSTEM EXCLUDE_FROM_ALL)
   endif()
   FetchContent_MakeAvailable(opendigitizer)
-  set(opendigitizer_SOURCE_DIR
-      "${opendigitizer_SOURCE_DIR}"
-      PARENT_SCOPE)
+  set(opendigitizer_SOURCE_DIR "${opendigitizer_SOURCE_DIR}" PARENT_SCOPE)
 endfunction()
 
 # fetched on every configure, so a new GR4 pin needs no manual fetch into an existing build tree
@@ -36,29 +25,20 @@ set(FETCHCONTENT_UPDATES_DISCONNECTED_GNURADIO4 OFF)
 # them only when its plugin package (blocks as WASM side modules) is off, and that is on by default, so a fresh
 # configure would have no `Gr*BlocksShared` for OpenDigitizer and this project to link.
 if(EMSCRIPTEN)
-  set(INTERNAL_ENABLE_BLOCK_PLUGINS
-      OFF
-      CACHE BOOL "GR4: block libraries as static archives, not WASM plugins" FORCE)
+  set(INTERNAL_ENABLE_BLOCK_PLUGINS OFF CACHE BOOL "GR4: block libraries as static archives, not WASM plugins" FORCE)
 endif()
 
 # declared before OpenDigitizer is fetched: the first declaration of a name wins, so this pin holds over OpenDigitizer's
-FetchContent_Declare(
-  gnuradio4
-  GIT_REPOSITORY https://github.com/fair-acc/gnuradio4.git
-  GIT_TAG ${GR4_PRESENT_GIT_REF_GNURADIO4}
-  OVERRIDE_FIND_PACKAGE SYSTEM EXCLUDE_FROM_ALL)
+FetchContent_Declare(gnuradio4 GIT_REPOSITORY https://github.com/fair-acc/gnuradio4.git
+                     GIT_TAG ${GR4_PRESENT_GIT_REF_GNURADIO4} OVERRIDE_FIND_PACKAGE SYSTEM EXCLUDE_FROM_ALL)
 
 # OpenDigitizer publishes no CMake package, so it is consumed as a source dependency. src/utils is added in every
 # configuration for `raii_wrapper` (stdex::c_resource), which wraps the C APIs this project uses; src/ui, which carries
 # the dashboard and ImPlot code and drags in imgui, implot, imgui-node-editor, opencmw-cpp and SDL3, is added only when
 # the live-region viewer is wanted. src/ui re-adds src/utils itself unless raii_wrapper already exists.
 if(GR4_PRESENT_WITH_OPENDIGITIZER)
-  set(OPENDIGITIZER_ENABLE_TESTING
-      OFF
-      CACHE BOOL "Build the OpenDigitizer unit tests" FORCE)
-  set(OPENDIGITIZER_WARNINGS_AS_ERRORS
-      OFF
-      CACHE BOOL "Treat OpenDigitizer compiler warnings as errors" FORCE)
+  set(OPENDIGITIZER_ENABLE_TESTING OFF CACHE BOOL "Build the OpenDigitizer unit tests" FORCE)
+  set(OPENDIGITIZER_WARNINGS_AS_ERRORS OFF CACHE BOOL "Treat OpenDigitizer compiler warnings as errors" FORCE)
 
   # taken whole, OpenDigitizer skips its own tests, service, application and the WASM sub-build because it is not the
   # top-level project, and publishes its user interface as layered targets
@@ -77,14 +57,9 @@ endif()
 # gnuradio4 only defines `ut` when built as the top-level project, and OpenDigitizer declares it in its root CMakeLists
 # rather than in src/ui.
 if(GR4_PRESENT_ENABLE_TESTING AND NOT TARGET ut)
-  FetchContent_Declare(
-    ut
-    GIT_REPOSITORY https://github.com/boost-ext/ut.git
-    GIT_TAG ${GIT_SHA_UT}
-    SYSTEM EXCLUDE_FROM_ALL)
-  set(BOOST_UT_DISABLE_MODULE
-      ON
-      CACHE BOOL "" FORCE)
+  FetchContent_Declare(ut GIT_REPOSITORY https://github.com/boost-ext/ut.git GIT_TAG ${GIT_SHA_UT} SYSTEM
+                                                                                                   EXCLUDE_FROM_ALL)
+  set(BOOST_UT_DISABLE_MODULE ON CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(ut)
 endif()
 
@@ -116,27 +91,17 @@ endif()
 # reusing them keeps one ImGui in the build; without it they are declared here so that the application does not depend
 # on OpenDigitizer being enabled. Under Emscripten SDL3 comes from the emscripten ports (-s USE_SDL=3).
 if(NOT TARGET imgui)
-  FetchContent_Declare(
-    imgui
-    GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG ${GIT_TAG_IMGUI}
-    SYSTEM EXCLUDE_FROM_ALL)
+  FetchContent_Declare(imgui GIT_REPOSITORY https://github.com/ocornut/imgui.git GIT_TAG ${GIT_TAG_IMGUI}
+                       SYSTEM EXCLUDE_FROM_ALL)
   FetchContent_MakeAvailable(imgui)
 
   if(NOT EMSCRIPTEN)
     find_package(SDL3 QUIET)
     if(NOT SDL3_FOUND)
-      set(SDL3_DISABLE_SDL3MAIN
-          ON
-          CACHE BOOL "" FORCE)
-      set(SDL_TEST
-          OFF
-          CACHE BOOL "" FORCE)
-      FetchContent_Declare(
-        sdl3
-        GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-        GIT_TAG ${GIT_TAG_SDL3}
-        OVERRIDE_FIND_PACKAGE SYSTEM EXCLUDE_FROM_ALL)
+      set(SDL3_DISABLE_SDL3MAIN ON CACHE BOOL "" FORCE)
+      set(SDL_TEST OFF CACHE BOOL "" FORCE)
+      FetchContent_Declare(sdl3 GIT_REPOSITORY https://github.com/libsdl-org/SDL.git GIT_TAG ${GIT_TAG_SDL3}
+                           OVERRIDE_FIND_PACKAGE SYSTEM EXCLUDE_FROM_ALL)
       FetchContent_MakeAvailable(sdl3)
     endif()
     find_package(SDL3 REQUIRED)
@@ -170,11 +135,8 @@ endif()
 
 # stb_image decodes the embedded splash textures. OpenDigitizer already provides the target when it is enabled.
 if(NOT TARGET stb)
-  FetchContent_Declare(
-    stb
-    GIT_REPOSITORY https://github.com/nothings/stb.git
-    GIT_TAG ${GIT_SHA_STB}
-    SYSTEM EXCLUDE_FROM_ALL)
+  FetchContent_Declare(stb GIT_REPOSITORY https://github.com/nothings/stb.git GIT_TAG ${GIT_SHA_STB} SYSTEM
+                                                                                                     EXCLUDE_FROM_ALL)
   FetchContent_MakeAvailable(stb)
   add_library(stb INTERFACE)
   target_include_directories(stb SYSTEM INTERFACE ${stb_SOURCE_DIR})
@@ -193,11 +155,8 @@ if(GR4_PRESENT_ENABLE_IMGUI_TEST_ENGINE)
     find_package(SDL3 REQUIRED)
   endif()
 
-  FetchContent_Declare(
-    imgui_test_engine
-    GIT_REPOSITORY https://github.com/ocornut/imgui_test_engine.git
-    GIT_TAG ${GIT_TAG_IMGUI_TEST_ENGINE}
-    SYSTEM EXCLUDE_FROM_ALL)
+  FetchContent_Declare(imgui_test_engine GIT_REPOSITORY https://github.com/ocornut/imgui_test_engine.git
+                       GIT_TAG ${GIT_TAG_IMGUI_TEST_ENGINE} SYSTEM EXCLUDE_FROM_ALL)
   FetchContent_MakeAvailable(imgui_test_engine)
 
   add_library(
@@ -233,9 +192,7 @@ if(GR4_PRESENT_ENABLE_IMGUI_TEST_ENGINE)
 endif()
 
 if(NOT TARGET lunasvg)
-  set(LUNASVG_BUILD_EXAMPLES
-      OFF
-      CACHE BOOL "" FORCE)
+  set(LUNASVG_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
   FetchContent_Declare(
     lunasvg
     GIT_REPOSITORY https://github.com/sammycage/lunasvg.git
@@ -261,29 +218,16 @@ endif()
 # and is still required -- Vorbis packets are framed as `ogg_packet` whatever container carried them. libvpx ships
 # autotools only, and libwebm's parser is two files, so both are given targets here.
 if(NOT TARGET vpxdec)
-  set(BUILD_TESTING
-      OFF
-      CACHE BOOL "" FORCE)
-  set(INSTALL_DOCS
-      OFF
-      CACHE BOOL "" FORCE)
-  FetchContent_Declare(
-    ogg
-    GIT_REPOSITORY https://github.com/xiph/ogg.git
-    GIT_TAG ${GIT_TAG_OGG}
-    SYSTEM EXCLUDE_FROM_ALL)
+  set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+  set(INSTALL_DOCS OFF CACHE BOOL "" FORCE)
+  FetchContent_Declare(ogg GIT_REPOSITORY https://github.com/xiph/ogg.git GIT_TAG ${GIT_TAG_OGG} SYSTEM
+                                                                                                 EXCLUDE_FROM_ALL)
   FetchContent_MakeAvailable(ogg)
 
   # SOURCE_SUBDIR names a directory with no CMakeLists.txt, so the content is fetched but never added as a subproject:
   # libwebm's own build produces tools and tests this project has no use for, and only the parser is wanted
-  FetchContent_Declare(
-    libwebm
-    GIT_REPOSITORY https://github.com/webmproject/libwebm.git
-    GIT_TAG ${GIT_TAG_LIBWEBM}
-    SOURCE_SUBDIR
-    no-cmake-project-here
-    SYSTEM
-    EXCLUDE_FROM_ALL)
+  FetchContent_Declare(libwebm GIT_REPOSITORY https://github.com/webmproject/libwebm.git GIT_TAG ${GIT_TAG_LIBWEBM}
+                       SOURCE_SUBDIR no-cmake-project-here SYSTEM EXCLUDE_FROM_ALL)
   FetchContent_MakeAvailable(libwebm)
 
   # mkvparser alone: the reader that comes beside it reads through a FILE*, and a package's bytes are already in memory
@@ -323,11 +267,7 @@ if(NOT TARGET vpxdec)
     INSTALL_COMMAND ${CMAKE_COMMAND} -E env make install
     BUILD_BYPRODUCTS ${_vpx_library})
 
-  add_library(
-    vpxdec
-    STATIC
-    IMPORTED
-    GLOBAL)
+  add_library(vpxdec STATIC IMPORTED GLOBAL)
   add_dependencies(vpxdec libvpx_external)
   # the include directory must exist at configure time or INTERFACE_INCLUDE_DIRECTORIES is rejected
   file(MAKE_DIRECTORY ${_vpx_install}/include)
@@ -344,21 +284,13 @@ foreach(_zeromq_target IN ITEMS objects libzmq libzmq-static)
 endforeach()
 
 if(NOT TARGET microtex)
-  set(BUILD_STATIC
-      ON
-      CACHE BOOL "" FORCE)
-  set(HAVE_LOG
-      OFF
-      CACHE BOOL "" FORCE)
+  set(BUILD_STATIC ON CACHE BOOL "" FORCE)
+  set(HAVE_LOG OFF CACHE BOOL "" FORCE)
   # 1 is GLYPH_RENDER_TYPE_PATH: glyphs arrive as outlines, never as font ids, so no typeface is ever loaded and plutovg
   # -- already here for lunasvg -- can fill them with their holes intact, which ImDrawList cannot
-  set(GLYPH_RENDER_TYPE
-      1
-      CACHE STRING "" FORCE)
+  set(GLYPH_RENDER_TYPE 1 CACHE STRING "" FORCE)
   FetchContent_Declare(
-    microtex
-    GIT_REPOSITORY https://github.com/NanoMichael/MicroTeX.git
-    GIT_TAG ${GIT_SHA_MICROTEX}
+    microtex GIT_REPOSITORY https://github.com/NanoMichael/MicroTeX.git GIT_TAG ${GIT_SHA_MICROTEX}
     # to be offered upstream: `strtod` and `strtol` are used without `<cstdlib>`, which libc++ no longer brings in
     PATCH_COMMAND ${CMAKE_COMMAND} -DPATCH=${CMAKE_SOURCE_DIR}/cmake/patches/microtex-cstdlib.patch -P
                   ${CMAKE_SOURCE_DIR}/cmake/ApplyPatch.cmake SYSTEM EXCLUDE_FROM_ALL)
@@ -385,24 +317,14 @@ if(NOT TARGET webp)
           WEBP_BUILD_WEBPMUX
           WEBP_BUILD_EXTRAS
           WEBP_BUILD_FUZZTEST)
-    set(${_webp_tool}
-        OFF
-        CACHE BOOL "" FORCE)
+    set(${_webp_tool} OFF CACHE BOOL "" FORCE)
   endforeach()
-  FetchContent_Declare(
-    libwebp
-    GIT_REPOSITORY https://github.com/webmproject/libwebp.git
-    GIT_TAG ${GIT_TAG_LIBWEBP}
-    SYSTEM EXCLUDE_FROM_ALL)
+  FetchContent_Declare(libwebp GIT_REPOSITORY https://github.com/webmproject/libwebp.git GIT_TAG ${GIT_TAG_LIBWEBP}
+                       SYSTEM EXCLUDE_FROM_ALL)
   FetchContent_MakeAvailable(libwebp)
   if(EMSCRIPTEN)
     # a dependency compiled without -pthread is rejected by wasm-ld (gr4-present-options, CMakeLists.txt)
-    foreach(
-      _webp_target IN
-      ITEMS webp
-            webpdecoder
-            webpdemux
-            sharpyuv)
+    foreach(_webp_target IN ITEMS webp webpdecoder webpdemux sharpyuv)
       if(TARGET ${_webp_target})
         target_compile_options(${_webp_target} PRIVATE -pthread)
       endif()
@@ -414,14 +336,8 @@ if(NOT TARGET vorbisdec)
   # libvorbis still declares cmake_minimum_required(VERSION 2.8), which CMake 4 refuses, and overriding the policy would
   # change how every other subproject is configured. Its decoder sources are compiled here instead, exactly as libvpx's
   # are; vorbisenc.c and the standalone tools are left out, so no encoder is built.
-  FetchContent_Declare(
-    vorbis
-    GIT_REPOSITORY https://github.com/xiph/vorbis.git
-    GIT_TAG ${GIT_TAG_VORBIS}
-    SOURCE_SUBDIR
-    no-cmake-project-here
-    SYSTEM
-    EXCLUDE_FROM_ALL)
+  FetchContent_Declare(vorbis GIT_REPOSITORY https://github.com/xiph/vorbis.git GIT_TAG ${GIT_TAG_VORBIS}
+                       SOURCE_SUBDIR no-cmake-project-here SYSTEM EXCLUDE_FROM_ALL)
   FetchContent_MakeAvailable(vorbis)
 
   add_library(

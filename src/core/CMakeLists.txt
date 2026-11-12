@@ -21,7 +21,5 @@ add_library(
 
 target_include_directories(gr4-present-core PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
                                                    $<INSTALL_INTERFACE:include>)
-target_link_libraries(
-  gr4-present-core
-  PRIVATE gr4-present-options
-  PUBLIC gnuradio4::gnuradio-algorithm gnuradio4::gnuradio-core)
+target_link_libraries(gr4-present-core PRIVATE gr4-present-options PUBLIC gnuradio4::gnuradio-algorithm
+                                                                          gnuradio4::gnuradio-core)

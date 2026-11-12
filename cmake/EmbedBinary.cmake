@@ -8,43 +8,17 @@ function(gr4_present_embed_binaries output_header)
   set(_content
       "#ifndef ${_guard}\n#define ${_guard}\n\n#include <array>\n#include <cstddef>\n\nnamespace gr::present {\n")
   foreach(_pair IN LISTS ARGN)
-    string(
-      REPLACE "="
-              ";"
-              _parts
-              "${_pair}")
-    list(
-      GET
-      _parts
-      0
-      _symbol)
-    list(
-      GET
-      _parts
-      1
-      _path)
-    file(
-      READ
-      "${_path}"
-      _hex
-      HEX)
-    set_property(
-      DIRECTORY
-      APPEND
-      PROPERTY CMAKE_CONFIGURE_DEPENDS "${_path}") # an edited effect or picture is baked in again
-    string(
-      REGEX
-      REPLACE "([0-9a-f][0-9a-f])"
-              "0x\\1,"
-              _bytes
-              "${_hex}")
+    string(REPLACE "=" ";" _parts "${_pair}")
+    list(GET _parts 0 _symbol)
+    list(GET _parts 1 _path)
+    file(READ "${_path}" _hex HEX)
+    # an edited effect or picture is baked in again
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_path}")
+    string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," _bytes "${_hex}")
     string(LENGTH "${_hex}" _hex_length)
     math(EXPR _size "${_hex_length} / 2")
     string(APPEND _content "\ninline constexpr std::array<unsigned char, ${_size}> ${_symbol}{${_bytes}};\n")
   endforeach()
   string(APPEND _content "\n} // namespace gr::present\n\n#endif // ${_guard}\n")
-  file(
-    GENERATE
-    OUTPUT "${output_header}"
-    CONTENT "${_content}")
+  file(GENERATE OUTPUT "${output_header}" CONTENT "${_content}")
 endfunction()
