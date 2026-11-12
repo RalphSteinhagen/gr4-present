@@ -505,7 +505,8 @@ Over both, ...
 
 :::odd {frame size=90%}
 **odd** lies over **deep** and the example:
-boxes are drawn in the order they are written, and a framed one covers what is under it.
+boxes are drawn in the order they are written, and a framed one covers what is under it;
+a live chart is drawn over every box, unless the box says `{frame layer=above}`.
 :::
 
 :::notes
