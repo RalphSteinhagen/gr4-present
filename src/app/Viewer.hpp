@@ -38,6 +38,7 @@
 #include <SDL3/SDL.h>
 
 #include <chrono>
+#include <cstdint>
 #include <ctime>
 #include <filesystem>
 #include <map>
@@ -149,7 +150,8 @@ struct Viewer {
     Navigator          navigator;
 
     std::vector<Section>                                  sections;
-    std::string                                           citationShown; // the citation mark whose works the popup shows: hovered, or tapped once on a touch screen
+    std::string                                           citationShown;   // the citation mark whose works the popup shows: hovered, or tapped once on a touch screen
+    std::uint64_t                                         citationTap = 0; // the tap that showed it there: only a later one leads on
     FigureCache                                           figures;
     FormulaCache                                          formulas;
     QrCache                                               qrCodes;
@@ -195,6 +197,9 @@ struct Viewer {
         float         pinchDistance = 0.0f;
         ImVec2        pinchCentre{0.0f, 0.0f};
         Fingers       fingers;
+        bool          byTouch    = false; // the pointer last moved by a finger; ImGui's own source is lost where OpenDigitizer's touch handler replays a tap as a mouse's
+        std::uint64_t fingerAtNs = 0;     // SDL's time of the last finger event
+        std::uint64_t taps       = 0;     // fingers put down so far: OpenDigitizer replays a tap's release, so one tap may release twice
         TextSelection selection;
     } input;
 

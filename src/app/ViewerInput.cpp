@@ -172,7 +172,7 @@ void applyLinkClicks(Viewer& viewer) {
         ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
     }
     const bool overCitation = clicked != viewer.documentView.linkAreas.end() && clicked->target.starts_with(DocumentView::kCitationTarget);
-    if (io.MouseSource != ImGuiMouseSource_TouchScreen) { // shown while the pointer rests on the mark, gone once it leaves
+    if (!viewer.input.byTouch) { // shown while the pointer rests on the mark, gone once it leaves
         viewer.citationShown = overCitation ? clicked->target : std::string{};
     } else if (!std::ranges::contains(viewer.documentView.linkAreas, viewer.citationShown, &DocumentView::LinkArea::target)) {
         viewer.citationShown.clear(); // the slide moved on
@@ -187,7 +187,7 @@ void applyLinkClicks(Viewer& viewer) {
         return std::hypot(std::max({area.x - x, 0.0f, x - area.x - area.width}), std::max({area.y - y, 0.0f, y - area.y - area.height}));
     };
     const auto nearest = std::ranges::min_element(viewer.documentView.linkAreas, {}, distanceTo);
-    const bool touched = io.MouseSource == ImGuiMouseSource_TouchScreen;
+    const bool touched = viewer.input.byTouch;
     const auto taken   = touched && nearest != viewer.documentView.linkAreas.end() && distanceTo(*nearest) <= kTouchTargetPixels * 0.5f ? nearest : clicked;
     if (taken == viewer.documentView.linkAreas.end()) {
         viewer.citationShown.clear();
@@ -196,8 +196,9 @@ void applyLinkClicks(Viewer& viewer) {
     const std::string target = taken->target; // the areas are rebuilt by whatever the click starts
     if (target.starts_with(DocumentView::kCitationTarget)) {
         // a fingertip cannot hover: its first tap shows the works, a second on the same mark leads to their list
-        if (touched && viewer.citationShown != target) {
+        if (touched && (viewer.citationShown != target || viewer.citationTap == viewer.input.taps)) {
             viewer.citationShown = target;
+            viewer.citationTap   = viewer.input.taps;
             return;
         }
         viewer.citationShown.clear();
@@ -289,7 +290,7 @@ void applyTextSelection(Viewer& viewer) {
     const auto runsOf  = [&viewer](bool inNotes) { return std::span<const TextRun>{inNotes ? viewer.notes.runs.runs : viewer.documentView.textRuns.runs}; };
     const auto pointer = [&viewer, &io](bool inNotes) { return inNotes ? io.MousePos : ImVec2{viewer.zoom.slideX(io.MousePos.x), viewer.zoom.slideY(io.MousePos.y)}; };
     if (io.MouseClicked[0]) {
-        const bool   byTouch = io.MouseSource == ImGuiMouseSource_TouchScreen;
+        const bool   byTouch = viewer.input.byTouch;
         const ImVec2 inNotes = pointer(true);
         const ImVec2 onSlide = pointer(false);
         // the notes are an ImGui window that claims the pointer, so a press on their words is looked for first
@@ -360,13 +361,26 @@ void applyZoomToDrawData(Viewer& viewer) {
 void trackFinger(Viewer& viewer, const SDL_Event& event) {
     FingerChange change = FingerChange::motion;
     switch (event.type) {
-    case SDL_EVENT_FINGER_DOWN: change = FingerChange::down; break;
+    case SDL_EVENT_FINGER_DOWN:
+        change = FingerChange::down;
+        ++viewer.input.taps;
+        break;
     case SDL_EVENT_FINGER_UP: change = FingerChange::up; break;
     case SDL_EVENT_FINGER_CANCELED: change = FingerChange::cancelled; break;
     case SDL_EVENT_FINGER_MOTION: break;
+    case SDL_EVENT_MOUSE_MOTION:
+    case SDL_EVENT_MOUSE_BUTTON_DOWN: {
+        // a browser follows a tap with mouse events of its own, a real mouse's to SDL: only one well after the finger is
+        constexpr std::uint64_t kAfterTapNs = 1'000'000'000ULL;
+        const bool              mouse       = (event.type == SDL_EVENT_MOUSE_MOTION ? event.motion.which : event.button.which) != SDL_TOUCH_MOUSEID;
+        viewer.input.byTouch                = viewer.input.byTouch && !(mouse && event.common.timestamp - viewer.input.fingerAtNs > kAfterTapNs);
+        return;
+    }
     default: return;
     }
-    const ImVec2 size = ImGui::GetIO().DisplaySize;
+    viewer.input.byTouch    = true;
+    viewer.input.fingerAtNs = event.tfinger.timestamp;
+    const ImVec2 size       = ImGui::GetIO().DisplaySize;
     track(viewer.input.fingers, FingerEvent{.change = change, .finger = static_cast<std::uint64_t>(event.tfinger.fingerID), .x = event.tfinger.x, .y = event.tfinger.y, .nanoseconds = event.tfinger.timestamp}, size.x, size.y);
 }
 
