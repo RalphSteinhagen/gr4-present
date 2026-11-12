@@ -188,11 +188,13 @@ void renderFrame(Viewer& viewer) {
             viewer.fallback.draw(viewer.logo, viewer.theme);
         } else {
             viewer.zoomedLists.clear();
+            viewer.documentView.drawnAbove.clear();
             drawCurrentSection(viewer);
             drawPointer(viewer);
             tendEffects(viewer);
             drawFrameRate(viewer);
             viewer.zoomedLists.push_back(viewer.documentView.drawnInto);
+            viewer.zoomedLists.insert(viewer.zoomedLists.end(), viewer.documentView.drawnAbove.begin(), viewer.documentView.drawnAbove.end());
             applyVideoButtons(viewer);
             applyLinkClicks(viewer);
             applyTextSelection(viewer);

@@ -73,6 +73,7 @@ struct BoxOptions {
     bool frame   = false; // `{frame}`: drawn opaque and bordered, covering what it overlaps
     bool left    = false; // `{left}`: displayed formulas at the left edge rather than centred
     bool fit     = false; // `{fit}`: content too big even at the floor is drawn smaller still, not cut off
+    bool above   = false; // `layer=above`: drawn over the slide's live charts, in a layer of its own
 
     bool slideNotes = false; // `notes=all`: lists the notes every box of the slide cites
 
@@ -242,8 +243,9 @@ struct DocumentView {
 
     /// the text drawn in the last frame, in reading order; `mutable` because the backdrop is drawn from a const
     /// placement pass
-    mutable TextRuns textRuns  = {};
-    ImDrawList*      drawnInto = nullptr; // what the last draw put the slide into
+    mutable TextRuns         textRuns   = {};
+    ImDrawList*              drawnInto  = nullptr; // what the last draw put the slide into
+    std::vector<ImDrawList*> drawnAbove = {};      // the layers over the live charts this frame's draws opened; the frame clears it
 
     /// called with the slide's draw list before and after the slide: where a capturing transition puts its commands
     std::function<void(ImDrawList&)> beforeDrawing = {};

@@ -14,6 +14,7 @@ if(EMSCRIPTEN)
     # wholly about live graphs, which come with GR4's runtime and OpenDigitizer (not in WASM-Minimal)
     set(_runtime_browser_tests
         qa_BrowserDashboard
+        qa_BrowserLayer
         qa_BrowserLiveAudio
         qa_BrowserLiveRapid
         qa_BrowserLiveWalk

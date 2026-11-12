@@ -949,6 +949,7 @@ BoxOptions boxOptionsOf(const Block& block) noexcept {
     options.frame        = flag("frame", false);
     options.left         = flag("left", false);
     options.fit          = flag("fit", false);
+    options.above        = block.field("layer") == "above";
     options.slideNotes   = block.field("notes") == "all";
     options.size         = parseTypeSize(block.field("size"));
     options.font         = std::string{block.field("font")};
@@ -1180,10 +1181,10 @@ void DocumentView::draw(const Theme& theme) {
             appendCitedLabels(block, slideNotes);
         }
     }
-    for (const AreaDocument& entry : areaDocuments) {
+    const auto drawArea = [&](const AreaDocument& entry) {
         const Area* area = layout == nullptr ? nullptr : layout->find(entry.id);
         if (area == nullptr) {
-            continue;
+            return;
         }
         const Rectangle framed  = where.map(*area);
         const float     padding = entry.options.frame ? where.bodyPixels * kFramePaddingEms : 0.0f;
@@ -1241,6 +1242,9 @@ void DocumentView::draw(const Theme& theme) {
         if (boxAtFloor && !boxFits) {
             clipped.push_back(Overrun{.id = entry.id, .wanted = boxHeight, .available = slot.available, .shrank = true});
         }
+    };
+    for (const AreaDocument& entry : areaDocuments | std::views::filter([](const AreaDocument& area) { return !area.options.above; })) {
+        drawArea(entry);
     }
     if (outlineAreas && layout != nullptr) {
         drawAreaOutlines(faded, where);
@@ -1299,6 +1303,19 @@ void DocumentView::draw(const Theme& theme) {
             const ScopedFont  fitting(textWide > room ? std::max(statusPixels * room / textWide, statusPixels * kFooterSmallestStatusShare) : statusPixels);
             const std::string line = Fonts::fitted(footerText, room);
             canvas.text(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2{where.footer.x, where.footer.y + (statusPixels - ImGui::GetFontSize())}, dimmed(faded.text, 0.55f), line.c_str());
+        }
+    }
+
+    // `layer=above` boxes in a window of their own: ImGui draws a child window after its parent, the live charts included
+    if (std::ranges::any_of(areaDocuments, [](const AreaDocument& area) { return area.options.above; })) {
+        const ImGuiViewport* screen = ImGui::GetMainViewport();
+        ImGui::SetCursorScreenPos(screen->Pos);
+        const ScopedChild layer{"above", screen->Size, ImGuiChildFlags_None, ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoSavedSettings};
+        if (layer) {
+            drawnAbove.push_back(ImGui::GetWindowDrawList());
+            for (const AreaDocument& entry : areaDocuments | std::views::filter([](const AreaDocument& area) { return area.options.above; })) {
+                drawArea(entry);
+            }
         }
     }
 
