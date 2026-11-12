@@ -31,6 +31,9 @@ namespace {
     if (const auto* integer = value.get_if<std::int64_t>()) {
         return std::format("{}", *integer);
     }
+    if (const auto* flag = value.get_if<bool>()) {
+        return *flag ? "true" : "false";
+    }
     return {};
 }
 
@@ -235,6 +238,7 @@ std::expected<Manifest, ManifestError> parseManifest(std::string_view yaml) {
         .masters              = mastersField(mapField(*parsed, "masters")),
         .background           = stringField(*parsed, "background"),
         .pointer              = stringField(*parsed, "pointer"),
+        .figureNumbers        = !std::ranges::contains(std::array<std::string_view, 2UZ>{"false", "off"}, stringField(*parsed, "figure-numbers")),
         .breakEffect          = stringField(mapField(*parsed, "break"), "effect"),
         .breakMinutes         = parseNumber<float>(stringField(mapField(*parsed, "break"), "minutes")).value_or(10.0f),
     };

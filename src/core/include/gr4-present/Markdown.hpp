@@ -2,6 +2,7 @@
 #define GR4_PRESENT_MARKDOWN_HPP
 
 #include <cstdint>
+#include <format>
 #include <limits>
 #include <optional>
 #include <span>
@@ -176,6 +177,22 @@ struct CitationRange {
 
 /// the first section whose `:::references`, in a box or not, lists citation `number`; none when no slide lists it
 [[nodiscard]] const Section* sectionListing(std::span<const Section> sections, int number);
+
+/// a deck's `:::figure`, numbered in order of appearance unless it opts out (`{#fig:id -}`) or the deck numbers none
+struct Figure {
+    std::string id;         // `fig:spectrum`, as `[](#fig:spectrum)` refers to it
+    std::string caption;    // its `caption:` line, else its picture's alternative text
+    std::string sectionId;  // the slide it is on
+    int         number = 0; // 0: unnumbered
+
+    /// how text refers to it: `Fig. 2`, or its caption when unnumbered
+    [[nodiscard]] std::string name() const { return number > 0 ? std::format("Fig. {}", number) : caption; }
+    /// what it says under it: `Fig. 2: the spectrum`
+    [[nodiscard]] std::string captionLine() const { return number > 0 ? std::format("Fig. {}: {}", number, caption) : caption; }
+
+    bool operator==(const Figure&) const = default;
+};
+[[nodiscard]] std::vector<Figure> figuresOf(std::span<const Section> sections, bool numbered = true);
 
 /// whether a directive's name configures the slide; any other name is a content box whose lines are kept as written
 /// the names in a comma-separated field (`next: architecture, demo`, `transitions: fade, fire`), in the author's

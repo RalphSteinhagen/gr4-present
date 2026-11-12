@@ -362,7 +362,7 @@ struct ListMarker {
 } // namespace
 
 bool isConfigurationDirective(std::string_view name) noexcept {
-    constexpr std::array<std::string_view, 11> kConfigurationDirectives{"layout", "regions", "place", "grid", "view", "video", "qr", "references", "gr4", "shader", "stage"};
+    constexpr std::array<std::string_view, 12> kConfigurationDirectives{"layout", "regions", "place", "grid", "view", "video", "qr", "references", "gr4", "shader", "stage", "figure"};
     return std::ranges::contains(kConfigurationDirectives, name);
 }
 
@@ -678,6 +678,25 @@ const Section* sectionListing(std::span<const Section> sections, int number) {
     return found == sections.end() ? nullptr : &*found;
 }
 
+std::vector<Figure> figuresOf(std::span<const Section> sections, bool numbered) {
+    std::vector<Figure> figures;
+    int                 number = 0;
+    for (const Section& section : sections) {
+        const auto collect = [&](this const auto& self, const Document& document) -> void {
+            for (const Block& block : document.blocks | std::views::filter([](const Block& block) { return block.kind == BlockKind::directive; })) {
+                if (block.info == "figure") {
+                    const bool counted = numbered && block.field("-").empty();
+                    figures.push_back(Figure{.id = block.id, .caption = std::string{block.field("caption")}, .sectionId = section.id, .number = counted ? ++number : 0});
+                } else if (!block.lines.empty()) {
+                    self(boxDocumentOf(block.lines, document));
+                }
+            }
+        };
+        collect(section.document);
+    }
+    return figures;
+}
+
 Citations citationsOf(std::span<const Section> sections) {
     Citations  cited;
     const auto noteLinks = [&cited](const std::vector<InlineSpan>& spans) {
@@ -822,6 +841,44 @@ struct CommentFreeLines {
     return Reveal{.kind = std::string{kind}, .seconds = positive ? seconds : std::nullopt, .from = std::string{from}};
 }
 
+namespace {
+
+/// `:::figure {#fig:id}`: its lines flow as the slide's, and its closing fence leaves the caption block
+struct OpenFigure {
+    std::string                                      id;
+    std::vector<std::pair<std::string, std::string>> options;
+    int                                              step;
+    int                                              openSteps;
+    std::size_t                                      blocksFrom;
+};
+
+/// the caption a figure's closing fence leaves after its lines: its `caption:` line, taken out of the flow, else the
+/// alternative text of its picture
+[[nodiscard]] Block figureCaptionOf(std::vector<Block>& blocks, const OpenFigure& figure) {
+    constexpr std::string_view kCaptionKey = "caption:";
+    const auto                 isCaption   = [kCaptionKey](const Block& block) { return block.kind == BlockKind::paragraph && !block.spans.empty() && block.spans.front().kind == InlineKind::text && block.spans.front().text.starts_with(kCaptionKey); };
+    const auto                 written     = std::ranges::find_if(blocks.begin() + static_cast<std::ptrdiff_t>(figure.blocksFrom), blocks.end(), isCaption);
+    std::string                caption;
+    if (written != blocks.end()) {
+        for (const InlineSpan& span : written->spans) {
+            caption += span.text;
+        }
+        caption = std::string{trim(std::string_view{caption}.substr(kCaptionKey.size()))};
+        blocks.erase(written);
+    } else {
+        for (const Block& block : blocks | std::views::drop(figure.blocksFrom)) {
+            if (const auto image = std::ranges::find(block.spans, InlineKind::image, &InlineSpan::kind); caption.empty() && image != block.spans.end()) {
+                caption = image->text;
+            }
+        }
+    }
+    auto fields = figure.options;
+    fields.emplace_back("caption", std::move(caption));
+    return Block{.kind = BlockKind::directive, .step = figure.step, .id = figure.id, .info = "figure", .fields = std::move(fields)};
+}
+
+} // namespace
+
 /// one pass over the deck's lines, each claimed by the first context that matches, in this order:
 /// a comment-only line (skipped), the rest of a ```` ``` {area=…} ```` block, an open code fence (closed by one at least as long),
 /// code inside a box (verbatim), Pandoc's pause, a `:::` fence (named: opens a box, step or stop; nameless: closes the innermost),
@@ -829,12 +886,13 @@ struct CommentFreeLines {
 /// then footnote, rule, heading, list item, table, paragraph; `step` only grows
 Document parseMarkdown(std::string_view source) {
     Document document;
-    document.front               = frontMatterOf(source);
-    int         step             = 0;
-    int         openSteps        = 0;
-    std::size_t codeFenceLength  = 0UZ; // non-zero inside a fenced code or plot block
-    std::size_t areaFenceLength  = 0UZ;
-    int         sectionStartStep = 0;
+    document.front                      = frontMatterOf(source);
+    int                       step      = 0;
+    int                       openSteps = 0;
+    std::optional<OpenFigure> openFigure;
+    std::size_t               codeFenceLength  = 0UZ; // non-zero inside a fenced code or plot block
+    std::size_t               areaFenceLength  = 0UZ;
+    int                       sectionStartStep = 0;
     // `:::step {with}` joins the step before: blocks up to the next step arrive with it, each by its own `in=`
     std::optional<std::size_t> withFrom;
     Reveal                     withReveal;
@@ -951,6 +1009,27 @@ Document parseMarkdown(std::string_view source) {
                 if (!citationRange(range)) {
                     document.warnings.push_back(std::format("line {}: `:::references {}` lists no range of citations: write `1-12`, `13-` or `5`", index + 1UZ, range));
                 }
+            }
+            if (name.empty() && !insideDirective && openFigure && openFigure->openSteps == openSteps) {
+                flushParagraph();
+                document.blocks.push_back(figureCaptionOf(document.blocks, *openFigure));
+                openFigure.reset();
+                continue;
+            }
+            if (name == "figure") {
+                flushParagraph();
+                if (openFigure) {
+                    document.warnings.push_back(std::format("line {}: a `:::figure` inside another, which takes it in", index + 1UZ));
+                    continue;
+                }
+                auto        figureOptions = options;
+                const auto  anchor        = std::ranges::find_if(figureOptions, [](const auto& option) { return option.first.starts_with('#'); });
+                std::string id            = anchor == figureOptions.end() ? std::string{} : anchor->first.substr(1UZ);
+                if (anchor != figureOptions.end()) {
+                    figureOptions.erase(anchor);
+                }
+                openFigure = OpenFigure{.id = std::move(id), .options = std::move(figureOptions), .step = step, .openSteps = openSteps, .blocksFrom = document.blocks.size()};
+                continue;
             }
             if (name.empty()) {
                 if (!insideDirective && openSteps == 0) {
@@ -1152,6 +1231,10 @@ Document parseMarkdown(std::string_view source) {
     closeWith();
     if (insideDirective && openDirectiveIndex < document.blocks.size()) {
         document.blocks[openDirectiveIndex].closed = false;
+    }
+    if (openFigure) { // its picture shows with its caption, and the author learns of the missing fence
+        document.warnings.push_back(std::format("a `:::figure {{#{}}}` whose `:::` never came", openFigure->id));
+        document.blocks.push_back(figureCaptionOf(document.blocks, *openFigure));
     }
     document.lastStep = step;
     return document;

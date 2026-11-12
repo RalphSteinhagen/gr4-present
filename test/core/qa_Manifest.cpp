@@ -271,6 +271,8 @@ steps: { in: fade, dur: 0.3s }
         expect(eq(manifest->sizes.caption, 11.0f));
         expect(manifest->steps == Reveal{.kind = "fade", .seconds = 0.3f, .from = {}});
         expect(parseManifest("format: gr4-presentation/1\nentry: talk.md\n")->steps == Reveal{}) << "unset, a step arrives at once";
+        expect(parseManifest("format: gr4-presentation/1\nentry: talk.md\n")->figureNumbers) << "unset, figures are numbered";
+        expect(!parseManifest("format: gr4-presentation/1\nentry: talk.md\nfigure-numbers: false\n")->figureNumbers);
     };
 
     // Ground truth: the sRGB triplet a colour picker shows for the same hex code

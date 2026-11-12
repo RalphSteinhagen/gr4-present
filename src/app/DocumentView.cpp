@@ -99,6 +99,7 @@ constexpr float kDisplayFormulaScale      = 1.35f;
 constexpr float kFootnoteMarkerScale      = 0.7f;
 constexpr float kFootnoteScale            = 0.62f;
 constexpr float kReferenceScale           = 0.72f;
+constexpr float kCaptionPullUp            = 0.6f; // of the gap after a picture: a caption belongs to the picture above it
 constexpr float kReferenceIndentLines     = 1.6f;
 constexpr float kQrLines                  = 9.5f; // scannable from the back of a room
 constexpr float kQrUrlScale               = 0.75f;
@@ -352,6 +353,7 @@ struct InlinePen {
     const std::vector<std::string>*      numbering  = nullptr; // referenced footnote labels, in order of appearance
     std::string_view                     linkTarget = {};      // while a link's words are drawn: where it leads
     std::vector<DocumentView::LinkArea>* links      = nullptr; // where a click is caught; none when nobody asks
+    const std::vector<Figure>*           figures    = nullptr; // what `[](#fig:id)` is called and where it leads
     float                                baseSize   = 0.0f;    // size of the words around a larger or smaller span
     float                                lineGrowth = 0.0f;    // how far a larger span on this line reaches below it
 
@@ -413,6 +415,15 @@ struct InlinePen {
         return drawn;
     }
 
+    /// the figure `[](#fig:id)` names, its words left empty for the viewer to fill; none for any other link
+    [[nodiscard]] const Figure* figureOf(const InlineSpan& link) const {
+        if (figures == nullptr || !link.text.empty() || !link.target.starts_with('#')) {
+            return nullptr;
+        }
+        const auto found = std::ranges::find(*figures, std::string_view{link.target}.substr(1UZ), &Figure::id);
+        return found == figures->end() ? nullptr : &*found;
+    }
+
     /// 1-based, in the order the view first refers to them; 0 when the label was never defined
     [[nodiscard]] int numberOf(std::string_view label) const {
         if (numbering == nullptr) {
@@ -468,11 +479,14 @@ struct InlinePen {
             return;
         }
         case InlineKind::lineBreak: newline("\n"); return;
-        case InlineKind::link:
-            linkTarget = inlineSpan.target;
-            run(inlineSpan.text, theme.fill, font, spanSz);
+        case InlineKind::link: {
+            const Figure*     figure = figureOf(inlineSpan);
+            const std::string target = figure != nullptr ? "#" + figure->sectionId : inlineSpan.target;
+            linkTarget               = target;
+            run(figure != nullptr ? figure->name() : inlineSpan.text, theme.fill, font, spanSz);
             linkTarget = {};
             return;
+        }
         case InlineKind::image:
         case InlineKind::text: run(inlineSpan.text, ink, font, spanSz); return;
         }
@@ -1499,7 +1513,7 @@ void DocumentView::layoutQr(Pass& pass, const Block& block) {
             pass.canvas.image(code->texture.id, ImVec2{pass.left, pass.cursor}, ImVec2{pass.left + side, pass.cursor + side}, ImVec2{0.0f, 0.0f}, ImVec2{1.0f, 1.0f}, dimmed(IM_COL32_WHITE, opacity), RecordedImageKind::qrCode, url);
         }
         const ImVec2 labelStart{pass.left + side + pass.bodyLine, pass.cursor + pass.bodyLine * 0.5f};
-        InlinePen    pen{.canvas = pass.canvas, .origin = labelStart, .pen = labelStart, .right = pass.right, .lineHeight = pass.bodyLine, .faces = pass.faces, .formulas = &formulaFor, .numbering = &pass.numbering, .links = &linkAreas};
+        InlinePen    pen{.canvas = pass.canvas, .origin = labelStart, .pen = labelStart, .right = pass.right, .lineHeight = pass.bodyLine, .faces = pass.faces, .formulas = &formulaFor, .numbering = &pass.numbering, .links = &linkAreas, .figures = &deckFigures};
         if (const std::string_view label = block.field("label"); !label.empty()) {
             pen.run(std::string{label}, pass.theme.text, ImGui::GetFont(), ImGui::GetFontSize());
             pen.newline();
@@ -1568,7 +1582,7 @@ void DocumentView::layoutReferences(Pass& pass, const Block& block) {
                 float                                   lineTop = codeY + side + labelSize * 0.25f;
                 for (const std::string_view line : lines | std::views::filter([](std::string_view text) { return !text.empty(); })) {
                     const ImVec2 under{box + std::max(side - widthAt(line) * fitted / labelSize, 0.0f) * 0.5f, lineTop};
-                    InlinePen    pen{.canvas = pass.canvas, .origin = under, .pen = under, .right = box + side + 1.0f, .lineHeight = labelLine, .faces = pass.faces, .formulas = &formulaFor, .numbering = &pass.numbering, .links = &linkAreas};
+                    InlinePen    pen{.canvas = pass.canvas, .origin = under, .pen = under, .right = box + side + 1.0f, .lineHeight = labelLine, .faces = pass.faces, .formulas = &formulaFor, .numbering = &pass.numbering, .links = &linkAreas, .figures = &deckFigures};
                     pen.linkTarget = target;
                     pen.word(line, dimmed(pass.theme.fill, 0.95f), mono, fitted);
                     lineTop += fitted * 1.2f;
@@ -1596,7 +1610,7 @@ void DocumentView::layoutReferences(Pass& pass, const Block& block) {
         }
         const ImVec2 hangingOrigin{pass.left + pass.bodyLine * kReferenceIndentLines, pass.cursor};
         const ImVec2 referenceStart{pass.left, pass.cursor};
-        InlinePen    pen{.canvas = pass.canvas, .origin = hangingOrigin, .pen = referenceStart, .right = listRight, .lineHeight = pass.bodyLine, .faces = pass.faces, .formulas = &formulaFor, .numbering = &pass.numbering, .links = &linkAreas};
+        InlinePen    pen{.canvas = pass.canvas, .origin = hangingOrigin, .pen = referenceStart, .right = listRight, .lineHeight = pass.bodyLine, .faces = pass.faces, .formulas = &formulaFor, .numbering = &pass.numbering, .links = &linkAreas, .figures = &deckFigures};
         pen.run("[" + std::to_string(index + 1UZ) + "]  ", dimmed(pass.theme.fill, 0.9f), ImGui::GetFont(), smaller);
         for (const InlineSpan& span : citationsGrouped(*text)) {
             pen.span(span, pass.theme, smaller);
@@ -1614,7 +1628,7 @@ void DocumentView::layoutReferences(Pass& pass, const Block& block) {
             pass.canvas.runs->breakWith("\n");
         }
         const ImVec2 referenceStart{pass.left, pass.cursor};
-        InlinePen    pen{.canvas = pass.canvas, .origin = referenceStart, .pen = referenceStart, .right = listRight, .lineHeight = pass.bodyLine, .faces = pass.faces, .formulas = &formulaFor, .numbering = &pass.numbering, .links = &linkAreas};
+        InlinePen    pen{.canvas = pass.canvas, .origin = referenceStart, .pen = referenceStart, .right = listRight, .lineHeight = pass.bodyLine, .faces = pass.faces, .formulas = &formulaFor, .numbering = &pass.numbering, .links = &linkAreas, .figures = &deckFigures};
         pen.run(label + "  ", pass.theme.text, ImGui::GetFont(), smaller);
         pen.linkTarget = target;
         pen.run(target, dimmed(pass.theme.fill, 0.9f), pass.faces.mono, smaller * 0.9f);
@@ -1623,6 +1637,22 @@ void DocumentView::layoutReferences(Pass& pass, const Block& block) {
     if (citations.empty() && references.empty() && pass.canvas) {
         pass.canvas.text(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2{pass.left, pass.cursor}, dimmed(pass.theme.text, 0.6f), "this deck cites and links to nothing");
     }
+}
+
+void DocumentView::layoutFigureCaption(Pass& pass, const Block& block, float pictureGap) {
+    const auto        figure = std::ranges::find(deckFigures, block.id, &Figure::id);
+    const std::string line   = figure != deckFigures.end() ? figure->captionLine() : std::string{block.field("caption")};
+    if (line.empty()) {
+        return;
+    }
+    // centred under the picture, a line or more of the caption's smaller size; wrapped from the left when wider
+    const float  size  = ImGui::GetFontSize() * kReferenceScale;
+    const float  wide  = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, line.data(), line.data() + line.size()).x;
+    const float  width = pass.right - pass.left;
+    const ImVec2 start{pass.left + std::max(width - wide, 0.0f) * 0.5f, pass.cursor - pictureGap * kCaptionPullUp};
+    InlinePen    pen{.canvas = pass.canvas, .origin = ImVec2{pass.left, start.y}, .pen = start, .right = pass.right, .lineHeight = pass.bodyLine * kReferenceScale * 1.3f, .faces = pass.faces};
+    pen.run(line, dimmed(pass.theme.text, 0.85f), ImGui::GetFont(), size);
+    pass.cursor = pen.pen.y + pen.lineHeight + (pass.trailingGap = pass.bodyLine * kParagraphGapLines);
 }
 
 void DocumentView::layoutRegion(Pass& pass, const Block& block) {
@@ -1684,7 +1714,7 @@ void DocumentView::layoutFootnotes(Pass& pass, std::span<const std::string> refe
             if (into.runs != nullptr) {
                 into.runs->breakWith("\n");
             }
-            InlinePen  pen{.canvas = into, .origin = ImVec2{pass.left, y}, .pen = ImVec2{pass.left, y}, .right = pass.right, .lineHeight = noteLine, .faces = pass.faces, .formulas = &formulaFor, .numbering = &pass.numbering, .links = &linkAreas};
+            InlinePen  pen{.canvas = into, .origin = ImVec2{pass.left, y}, .pen = ImVec2{pass.left, y}, .right = pass.right, .lineHeight = noteLine, .faces = pass.faces, .formulas = &formulaFor, .numbering = &pass.numbering, .links = &linkAreas, .figures = &deckFigures};
             const auto known  = std::ranges::find(pass.numbering, referenced[index]);
             const auto number = known == pass.numbering.end() ? index : static_cast<std::size_t>(known - pass.numbering.begin());
             pen.superscript(std::to_string(number + 1UZ), dimmed(pass.theme.fill, 0.9f), noteSize);
@@ -1763,7 +1793,8 @@ auto DocumentView::layoutPass(const Theme& theme, const Document& contents, floa
         if ((selection == Selection::headingOnly && !isHeading) || (selection == Selection::exceptHeading && isHeading) || selection == Selection::notesOnly) {
             continue;
         }
-        pass.trailingGap = 0.0f;
+        const float gapBefore = pass.trailingGap; // a caption sits closer to its picture than a paragraph would
+        pass.trailingGap      = 0.0f;
         if (canvas.runs != nullptr) {
             canvas.runs->breakWith("\n");
         }
@@ -1805,7 +1836,7 @@ auto DocumentView::layoutPass(const Theme& theme, const Document& contents, floa
             // no space above a heading in its own title box or first in its box
             cursor += selection == Selection::headingOnly || block.level == 1 || cursor <= top ? 0.0f : headingLine * kHeadingGapAbove;
             const ImVec2 headingStart{left, cursor};
-            InlinePen    pen{.canvas = canvas, .origin = headingStart, .pen = headingStart, .right = right, .lineHeight = headingLine, .faces = faces, .face = labelFace, .formulas = &formulaFor, .numbering = &numbering, .links = &linkAreas};
+            InlinePen    pen{.canvas = canvas, .origin = headingStart, .pen = headingStart, .right = right, .lineHeight = headingLine, .faces = faces, .face = labelFace, .formulas = &formulaFor, .numbering = &numbering, .links = &linkAreas, .figures = &deckFigures};
             bool         subtitled = false;
             for (const InlineSpan& inlineSpan : citationsGrouped(block.spans)) {
                 // in a title, what follows a `<br>` is a smaller sub-title on its own line
@@ -1931,7 +1962,7 @@ auto DocumentView::layoutPass(const Theme& theme, const Document& contents, floa
                 const Canvas marker{canvas.list, canvas.recording, block.ordered ? canvas.runs : nullptr};
                 marker.text(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2{indent - bodyLine, cursor}, dimmed(theme.text, 0.7f), block.ordered ? bullet + " " : bullet);
             }
-            InlinePen pen{.canvas = canvas, .origin = ImVec2{indent, cursor}, .pen = ImVec2{indent, cursor}, .right = right, .lineHeight = bodyLine, .faces = faces, .formulas = &formulaFor, .numbering = &numbering, .links = &linkAreas};
+            InlinePen pen{.canvas = canvas, .origin = ImVec2{indent, cursor}, .pen = ImVec2{indent, cursor}, .right = right, .lineHeight = bodyLine, .faces = faces, .formulas = &formulaFor, .numbering = &numbering, .links = &linkAreas, .figures = &deckFigures};
             for (const InlineSpan& inlineSpan : citationsGrouped(block.spans)) {
                 pen.span(inlineSpan, theme, ImGui::GetFontSize());
             }
@@ -1945,6 +1976,8 @@ auto DocumentView::layoutPass(const Theme& theme, const Document& contents, floa
                 layoutQr(pass, block);
             } else if (block.info == "references") {
                 layoutReferences(pass, block);
+            } else if (block.info == "figure") {
+                layoutFigureCaption(pass, block, gapBefore);
             } else if (block.info == "gr4" || block.info == "shader" || block.info == "stage") {
                 layoutRegion(pass, block);
             }
@@ -1986,7 +2019,7 @@ auto DocumentView::layoutPass(const Theme& theme, const Document& contents, floa
                 }
                 break;
             }
-            InlinePen pen{.canvas = canvas, .origin = ImVec2{left, cursor}, .pen = ImVec2{left, cursor}, .right = right, .lineHeight = bodyLine, .faces = faces, .formulas = &formulaFor, .numbering = &numbering, .links = &linkAreas};
+            InlinePen pen{.canvas = canvas, .origin = ImVec2{left, cursor}, .pen = ImVec2{left, cursor}, .right = right, .lineHeight = bodyLine, .faces = faces, .formulas = &formulaFor, .numbering = &numbering, .links = &linkAreas, .figures = &deckFigures};
             for (const InlineSpan& inlineSpan : citationsGrouped(block.spans)) {
                 pen.span(inlineSpan, theme, ImGui::GetFontSize());
             }

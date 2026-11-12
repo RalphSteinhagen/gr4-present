@@ -1029,6 +1029,34 @@ const suite<"Markdown masters"> markdownMastersTests = [] {
         expect(eq(listing(40), std::string{"more"})) << "an open range";
         expect(sectionListing(sectionsOf(parseMarkdown("# A {#a}\n\ntext\n")), 1) == nullptr) << "no slide lists it";
     };
+
+    "a figure flows as the slide's own lines and leaves its caption after them"_test = [] {
+        const Document figure = parseMarkdown(":::figure {#fig:spectrum}\n![the spectrum](figures/spectrum.png)\n:::\n");
+        expect(eq(figure.blocks.size(), 2UZ) && figure.warnings.empty());
+        expect(figure.blocks.front().kind == BlockKind::paragraph) << "the picture, as any paragraph holding one";
+        expect(eq(figure.blocks.back().info, std::string{"figure"}) && eq(figure.blocks.back().id, std::string{"fig:spectrum"}));
+        expect(eq(figure.blocks.back().field("caption"), std::string_view{"the spectrum"})) << "the alternative text";
+        expect(!isBox(figure.blocks.back())) << "never a box placed by name";
+
+        const Document written = parseMarkdown(":::figure {#fig:s}\n![](s.png)\n\ncaption: a spectrum, measured\n:::\n");
+        expect(eq(written.blocks.size(), 2UZ)) << "the caption line is no paragraph of the slide";
+        expect(eq(written.blocks.back().field("caption"), std::string_view{"a spectrum, measured"}));
+
+        expect(eq(parseMarkdown(":::figure {#fig:s}\n![a](s.png)\n").warnings.size(), 1UZ)) << "a figure never closed";
+    };
+
+    "figures are numbered across the deck in order, boxes included, unless one or the deck opts out"_test = [] {
+        const std::vector<Section> deck    = sectionsOf(parseMarkdown("# One {#one}\n\n:::figure {#fig:a}\n![first](a.png)\n:::\n\n"
+                                                                         "# Two {#two}\n\n:::left\n:::figure {#fig:b -}\n![aside](b.png)\n:::\n:::\n\n:::figure {#fig:c}\n![third](c.png)\n:::\n"));
+        const std::vector<Figure>  figures = figuresOf(deck);
+        expect(eq(figures.size(), 3UZ));
+        expect(figures.size() == 3UZ && figures[0] == Figure{.id = "fig:a", .caption = "first", .sectionId = "one", .number = 1});
+        expect(figures.size() == 3UZ && eq(figures[1].number, 0) && eq(figures[1].sectionId, std::string{"two"})) << "`-` opts out, inside a box";
+        expect(figures.size() == 3UZ && eq(figures[2].number, 2));
+        expect(figures.size() == 3UZ && eq(figures[2].name(), std::string{"Fig. 2"}) && eq(figures[2].captionLine(), std::string{"Fig. 2: third"}));
+        expect(figures.size() == 3UZ && eq(figures[1].name(), std::string{"aside"})) << "an unnumbered figure is named by its caption";
+        expect(std::ranges::none_of(figuresOf(deck, false), [](const Figure& figure) { return figure.number > 0; })) << "a deck that numbers none";
+    };
 };
 
 int main() { return boost::ut::cfg<>.run({.report_errors = true}) ? 1 : 0; }
