@@ -241,6 +241,7 @@ list(
 # the tests that drive the whole application share one build of it against the instrumented ImGui
 add_library(gr4-present-app-under-test OBJECT ${GR4_PRESENT_APP_SOURCES})
 target_include_directories(gr4-present-app-under-test PUBLIC ${_app_generated_dir})
+add_dependencies(gr4-present-app-under-test gr4-present-build-stamp)
 target_link_libraries(gr4-present-app-under-test PUBLIC gr4-present-test-support gr4-present-core gr4-present-options
                                                         gr4-present-recording)
 add_executable(qa_LaunchScreen qa_LaunchScreen.cpp)

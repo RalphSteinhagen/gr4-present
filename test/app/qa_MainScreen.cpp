@@ -143,7 +143,7 @@ void drawScenario(const Scenario& scenario) {
         problems.report(DiagnosticKind::missingResource, "figures/absent.svg", "not found");
         problems.report(DiagnosticKind::invalidSvgAnchor, "subsystem-c", "section 'demo' frames an element its layout does not contain");
         problems.report(DiagnosticKind::versionMismatch, "2.0", "presentation needs viewer 2.0 or newer, this is 0.1", true);
-        DiagnosticsPanel{.open = true}.draw(problems, theme, Fonts::kPixelsPerPoint); // a device at scale 1
+        DiagnosticsPanel{.open = true, .build = "gr4-present 0.1.0 \u00b7 0123abc \u00b7 built 2026-01-01 00:00 UTC"}.draw(problems, theme, Fonts::kPixelsPerPoint); // a device at scale 1
     }
 
     if (scenario.menuRevealed) {

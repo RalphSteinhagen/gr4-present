@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # A deck's site with the gr4-present web viewer beside it, from a release archive (see action.yml beside this script).
 #
-#   deck-site.sh <deck folder> <full|minimal> <vX.Y.Z|latest|""> <out folder> [owner/repository] [action ref]
+#   deck-site.sh <deck folder> <full|minimal> <vX.Y.Z|latest|""> <out folder> [owner/repository] [action ref] [site] [folder]
+#
+# [site] is the address the site is served at, which the page offers when opened as a file; empty names none, so the
+# site refers to nothing outside itself. [folder] puts the viewer and deck in that sub-folder of the out folder, as for a
+# site served at https://<owner>.github.io/<repository>/<folder>/.
 #
 # An empty version takes the action's ref where it is a vX.Y.Z tag (inside a composite action the runner may report
 # none), else `latest`, the rolling build of main, with a warning.
@@ -18,6 +22,8 @@ flavour=$2
 version=$3
 out=$4
 repository=${5:-RalphSteinhagen/gr4-present}
+site=${7:-}
+folder=${8:-}
 if [[ -z "$version" ]]; then
   if [[ "${6:-}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     version=$6
@@ -51,15 +57,24 @@ fi
 (cd "$work" && grep -E "  ${name}\.tar\.gz\$" SHA256SUMS | sha256sum -c -)
 
 tar -xzf "$work/$name.tar.gz" -C "$work"
-mkdir -p "$out"
-cp -r "$work/$name/." "$out/"
-rm -rf "$out/default"
-mkdir -p "$out/default"
+target=$out${folder:+/$folder}
+mkdir -p "$target"
+cp -r "$work/$name/." "$target/"
+rm -rf "$target/default"
+mkdir -p "$target/default"
+# the archive names the site it was released for; this site names its own address, or none
+archived=$(sed -n 's|.*<meta name="gr4-site" content="\([^"]*\)" />.*|\1|p' "$target/index.html" | head -n 1)
+sed -i "s|<meta name=\"gr4-site\" content=\"[^\"]*\" />|<meta name=\"gr4-site\" content=\"${site}\" />|" "$target/index.html"
+if [[ -n "$archived" && -n "$site" ]]; then
+  sed -i "s|${archived}|${site}|g" "$target/README.txt"
+elif [[ -n "$archived" ]]; then
+  sed -i -e "s| as served at ${archived}||" -e "\|${archived}|d" "$target/README.txt"
+fi
 # a deck at the repository's root (deck: .) leaves out the repository's own folders and the site being written
 deckReal=$(cd "$deck" && pwd)
 outReal=$(cd "$out" && pwd)
 excludes=(--exclude=./.git --exclude=./.github)
 [[ "$outReal" == "$deckReal"/* ]] && excludes+=("--exclude=./${outReal#"$deckReal"/}")
-tar -C "$deck" "${excludes[@]}" -cf - . | tar -C "$out/default" -xf -
+tar -C "$deck" "${excludes[@]}" -cf - . | tar -C "$target/default" -xf -
 touch "$out/.nojekyll" # GitHub Pages would hide files beginning with an underscore
-echo "$out: the $flavour viewer $version with $deck as default/"
+echo "$target: the $flavour viewer $version with $deck as default/"

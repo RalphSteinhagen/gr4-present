@@ -1,5 +1,6 @@
 #include "DiagnosticsPanel.hpp"
 
+#include "BuildStamp.hpp"
 #include "Fonts.hpp"
 #include "ScopedWindow.hpp"
 
@@ -13,6 +14,8 @@ constexpr float kViewportWidthFraction  = 0.6f;
 constexpr float kViewportHeightFraction = 0.5f;
 constexpr float kPaddingLineHeights     = 0.8f;
 } // namespace
+
+std::string buildStamp() { return std::format("gr4-present {} \u00b7 {} \u00b7 built {}", build::kVersion, build::kCommit, build::kBuiltAt); }
 
 void DiagnosticsPanel::draw(const Diagnostics& diagnostics, const Theme& theme, float interfacePixelsPerPoint) const {
     if (!open) {
@@ -39,6 +42,8 @@ void DiagnosticsPanel::draw(const Diagnostics& diagnostics, const Theme& theme, 
 
     const std::string heading = diagnostics.empty() ? std::string{"no problems found"} : std::format("{} problem{} found", diagnostics.entries.size(), diagnostics.entries.size() == 1UZ ? "" : "s");
     canvas->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2{x, y}, theme.text, heading.c_str());
+    y += line * 1.2f;
+    canvas->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2{x, y}, theme.track, build.c_str());
     y += line * 1.8f;
 
     // a problem wraps at the panel's width: its message names the file and what is wrong, and neither may be cut
