@@ -149,6 +149,7 @@ struct Viewer {
     Navigator          navigator;
 
     std::vector<Section>                                  sections;
+    std::string                                           citationShown; // the citation mark whose works the popup shows: hovered, or tapped once on a touch screen
     FigureCache                                           figures;
     FormulaCache                                          formulas;
     QrCache                                               qrCodes;
@@ -310,6 +311,8 @@ void applyNavigationKeys(Viewer& viewer);
 void applyZoomInput(Viewer& viewer);
 void applyVideoButtons(Viewer& viewer);
 void applyLinkClicks(Viewer& viewer);
+/// the works a hovered or tapped citation mark cites, beside it
+void drawCitation(const Viewer& viewer, float interfacePixelsPerPoint);
 void applyTextSelection(Viewer& viewer);
 void applyZoomToDrawData(Viewer& viewer);
 void trackFinger(Viewer& viewer, const SDL_Event& event);

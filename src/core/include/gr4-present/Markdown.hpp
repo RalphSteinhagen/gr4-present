@@ -2,6 +2,7 @@
 #define GR4_PRESENT_MARKDOWN_HPP
 
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <span>
 #include <string>
@@ -154,6 +155,27 @@ struct Citations {
     std::vector<std::pair<std::string, std::string>> references; // label, target
 };
 [[nodiscard]] Citations citationsOf(std::span<const Section> sections);
+
+/// the marks of the citations at one place, as `1,4` or `1–4`: ascending, three or more in a row as a range, the rest by
+/// commas; 0, a label no reference defines, as `?`
+[[nodiscard]] std::string citationMarks(std::vector<int> numbers);
+
+/// the citations one `:::references` slide lists when a long list is split across slides, both ends included
+struct CitationRange {
+    int first = 1;
+    int last  = std::numeric_limits<int>::max(); // open: to the end, the deck's links included
+
+    [[nodiscard]] bool contains(int number) const noexcept { return number >= first && number <= last; }
+    [[nodiscard]] bool open() const noexcept { return last == std::numeric_limits<int>::max(); }
+
+    bool operator==(const CitationRange&) const = default;
+};
+
+/// `1-12`, `13-` or `5`; empty is every citation; anything else, or an end before its start, is no range
+[[nodiscard]] std::optional<CitationRange> citationRange(std::string_view written);
+
+/// the first section whose `:::references`, in a box or not, lists citation `number`; none when no slide lists it
+[[nodiscard]] const Section* sectionListing(std::span<const Section> sections, int number);
 
 /// whether a directive's name configures the slide; any other name is a content box whose lines are kept as written
 /// the names in a comma-separated field (`next: architecture, demo`, `transitions: fade, fire`), in the author's

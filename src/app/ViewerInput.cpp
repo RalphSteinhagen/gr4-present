@@ -1,7 +1,12 @@
 #include "Canvas.hpp"
+#include "Fonts.hpp"
+#include "ScopedWindow.hpp"
 #include "Viewer.hpp"
 
 #include "SwipeNavigation.hpp"
+
+#include <gr4-present/Markdown.hpp>
+#include <gr4-present/Number.hpp>
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -166,6 +171,12 @@ void applyLinkClicks(Viewer& viewer) {
     if (clicked != viewer.documentView.linkAreas.end() || std::ranges::any_of(viewer.documentView.videoButtons, under, &DocumentView::VideoButton::area)) {
         ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
     }
+    const bool overCitation = clicked != viewer.documentView.linkAreas.end() && clicked->target.starts_with(DocumentView::kCitationTarget);
+    if (io.MouseSource != ImGuiMouseSource_TouchScreen) { // shown while the pointer rests on the mark, gone once it leaves
+        viewer.citationShown = overCitation ? clicked->target : std::string{};
+    } else if (!std::ranges::contains(viewer.documentView.linkAreas, viewer.citationShown, &DocumentView::LinkArea::target)) {
+        viewer.citationShown.clear(); // the slide moved on
+    }
     if (!io.MouseReleased[0] || io.MouseDragMaxDistanceSqr[0] > kDragThresholdSquared) {
         return;
     }
@@ -176,11 +187,28 @@ void applyLinkClicks(Viewer& viewer) {
         return std::hypot(std::max({area.x - x, 0.0f, x - area.x - area.width}), std::max({area.y - y, 0.0f, y - area.y - area.height}));
     };
     const auto nearest = std::ranges::min_element(viewer.documentView.linkAreas, {}, distanceTo);
-    const auto taken   = io.MouseSource == ImGuiMouseSource_TouchScreen && nearest != viewer.documentView.linkAreas.end() && distanceTo(*nearest) <= kTouchTargetPixels * 0.5f ? nearest : clicked;
+    const bool touched = io.MouseSource == ImGuiMouseSource_TouchScreen;
+    const auto taken   = touched && nearest != viewer.documentView.linkAreas.end() && distanceTo(*nearest) <= kTouchTargetPixels * 0.5f ? nearest : clicked;
     if (taken == viewer.documentView.linkAreas.end()) {
+        viewer.citationShown.clear();
         return;
     }
     const std::string target = taken->target; // the areas are rebuilt by whatever the click starts
+    if (target.starts_with(DocumentView::kCitationTarget)) {
+        // a fingertip cannot hover: its first tap shows the works, a second on the same mark leads to their list
+        if (touched && viewer.citationShown != target) {
+            viewer.citationShown = target;
+            return;
+        }
+        viewer.citationShown.clear();
+        const std::string_view numbers = std::string_view{target}.substr(DocumentView::kCitationTarget.size());
+        const Section*         listing = sectionListing(viewer.sections, parseNumber<int>(numbers.substr(0UZ, numbers.find(','))).value_or(0)); // the first lists the others nearby
+        const Cursor           before  = viewer.navigator.cursor;
+        if (listing != nullptr && viewer.navigator.jumpTo(listing->id)) {
+            settleCursor(viewer, before, Move::jump);
+        }
+        return;
+    }
     if (target.starts_with('#')) {
         const Cursor before = viewer.navigator.cursor;
         const bool   jumped = viewer.navigator.jumpTo(std::string_view{target}.substr(1UZ));
@@ -196,6 +224,33 @@ void applyLinkClicks(Viewer& viewer) {
     }
 #endif
     SDL_OpenURL(target.c_str());
+}
+
+void drawCitation(const Viewer& viewer, float interfacePixelsPerPoint) {
+    if (viewer.citationShown.empty() || viewer.documentView.document == nullptr) {
+        return;
+    }
+    const ScopedFont    body(Fonts::kInterfacePoints * interfacePixelsPerPoint);
+    const ScopedTooltip tooltip{};
+    if (!tooltip) {
+        return;
+    }
+    const ScopedTextWrap wrap{ImGui::GetFontSize() * 32.0f};
+    for (const auto written : std::string_view{viewer.citationShown}.substr(DocumentView::kCitationTarget.size()) | std::views::split(',')) {
+        const int number = parseNumber<int>(std::string_view{written}).value_or(0);
+        if (number < 1 || static_cast<std::size_t>(number) > viewer.documentView.citations.size()) {
+            continue;
+        }
+        const std::vector<InlineSpan>* spans = viewer.documentView.document->footnote(viewer.documentView.citations[static_cast<std::size_t>(number - 1)]);
+        if (spans == nullptr) {
+            continue;
+        }
+        std::string work = std::format("[{}]  ", number);
+        for (const InlineSpan& span : *spans) {
+            work += span.text;
+        }
+        ImGui::TextUnformatted(work.c_str());
+    }
 }
 
 #ifdef __EMSCRIPTEN__
