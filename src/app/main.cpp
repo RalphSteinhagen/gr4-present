@@ -216,6 +216,7 @@ void renderFrame(Viewer& viewer) {
             viewer.menu.draw(viewer.theme, interfacePixelsPerPoint);
             viewer.diagnosticsPanel.draw(viewer.diagnostics, viewer.theme, interfacePixelsPerPoint);
             drawNotes(viewer, interfacePixelsPerPoint);
+            drawCitation(viewer, interfacePixelsPerPoint);
             drawPhoneLink(viewer);
             drawBreakScreen(viewer);
         }

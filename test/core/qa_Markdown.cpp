@@ -993,6 +993,42 @@ const suite<"Markdown masters"> markdownMastersTests = [] {
         applyMasters(document, {});
         expect(document == written);
     };
+
+    // Ground truth: how a paper marks several references at one place, ascending, a run of three or more as a range
+    "several citations at one place are marked as one: 1,4 and 1–4"_test = [] {
+        expect(eq(citationMarks({4, 1}), std::string{"1,4"}));
+        expect(eq(citationMarks({1, 2, 3, 4}), std::string{"1\u20134"}));
+        expect(eq(citationMarks({1, 2}), std::string{"1,2"})) << "two in a row stay two";
+        expect(eq(citationMarks({7, 3, 1, 2, 3}), std::string{"1\u20133,7"})) << "sorted, a repeat once";
+        expect(eq(citationMarks({2, 0}), std::string{"?,2"})) << "an undefined label stays visible";
+        expect(eq(citationMarks({5}), std::string{"5"}));
+    };
+
+    "a references list split across slides names the citations each slide lists"_test = [] {
+        expect(citationRange("1-12") == std::optional{CitationRange{.first = 1, .last = 12}});
+        expect(citationRange(" 13- ").transform(&CitationRange::open) == std::optional{true}) << "an open end runs to the last citation";
+        expect(citationRange("5") == std::optional{CitationRange{.first = 5, .last = 5}});
+        expect(citationRange("") == std::optional{CitationRange{}}) << "none written: every citation";
+        for (const std::string_view wrong : {"12-1", "0-3", "a-b", "-4", "1-2-3"}) {
+            expect(!citationRange(wrong).has_value()) << wrong;
+        }
+
+        const Document split = parseMarkdown(":::references 13-\n:::\n");
+        expect(eq(split.blocks.front().info, std::string{"references"})) << "the range is no part of the directive's name";
+        expect(eq(split.blocks.front().field("range"), std::string_view{"13-"}));
+        expect(split.warnings.empty());
+        expect(eq(parseMarkdown(":::references 12-1\n:::\n").warnings.size(), 1UZ)) << "a range it cannot read is reported";
+
+        const std::vector<Section> deck    = sectionsOf(parseMarkdown("# Intro {#intro}\n\ntext\n\n# Sources {#sources}\n\n:::list\n:::references 1-2\n:::\n:::\n\n# More {#more}\n\n:::references 3-\n:::\n"));
+        const auto                 listing = [&deck](int number) {
+            const Section* found = sectionListing(deck, number);
+            return found == nullptr ? std::string{} : found->id;
+        };
+        expect(eq(listing(2), std::string{"sources"})) << "a list inside a box";
+        expect(eq(listing(3), std::string{"more"}));
+        expect(eq(listing(40), std::string{"more"})) << "an open range";
+        expect(sectionListing(sectionsOf(parseMarkdown("# A {#a}\n\ntext\n")), 1) == nullptr) << "no slide lists it";
+    };
 };
 
 int main() { return boost::ut::cfg<>.run({.report_errors = true}) ? 1 : 0; }

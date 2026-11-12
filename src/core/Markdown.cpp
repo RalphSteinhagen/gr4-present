@@ -615,6 +615,69 @@ void appendCitedLabels(const Block& block, std::vector<std::string>& labels) {
     std::ranges::for_each(block.cells, note);
 }
 
+std::string citationMarks(std::vector<int> numbers) {
+    std::ranges::sort(numbers);
+    const auto [last, end] = std::ranges::unique(numbers);
+    numbers.erase(last, end);
+    std::string marks;
+    for (std::size_t at = 0UZ; at < numbers.size();) {
+        std::size_t run = at;
+        while (numbers[at] > 0 && run + 1UZ < numbers.size() && numbers[run + 1UZ] == numbers[run] + 1) {
+            ++run;
+        }
+        const bool range = run - at >= 2UZ;
+        marks += marks.empty() ? "" : ",";
+        if (numbers[at] <= 0) {
+            marks += '?';
+        } else {
+            marks += range ? std::format("{}\u2013{}", numbers[at], numbers[run]) : std::to_string(numbers[at]);
+        }
+        at = range ? run + 1UZ : at + 1UZ;
+    }
+    return marks;
+}
+
+std::optional<CitationRange> citationRange(std::string_view written) {
+    written = trim(written);
+    if (written.empty()) {
+        return CitationRange{};
+    }
+    const auto number = [](std::string_view digits) { return parseNumber<int>(digits).and_then([](int value) { return value >= 1 ? std::optional{value} : std::nullopt; }); };
+    const auto dash   = written.find('-');
+    const auto first  = number(trim(written.substr(0UZ, dash)));
+    if (!first) {
+        return std::nullopt;
+    }
+    if (dash == std::string_view::npos) {
+        return CitationRange{.first = *first, .last = *first};
+    }
+    const std::string_view end = trim(written.substr(dash + 1UZ));
+    if (end.empty()) {
+        return CitationRange{.first = *first};
+    }
+    const auto last = number(end);
+    if (!last || *last < *first) {
+        return std::nullopt;
+    }
+    return CitationRange{.first = *first, .last = *last};
+}
+
+const Section* sectionListing(std::span<const Section> sections, int number) {
+    const auto lists = [number](this const auto& self, const Document& document) -> bool {
+        return std::ranges::any_of(document.blocks, [&](const Block& block) {
+            if (block.kind != BlockKind::directive) {
+                return false;
+            }
+            if (block.info == "references") {
+                return citationRange(block.field("range")).value_or(CitationRange{}).contains(number);
+            }
+            return !block.lines.empty() && self(boxDocumentOf(block.lines, document));
+        });
+    };
+    const auto found = std::ranges::find_if(sections, [&lists](const Section& section) { return lists(section.document); });
+    return found == sections.end() ? nullptr : &*found;
+}
+
 Citations citationsOf(std::span<const Section> sections) {
     Citations  cited;
     const auto noteLinks = [&cited](const std::vector<InlineSpan>& spans) {
@@ -880,6 +943,15 @@ Document parseMarkdown(std::string_view source) {
             if (brace != std::string_view::npos) {
                 name = trim(name.substr(0UZ, brace));
             }
+            // `:::references 13-`: the citations this slide lists of a list split across slides
+            std::string_view range = {};
+            if (name.starts_with("references ")) {
+                range = trim(name.substr(std::string_view{"references"}.size()));
+                name  = name.substr(0UZ, std::string_view{"references"}.size());
+                if (!citationRange(range)) {
+                    document.warnings.push_back(std::format("line {}: `:::references {}` lists no range of citations: write `1-12`, `13-` or `5`", index + 1UZ, range));
+                }
+            }
             if (name.empty()) {
                 if (!insideDirective && openSteps == 0) {
                     document.warnings.push_back(std::format("line {}: a `{}` that closes nothing", index + 1UZ, body));
@@ -927,6 +999,9 @@ Document parseMarkdown(std::string_view source) {
             if (const auto anchor = std::ranges::find_if(fields, [](const auto& option) { return option.first.starts_with('#'); }); anchor != fields.end()) {
                 id = anchor->first.substr(1UZ); // Pandoc's `{#id}` names the box rather than setting an option
                 fields.erase(anchor);
+            }
+            if (!range.empty()) {
+                fields.emplace_back("range", range);
             }
             document.blocks.push_back(Block{.kind = BlockKind::directive, .step = step, .id = std::move(id), .info = std::string{name}, .fields = std::move(fields)});
             openDirectiveIndex = document.blocks.size() - 1UZ;

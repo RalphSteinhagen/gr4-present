@@ -32,6 +32,9 @@ using ScopedPointerId  = stdex::c_resource<void, static_cast<void (*)(const void
 using ScopedStyleColor = stdex::c_resource<void, static_cast<void (*)(ImGuiCol, ImU32)>(ImGui::PushStyleColor), scoped::popStyleColor, true>;
 using ScopedStyleVar   = stdex::c_resource<void, static_cast<void (*)(ImGuiStyleVar, const ImVec2&)>(ImGui::PushStyleVar), scoped::popStyleVar, true>;
 using ScopedStyleValue = stdex::c_resource<void, static_cast<void (*)(ImGuiStyleVar, float)>(ImGui::PushStyleVar), scoped::popStyleVar, true>;
+/// a tooltip beside the pointer, ended only when it began; and the width its text wraps at
+using ScopedTooltip  = stdex::c_resource<bool, ImGui::BeginTooltip, ImGui::EndTooltip>;
+using ScopedTextWrap = stdex::c_resource<void, ImGui::PushTextWrapPos, ImGui::PopTextWrapPos, true>;
 /// a draw list's clip rectangle, intersected with the one it had; a null list clips nothing, for a clip that only some cases need
 using ScopedClipRect = stdex::c_resource<ImDrawList*, scoped::pushClipRect, scoped::popClipRect>;
 

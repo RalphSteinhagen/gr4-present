@@ -32,6 +32,22 @@ namespace gr::present {
 
 namespace {
 
+constexpr char kCitationSeparator = '\x1f';
+
+/// adjacent citations as one span, their labels joined by kCitationSeparator, so they are drawn as one superscript
+[[nodiscard]] std::vector<InlineSpan> citationsGrouped(std::span<const InlineSpan> spans) {
+    std::vector<InlineSpan> grouped;
+    for (const InlineSpan& span : spans) {
+        if (span.kind == InlineKind::footnote && !grouped.empty() && grouped.back().kind == InlineKind::footnote) {
+            grouped.back().target += kCitationSeparator;
+            grouped.back().target += span.target;
+            continue;
+        }
+        grouped.push_back(span);
+    }
+    return grouped;
+}
+
 /// a drawing becomes vectors on an exported page; anything else stays the picture it is
 [[nodiscard]] RecordedImageKind imageKindOf(std::string_view reference) noexcept { return isSvgReference(reference) ? RecordedImageKind::figure : RecordedImageKind::picture; }
 
@@ -381,7 +397,8 @@ struct InlinePen {
         }
     }
 
-    void superscript(std::string_view text, ImU32 colour, float size) {
+    /// returns where it was drawn
+    Rectangle superscript(std::string_view text, ImU32 colour, float size) {
         ImFont* const font   = ImGui::GetFont();
         const float   raised = size * kFootnoteMarkerScale;
         const ImVec2  extent = font->CalcTextSizeA(raised, FLT_MAX, 0.0f, text.data(), text.data() + text.size());
@@ -391,7 +408,9 @@ struct InlinePen {
         if (canvas) {
             canvas.text(font, raised, ImVec2{pen.x, pen.y - lineHeight * 0.1f}, colour, text);
         }
+        const Rectangle drawn{.x = pen.x, .y = pen.y - lineHeight * 0.1f, .width = extent.x, .height = extent.y};
         pen.x += extent.x;
+        return drawn;
     }
 
     /// 1-based, in the order the view first refers to them; 0 when the label was never defined
@@ -437,9 +456,15 @@ struct InlinePen {
             formula(*rendered, inlineSpan.text, theme.text, spanSz);
             return;
         }
-        case InlineKind::footnote: {
-            const int number = numberOf(inlineSpan.target);
-            superscript(number > 0 ? std::to_string(number) : std::string{"?"}, theme.fill, size); // an undefined label stays visible
+        case InlineKind::footnote: { // one or several, as `citationsGrouped` joins them; an undefined label stays visible as `?`
+            std::vector<int> numbers = inlineSpan.target | std::views::split(kCitationSeparator) | std::views::transform([this](auto label) { return numberOf(std::string_view{label}); }) | std::ranges::to<std::vector<int>>();
+            const Rectangle  drawn   = superscript(citationMarks(numbers), theme.fill, size);
+            std::erase(numbers, 0);                               // undefined: nothing to show or lead to
+            if (canvas && links != nullptr && !numbers.empty()) { // hovered it shows the works, clicked it leads to their list
+                std::ranges::sort(numbers);
+                const std::string listed = numbers | std::views::transform([](int number) { return std::to_string(number); }) | std::views::join_with(',') | std::ranges::to<std::string>();
+                links->push_back(DocumentView::LinkArea{.target = std::format("{}{}", DocumentView::kCitationTarget, listed), .area = drawn});
+            }
             return;
         }
         case InlineKind::lineBreak: newline("\n"); return;
@@ -527,7 +552,7 @@ float drawTable(Canvas canvas, const Theme& theme, const FaceSet& faces, const B
                 const float offset = table.columns[column] == Alignment::right ? slack : table.columns[column] == Alignment::centre ? slack * 0.5f : 0.0f;
 
                 InlinePen pen{.canvas = into, .origin = ImVec2{x + offset, y}, .pen = ImVec2{x + offset, y}, .right = x + cellWidth, .lineHeight = lineHeight, .faces = faces, .face = row == 0UZ ? bold : nullptr, .formulas = &formulas};
-                for (const InlineSpan& span : cell) {
+                for (const InlineSpan& span : citationsGrouped(cell)) {
                     pen.span(span, theme, cellSize);
                 }
                 bottom = std::max(bottom, pen.pen.y + lineHeight);
@@ -1553,9 +1578,15 @@ void DocumentView::layoutReferences(Pass& pass, const Block& block) {
         }
         listRight = box - pass.bodyLine; // gutter: references stay clear of the codes
     }
-    // citations come first and keep their marker numbers (IEEE), so `[3]` on a slide is `[3]` here
-    const float smaller = ImGui::GetFontSize() * kReferenceScale;
+    // citations come first and keep their marker numbers (IEEE), so `[3]` on a slide is `[3]` here; a list split
+    // across slides shows its range here, and the deck's links after the range that runs to the end
+    const CitationRange range   = citationRange(block.field("range")).value_or(CitationRange{}); // the parser warned of one it cannot read
+    const float         smaller = ImGui::GetFontSize() * kReferenceScale;
+    bool                listed  = false;
     for (std::size_t index = 0UZ; index < citations.size(); ++index) {
+        if (!range.contains(static_cast<int>(index + 1UZ))) {
+            continue;
+        }
         if (pass.canvas.runs != nullptr) {
             pass.canvas.runs->breakWith("\n");
         }
@@ -1567,16 +1598,18 @@ void DocumentView::layoutReferences(Pass& pass, const Block& block) {
         const ImVec2 referenceStart{pass.left, pass.cursor};
         InlinePen    pen{.canvas = pass.canvas, .origin = hangingOrigin, .pen = referenceStart, .right = listRight, .lineHeight = pass.bodyLine, .faces = pass.faces, .formulas = &formulaFor, .numbering = &pass.numbering, .links = &linkAreas};
         pen.run("[" + std::to_string(index + 1UZ) + "]  ", dimmed(pass.theme.fill, 0.9f), ImGui::GetFont(), smaller);
-        for (const InlineSpan& span : *text) {
+        for (const InlineSpan& span : citationsGrouped(*text)) {
             pen.span(span, pass.theme, smaller);
         }
         pass.cursor = pen.pen.y + pass.bodyLine * 1.1f;
+        listed      = true;
     }
 
-    if (!citations.empty() && !references.empty()) {
+    const bool links = range.open() && !references.empty();
+    if (listed && links) {
         pass.cursor += (pass.trailingGap = pass.bodyLine * kParagraphGapLines);
     }
-    for (const auto& [label, target] : references) {
+    for (const auto& [label, target] : references | std::views::take(links ? references.size() : 0UZ)) {
         if (pass.canvas.runs != nullptr) {
             pass.canvas.runs->breakWith("\n");
         }
@@ -1657,7 +1690,7 @@ void DocumentView::layoutFootnotes(Pass& pass, std::span<const std::string> refe
             pen.superscript(std::to_string(number + 1UZ), dimmed(pass.theme.fill, 0.9f), noteSize);
             pen.word(" ", dimmed(pass.theme.text, 0.7f), ImGui::GetFont(), noteSize);
             if (const std::vector<InlineSpan>* text = pass.document.footnote(referenced[index]); text != nullptr) {
-                for (const InlineSpan& span : *text) {
+                for (const InlineSpan& span : citationsGrouped(*text)) {
                     pen.span(span, pass.theme, noteSize);
                 }
             } else {
@@ -1774,7 +1807,7 @@ auto DocumentView::layoutPass(const Theme& theme, const Document& contents, floa
             const ImVec2 headingStart{left, cursor};
             InlinePen    pen{.canvas = canvas, .origin = headingStart, .pen = headingStart, .right = right, .lineHeight = headingLine, .faces = faces, .face = labelFace, .formulas = &formulaFor, .numbering = &numbering, .links = &linkAreas};
             bool         subtitled = false;
-            for (const InlineSpan& inlineSpan : block.spans) {
+            for (const InlineSpan& inlineSpan : citationsGrouped(block.spans)) {
                 // in a title, what follows a `<br>` is a smaller sub-title on its own line
                 if (inlineSpan.kind == InlineKind::lineBreak && block.level == 1 && !subtitled) {
                     subtitled = true;
@@ -1899,7 +1932,7 @@ auto DocumentView::layoutPass(const Theme& theme, const Document& contents, floa
                 marker.text(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2{indent - bodyLine, cursor}, dimmed(theme.text, 0.7f), block.ordered ? bullet + " " : bullet);
             }
             InlinePen pen{.canvas = canvas, .origin = ImVec2{indent, cursor}, .pen = ImVec2{indent, cursor}, .right = right, .lineHeight = bodyLine, .faces = faces, .formulas = &formulaFor, .numbering = &numbering, .links = &linkAreas};
-            for (const InlineSpan& inlineSpan : block.spans) {
+            for (const InlineSpan& inlineSpan : citationsGrouped(block.spans)) {
                 pen.span(inlineSpan, theme, ImGui::GetFontSize());
             }
             cursor = pen.pen.y + bodyLine + gapAfter(bodyLine * kParagraphGapLines * 0.4f);
@@ -1954,7 +1987,7 @@ auto DocumentView::layoutPass(const Theme& theme, const Document& contents, floa
                 break;
             }
             InlinePen pen{.canvas = canvas, .origin = ImVec2{left, cursor}, .pen = ImVec2{left, cursor}, .right = right, .lineHeight = bodyLine, .faces = faces, .formulas = &formulaFor, .numbering = &numbering, .links = &linkAreas};
-            for (const InlineSpan& inlineSpan : block.spans) {
+            for (const InlineSpan& inlineSpan : citationsGrouped(block.spans)) {
                 pen.span(inlineSpan, theme, ImGui::GetFontSize());
             }
             cursor = pen.pen.y + bodyLine + gapAfter(bodyLine * kParagraphGapLines);

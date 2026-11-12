@@ -177,6 +177,20 @@ Every link in the deck, gathered:
 :::
 )";
 
+// the second slide of a list split across two: citations 2 and 3, the deck's links on the slide whose range runs on
+constexpr std::string_view kSplitReferences = R"(# Sources {#sources}
+
+Cited[^a][^b][^c][^d].
+
+:::references 2-3
+:::
+
+[^a]: A. First, "the work on the slide before", 2001.
+[^b]: B. Second, "the first work here", 2002.
+[^c]: C. Third, "the last work here", 2003.
+[^d]: D. Fourth, "the work on the slide after", 2004.
+)";
+
 // labels out of order on purpose: markers must read 1 then 2 by first appearance, not by where the definitions sit
 constexpr std::string_view kFootnoted = R"(# Citations {#cited}
 
@@ -460,6 +474,7 @@ const std::vector<Scenario>& kScenarios = *new std::vector<Scenario>{
     {.name = "document-media-early", .scheme = ColourScheme::dark, .step = 0, .source = kMediaShown},
     {.name = "document-media-later", .scheme = ColourScheme::dark, .step = 0, .source = kMediaShown, .clock = 0.45},
     {.name = "document-qr", .scheme = ColourScheme::dark, .step = 0, .source = kCoded},
+    {.name = "document-references-split", .scheme = ColourScheme::dark, .step = 0, .source = kSplitReferences},
     {.name = "document-footnotes", .scheme = ColourScheme::dark, .step = 0, .source = kFootnoted},
     {.name = "document-footnotes-swapped", .scheme = ColourScheme::dark, .step = 0, .source = kFootnotedSwapped},
     {.name = "document-notes-hidden", .scheme = ColourScheme::dark, .step = 0, .source = kNoted},
@@ -616,6 +631,9 @@ void drawScenario(const Scenario& scenario) {
     static QrCache codes;
     view.qrFor      = [](std::string_view text, float pixels) { return &codes.get(text, pixels); };
     view.references = {{"the manual", "docs/manual.md"}, {"the live demo", "https://ralphsteinhagen.github.io/gr4-present"}};
+    if (scenario.source == kSplitReferences) {
+        view.citations = {"a", "b", "c", "d"};
+    }
     static Layout boxes; // outlives the draw, since the view keeps a pointer to it
     if (scenario.useBoxes) {
         const ImGuiViewport& screen = *ImGui::GetMainViewport();
@@ -1094,6 +1112,14 @@ const boost::ut::suite<"DocumentView"> documentViewTests = [] {
             const float advances = static_cast<float>(mono->text.size());
             expect(std::abs(mono->area.width - advances * 1229.0f / (1705.0f + 615.0f) * body.height) < 1.0f) << "'" << mono->text << "' in mono is " << mono->area.width << " px wide";
         }
+    };
+
+    "a references slide given a range lists those citations alone, and the deck's links only where its range runs on"_test = [] {
+        const std::vector<TextRun>& runs   = gRuns["document-references-split"];
+        const auto                  listed = [&runs](std::string_view text) { return std::ranges::any_of(runs, [text](const TextRun& run) { return run.text.starts_with(text); }); };
+        expect(listed("[2]") && listed("[3]")) << "the range's own citations";
+        expect(!listed("[1]") && !listed("[4]")) << "none before or after it";
+        expect(!listed("the manual")) << "the links follow the range that runs to the end";
     };
 
     // Ground truth: smoothstep is 0.5 half-way through a 1 s reveal: `grow` at 0.95 of its size, `wipe` cut at half

@@ -234,12 +234,14 @@ struct DocumentView {
     };
     std::vector<VideoButton> videoButtons = {}; // refreshed each draw
 
-    /// words or a code that lead somewhere, in the slide's coordinates
+    /// words or a code that lead somewhere, in the slide's coordinates; a citation mark's target is kCitationTarget and
+    /// its numbers, `cite:2,3`
     struct LinkArea {
         std::string target;
         Rectangle   area;
     };
-    std::vector<LinkArea> linkAreas = {}; // refreshed each draw
+    static constexpr std::string_view kCitationTarget = "cite:";
+    std::vector<LinkArea>             linkAreas       = {}; // refreshed each draw
 
     /// the text drawn in the last frame, in reading order; `mutable` because the backdrop is drawn from a const
     /// placement pass
