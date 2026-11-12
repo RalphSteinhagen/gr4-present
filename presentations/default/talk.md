@@ -1592,9 +1592,8 @@ grid: [(list)]:12, [(log)]
 :::
 
 :::list
-Every work the deck cites, numbered as on its slides.
-A long list splits across slides: `:::references 1-12` on one, `:::references 13-` on the next.
-Resting on a citation mark shows its work; a click, or a second tap, leads here.
+Every work the deck cites, numbered as on its slides; `:::references 13-` lists them from the 13th on.
+Resting on a mark shows its work, a click leads here; `:::figure {#fig:id}` numbers a picture, `[](#fig:id)` names it.
 
 :::references
 qr: https://ralphsteinhagen.github.io/gr4-present

@@ -302,13 +302,14 @@ void advanceLoading(Viewer& viewer) {
         const std::span<const std::uint8_t> bytes = viewer.loader.figureBytes(reference);
         return std::string_view{reinterpret_cast<const char*>(bytes.data()), bytes.size()};
     };
-    viewer.documentView.formulaFor = [&viewer](std::string_view latex, float pixels, bool display) { return &viewer.formulas.get(latex, pixels, display); };
-    viewer.documentView.qrFor      = [&viewer](std::string_view text, float pixels) { return &viewer.qrCodes.get(text, pixels); };
-    viewer.documentView.videoFor   = [&viewer](std::string_view reference, bool autoplay, bool loop, bool sound) { return viewer.videos.get(reference, autoplay, loop, sound); };
-    viewer.videos.bytesFor         = [&viewer](std::string_view reference) { return viewer.loader.figureBytes(reference); };
-    Citations cited                = citationsOf(viewer.sections);
-    viewer.documentView.citations  = std::move(cited.footnotes);
-    viewer.documentView.references = std::move(cited.references);
+    viewer.documentView.formulaFor  = [&viewer](std::string_view latex, float pixels, bool display) { return &viewer.formulas.get(latex, pixels, display); };
+    viewer.documentView.qrFor       = [&viewer](std::string_view text, float pixels) { return &viewer.qrCodes.get(text, pixels); };
+    viewer.documentView.videoFor    = [&viewer](std::string_view reference, bool autoplay, bool loop, bool sound) { return viewer.videos.get(reference, autoplay, loop, sound); };
+    viewer.videos.bytesFor          = [&viewer](std::string_view reference) { return viewer.loader.figureBytes(reference); };
+    Citations cited                 = citationsOf(viewer.sections);
+    viewer.documentView.citations   = std::move(cited.footnotes);
+    viewer.documentView.deckFigures = figuresOf(viewer.sections, viewer.loader.manifest().figureNumbers);
+    viewer.documentView.references  = std::move(cited.references);
 }
 
 void applyTheme(Viewer& viewer, ColourScheme scheme) {

@@ -89,6 +89,9 @@ struct Manifest {
     /// `pointer: laser`: the effect shader the pointer draws with when `L` turns it on; empty takes the viewer's own
     std::string pointer;
 
+    /// `figure-numbers: false`: a `:::figure` is captioned without a number, and `[](#fig:id)` reads as its caption
+    bool figureNumbers = true;
+
     /// `break: { effect: plasma, minutes: 10 }`: what the break screen behind `B` shows, and how long it counts down
     std::string breakEffect;
     float       breakMinutes = 10.0f;

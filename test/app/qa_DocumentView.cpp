@@ -177,6 +177,16 @@ Every link in the deck, gathered:
 :::
 )";
 
+// a numbered figure, captioned under its picture, and the text naming it before it comes
+constexpr std::string_view kFigured = R"(# Figures {#figures}
+
+The deep field ([](#fig:deep)) shows thousands of galaxies.
+
+:::figure {#fig:deep}
+![the Hubble Ultra Deep Field](media/hubble-deep-field.jpg)
+:::
+)";
+
 // the second slide of a list split across two: citations 2 and 3, the deck's links on the slide whose range runs on
 constexpr std::string_view kSplitReferences = R"(# Sources {#sources}
 
@@ -474,6 +484,7 @@ const std::vector<Scenario>& kScenarios = *new std::vector<Scenario>{
     {.name = "document-media-early", .scheme = ColourScheme::dark, .step = 0, .source = kMediaShown},
     {.name = "document-media-later", .scheme = ColourScheme::dark, .step = 0, .source = kMediaShown, .clock = 0.45},
     {.name = "document-qr", .scheme = ColourScheme::dark, .step = 0, .source = kCoded},
+    {.name = "document-figure", .scheme = ColourScheme::dark, .step = 0, .source = kFigured},
     {.name = "document-references-split", .scheme = ColourScheme::dark, .step = 0, .source = kSplitReferences},
     {.name = "document-footnotes", .scheme = ColourScheme::dark, .step = 0, .source = kFootnoted},
     {.name = "document-footnotes-swapped", .scheme = ColourScheme::dark, .step = 0, .source = kFootnotedSwapped},
@@ -526,6 +537,7 @@ auto& gSlideNotes    = recorded<std::map<std::string, std::vector<std::string>>,
 auto& gRecordings    = recorded<std::map<std::string, PageRecording>, 7>();              // what each scenario drew, as an exported page would get it
 auto& gCopied        = recorded<std::map<std::string, std::string>, 8>();                // everything a reader could select, copied
 auto& gRuns          = recorded<std::map<std::string, std::vector<TextRun>>, 22>();      // the words each scenario drew, and where
+auto& gLinks         = recorded<std::map<std::string, std::vector<std::string>>, 24>();  // where each scenario's links lead
 
 /// runs outside the suite because the suite runs after the ImGui context and its atlas are gone
 void recordMissingGlyphs() {
@@ -634,6 +646,7 @@ void drawScenario(const Scenario& scenario) {
     if (scenario.source == kSplitReferences) {
         view.citations = {"a", "b", "c", "d"};
     }
+    view.deckFigures = figuresOf(sectionsOf(shown));
     static Layout boxes; // outlives the draw, since the view keeps a pointer to it
     if (scenario.useBoxes) {
         const ImGuiViewport& screen = *ImGui::GetMainViewport();
@@ -675,7 +688,8 @@ void drawScenario(const Scenario& scenario) {
     view.slideSize           = scenario.slideSize.empty() ? std::nullopt : parseTypeSize(scenario.slideSize);
     view.stepSeconds         = scenario.stepSeconds;
     view.draw(theme);
-    gRuns[scenario.name] = view.textRuns.runs;
+    gRuns[scenario.name]  = view.textRuns.runs;
+    gLinks[scenario.name] = view.linkAreas | std::views::transform(&DocumentView::LinkArea::target) | std::ranges::to<std::vector<std::string>>();
     if (scenario.name == "document-spans") {
         gHeights["nine points"] = Fonts::pointsToPixels(9.0f, ImGui::GetMainViewport()->Size.x, ImGui::GetMainViewport()->Size.y);
     }
@@ -1112,6 +1126,15 @@ const boost::ut::suite<"DocumentView"> documentViewTests = [] {
             const float advances = static_cast<float>(mono->text.size());
             expect(std::abs(mono->area.width - advances * 1229.0f / (1705.0f + 615.0f) * body.height) < 1.0f) << "'" << mono->text << "' in mono is " << mono->area.width << " px wide";
         }
+    };
+
+    "a figure is captioned with its number under its picture, and the text names it by that number"_test = [] {
+        const std::vector<TextRun>& runs  = gRuns["document-figure"];
+        const auto                  named = runs | std::views::filter([](const TextRun& run) { return run.text.starts_with("Fig."); }) | std::ranges::to<std::vector<TextRun>>();
+        expect(eq(named.size(), 2UZ)) << "`[](#fig:deep)` reads `Fig. 1`, and so does the caption";
+        expect(named.size() == 2UZ && named[1].area.y > named[0].area.y + 100.0f) << "the caption under the picture, below the text";
+        expect(std::ranges::any_of(runs, [](const TextRun& run) { return run.text.starts_with("Ultra"); })) << "the caption: `Fig. 1: the Hubble Ultra Deep Field`";
+        expect(std::ranges::contains(gLinks["document-figure"], std::string{"#figures"})) << "the name leads to the figure's slide";
     };
 
     "a references slide given a range lists those citations alone, and the deck's links only where its range runs on"_test = [] {

@@ -157,6 +157,10 @@ struct DocumentView {
     /// every citation label in the deck in order of first reference (IEEE numbering); empty numbers within the view
     std::vector<std::string> citations = {};
 
+    /// every `:::figure` in the deck, numbered unless the deck says `figure-numbers: false`: what its caption says and
+    /// where `[](#fig:id)` leads
+    std::vector<Figure> deckFigures = {};
+
     /// while a page is exported: everything this view draws, in the terms a PDF page needs; null otherwise
     PageRecording* recording = nullptr;
 
@@ -359,6 +363,7 @@ private:
     void                                   layoutVideo(Pass& pass, const Block& block);
     void                                   layoutQr(Pass& pass, const Block& block);
     void                                   layoutReferences(Pass& pass, const Block& block);
+    void                                   layoutFigureCaption(Pass& pass, const Block& block, float pictureGap);
     void                                   layoutRegion(Pass& pass, const Block& block);
     void                                   layoutFootnotes(Pass& pass, std::span<const std::string> referenced);
 
