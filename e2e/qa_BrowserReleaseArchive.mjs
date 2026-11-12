@@ -6,7 +6,7 @@
 
 import { attachPage, launchBrowser, openPage, startServer, withOpenDigitizer } from "../devtools/browser_harness.mjs";
 import { execFileSync, spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -108,22 +108,24 @@ try {
   }
 
   // the deck-site action's script, as another repository's workflow runs it: this archive with a deck of its own as
-  // default/, served from a plain static host
+  // default/, in a sub-folder of a plain static host's site, naming no site of ours
   {
     const sums = join(scratch, "SHA256SUMS");
     writeFileSync(sums, execFileSync("sha256sum", [`${name}.tar.gz`], { cwd: scratch }));
     const site = join(scratch, "site");
     const deck = join(import.meta.dirname, "..", "test", "fixtures", "remote-deck");
-    execFileSync("bash", [join(import.meta.dirname, "..", ".github", "actions", "deck-site", "deck-site.sh"), deck, flavour, version, site], {
+    execFileSync("bash", [join(import.meta.dirname, "..", ".github", "actions", "deck-site", "deck-site.sh"), deck, flavour, version, site, "RalphSteinhagen/gr4-present", "", "", "talk"], {
       env: { ...process.env, GR4_PRESENT_ARCHIVE: archive, GR4_PRESENT_SUMS: sums },
       stdio: ["ignore", "pipe", "inherit"],
     });
-    expect(listed(join(site, "default")).sort().join(",") === listed(deck).sort().join(","), "deck-site.sh puts the deck in place of the stub deck");
-    const server = await startServer(site, ["--no-isolation"]);
+    expect(listed(join(site, "talk", "default")).sort().join(",") === listed(deck).sort().join(","), "deck-site.sh puts the deck in place of the stub deck, in the sub-folder asked for");
+    const naming = listed(site).filter((file) => readFileSync(join(site, file)).includes("ralphsteinhagen.github.io"));
+    expect(naming.length === 0, `and no file of the site names this repository's own site${naming.length ? `: ${naming.join(", ")}` : ""}`);
+    const server = await startServer(site, ["--no-isolation", "--page", "talk/index.html"]);
     const browser = await launchBrowser();
     try {
-      const page = await openPage(browser, `${server.origin}/index.html?mode=windowed`);
-      expect(Boolean(await page.waitFor("(globalThis.gr4Location || '').includes('view=remote') ? 1 : false", 120_000).catch(() => false)), "and the site opens that deck without an address");
+      const page = await openPage(browser, `${server.origin}/talk/index.html?mode=windowed`);
+      expect(Boolean(await page.waitFor("(globalThis.gr4Location || '').includes('view=remote') ? 1 : false", 120_000).catch(() => false)), "and the site opens that deck from its sub-path, without an address");
       await page.close();
     } finally {
       await browser.stop();

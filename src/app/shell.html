@@ -143,7 +143,7 @@
             window.gr4Present.setProgress(0, 1);
           }
         },
-        postRun: [() => { window.gr4Present.setProgress(0, 1); window.gr4Present.dismiss(); }],
+        postRun: [() => { window.gr4Present.setProgress(0, 1); window.gr4Present.dismiss(); window.dispatchEvent(new Event('gr4-runtime-started')); }],
       };
 
       // Without the headers the threaded runtime cannot start at all. Where the service worker can add them the

@@ -17,6 +17,12 @@ inputs:
   out:
     description: "the folder the site is written to; it must not exist yet or be empty"
     default: "_site"
+  site:
+    description: "the address the site is served at, which the page offers when opened as a file; empty names none, so nothing refers outside the site"
+    default: ""
+  folder:
+    description: "a sub-folder of `out` for the viewer and deck, as for https://<owner>.github.io/<repository>/<folder>/; empty: `out` itself"
+    default: ""
 outputs:
   site:
     description: "the folder the site was written to"
@@ -31,8 +37,10 @@ runs:
         FLAVOUR: ${{ inputs.flavour }}
         VERSION: ${{ inputs.version }}
         OUT: ${{ inputs.out }}
+        SITE: ${{ inputs.site }}
+        FOLDER: ${{ inputs.folder }}
         ACTION_REF: ${{ github.action_ref }}
         ACTION_REPOSITORY: ${{ github.action_repository }}
       run: |
-        "$GITHUB_ACTION_PATH/deck-site.sh" "$DECK" "$FLAVOUR" "$VERSION" "$OUT" "$ACTION_REPOSITORY" "${ACTION_REF:-${GITHUB_ACTION_REF:-}}"
+        "$GITHUB_ACTION_PATH/deck-site.sh" "$DECK" "$FLAVOUR" "$VERSION" "$OUT" "$ACTION_REPOSITORY" "${ACTION_REF:-${GITHUB_ACTION_REF:-}}" "$SITE" "$FOLDER"
         echo "site=$OUT" >> "$GITHUB_OUTPUT"

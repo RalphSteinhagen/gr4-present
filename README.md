@@ -60,7 +60,8 @@ until then the viewer keeps showing its built-in deck, and Load (`Ctrl+O`) opens
 
 ## Releases
 
-Every push to main and every version tag publishes the web viewer as two archives with one `SHA256SUMS`: `full`, with live GNU Radio 4 graphs (OpenDigitizer) and the PDF export, and `minimal`, the viewer alone (about 3 MB packed).
+Every push to main and every version tag publishes the web viewer as two archives with one `SHA256SUMS`: `full`, with live GNU Radio 4 graphs (OpenDigitizer), every GR4 block and the PDF export, and `minimal`, the viewer alone (about 3 MB packed).
+Main's build of both is also served: the full viewer at https://ralphsteinhagen.github.io/gr4-present/ and the minimal one at https://ralphsteinhagen.github.io/gr4-present/minimal/.
 `https://github.com/RalphSteinhagen/gr4-present/releases/download/<version>/gr4-present-web-<flavour>-<version>.tar.gz`, where `<version>` is a tag such as `v0.1.0` or `latest`, the rolling build of main;
 `releases/latest/download/…` is GitHub's own redirect to the newest tagged release instead.
 Each unpacks to a folder of its name holding the viewer, the start scripts and `README.txt` of "download viewer + deck" above, and a one-slide deck under `default/` saying how to show a deck of one's own:
@@ -90,12 +91,17 @@ jobs:
           deck: talk # the folder holding index.yml; `.` for the repository's root
           version: v0.1.0 # the viewer's release; latest follows main
           flavour: full # or minimal
+          folder: talk # optional: served at https://<owner>.github.io/<repository>/talk/
+          site: https://<owner>.github.io/<repository>/talk/ # optional: the address the page names when opened as a file
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
 ```
+
+The site holds everything it needs, the viewer, its service worker and the deck, and refers to nothing outside itself: without `site:` it names no address at all, and it may sit in a sub-folder of a larger site.
+The archive is fetched from this repository's release when the site is built, never when it is shown; to build without github.com, keep the archive and its `SHA256SUMS` in the deck's repository and name them in the job's `env:` as `GR4_PRESENT_ARCHIVE` and `GR4_PRESENT_SUMS`.
 
 Without Actions, the same in a shell (`.github/actions/deck-site/deck-site.sh` does it, checksum included):
 

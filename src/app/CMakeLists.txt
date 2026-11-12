@@ -40,6 +40,15 @@ gr4_present_embed_binaries(
   kEffectRippleGlsl=${CMAKE_SOURCE_DIR}/assets/effects/ripple.glsl
   kEffectSineGlsl=${CMAKE_SOURCE_DIR}/assets/effects/sine.glsl)
 
+# the version, commit and build time the diagnostics panel shows, so a cached viewer can be told from a new one;
+# written at configure time too, so a tool that configures without building (the quality bots) can read the panel
+set(_stamp_command
+    ${CMAKE_COMMAND} -DSOURCE_DIR=${CMAKE_SOURCE_DIR} -DVERSION=${PROJECT_VERSION}
+    -DTARGET=${CMAKE_CURRENT_BINARY_DIR}/generated/BuildStamp.hpp -P ${CMAKE_SOURCE_DIR}/cmake/StampBuild.cmake)
+execute_process(COMMAND ${_stamp_command})
+add_custom_target(gr4-present-build-stamp COMMAND ${_stamp_command}
+                  BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/generated/BuildStamp.hpp)
+
 set(GR4_PRESENT_APP_SOURCES
     BuiltinFace.cpp
     BuiltinFace.hpp
@@ -138,6 +147,7 @@ add_executable(
   ${GR4_PRESENT_APP_SOURCES})
 
 target_include_directories(${target_name} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
+add_dependencies(${target_name} gr4-present-build-stamp)
 target_link_libraries(
   ${target_name}
   PRIVATE gr4-present-core

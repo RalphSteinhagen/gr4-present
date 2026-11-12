@@ -9,6 +9,8 @@ if(EMSCRIPTEN)
   if(GR4_PRESENT_NODE AND GR4_PRESENT_BROWSER)
     file(GLOB _browser_tests RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} CONFIGURE_DEPENDS
                                                                   ${CMAKE_CURRENT_SOURCE_DIR}/qa_Browser*.mjs)
+    # CI's consumer job runs it on a deck site it builds from a release archive, as a deck's repository would
+    list(REMOVE_ITEM _browser_tests qa_BrowserConsumerSite.mjs)
     # wholly about live graphs, which come with GR4's runtime and OpenDigitizer (not in WASM-Minimal)
     set(_runtime_browser_tests
         qa_BrowserDashboard

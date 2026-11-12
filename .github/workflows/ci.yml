@@ -7,12 +7,6 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
-    inputs:
-      wasmPreset:
-        description: "Emscripten preset to publish on Pages (both flavours are built and released)"
-        type: choice
-        default: WASM-Release
-        options: [WASM-Release, WASM-Minimal]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -408,7 +402,7 @@ jobs:
       # main's archives go to the rolling `latest` release under the version `latest`, so their addresses stay put; a
       # tag's under its own name, which must be the version CMakeLists.txt carries
       - name: Release archive
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || matrix.flavour == 'minimal' # a pull request's minimal archive feeds the consumer check
         shell: bash
         run: |
           source "$EMSDK_HOME/emsdk_env.sh"
@@ -426,7 +420,7 @@ jobs:
             devtools/ci/web-archive.sh "cmake-build-$PRESET" "${{ matrix.flavour }}" "$version" release
 
       - name: Keep the release archive
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || matrix.flavour == 'minimal' # a pull request's minimal archive feeds the consumer check
         uses: actions/upload-artifact@v7
         with:
           name: web-${{ matrix.flavour }}
@@ -471,11 +465,11 @@ jobs:
           (($#)) || { echo "nothing to record"; exit 0; }
           "$RUNNER_TEMP/qualitybot" record --out "$RUNNER_TEMP/record" "$@"
 
-  # the presenter, /metrics/ and main's coverage report under /metrics/coverage/, deployed together
+  # the full viewer at /, the minimal one at /minimal/, /metrics/ and main's coverage report under /metrics/coverage/
   pages:
     name: deploy to GitHub Pages
     needs: [wasm, native]
-    # the site is the full leg's: a failed minimal leg must not hold it back, and a failed full leg leaves no site to fetch
+    # the site is the full leg's: a failed minimal leg leaves /minimal/ out, and a failed full leg leaves no site to fetch
     if: ${{ !cancelled() && needs.wasm.result != 'skipped' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     permissions:
@@ -487,8 +481,18 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: site-${{ inputs.wasmPreset || 'WASM-Release' }}
+          name: site-WASM-Release
           path: site
+
+      - name: The minimal viewer
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: site-WASM-Minimal
+          path: site/minimal
+
+      - name: Only the full viewer's metrics
+        run: rm -rf site/minimal/metrics
 
       - name: Main's coverage report
         continue-on-error: true
@@ -500,16 +504,45 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
+      # named per attempt: re-running a failed job re-runs this one too, beside the first attempt's artifact
       - name: Upload the Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
+          name: github-pages-${{ github.run_attempt }}
           path: site
 
       - id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
 
   # Both web flavours as downloadable archives with one SHA256SUMS: a tag's onto its own GitHub release, main's onto the
   # rolling `latest` pre-release, whose tag follows main. The only job that may write releases and tags.
+  # another repository's site as the deck-site action makes it, from this run's minimal archive: in a sub-folder of the
+  # site, naming no site of this repository, and opening its deck from there in a real browser
+  consumer:
+    name: a deck site from the minimal archive
+    needs: wasm
+    if: ${{ !cancelled() && needs.wasm.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: web-minimal
+          path: archive
+
+      - name: Build the site, then open its deck
+        shell: bash
+        run: |
+          archive=$(ls archive/gr4-present-web-minimal-*.tar.gz)
+          version=${archive#archive/gr4-present-web-minimal-}
+          (cd archive && sha256sum "$(basename "$archive")" > SHA256SUMS)
+          GR4_PRESENT_ARCHIVE=$archive GR4_PRESENT_SUMS=archive/SHA256SUMS .github/actions/deck-site/deck-site.sh \
+            test/fixtures/remote-deck minimal "${version%.tar.gz}" consumer RalphSteinhagen/gr4-present "" "" talk
+          node e2e/qa_BrowserConsumerSite.mjs consumer talk
+
   release:
     name: release the web viewer
     needs: wasm

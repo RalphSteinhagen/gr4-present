@@ -49,6 +49,7 @@ const usage = `usage: serve.mjs [options]
       --relay            relay the slide between this deck's windows, a phone included, under a random token
       --cors             let a viewer on another origin read these files: serve a deck rather than the viewer
       --no-isolation     send no COOP/COEP headers, as a plain static host does: the page's service worker must add them
+      --max-age <s>      let the browser keep each file for <s> seconds, as a static host does (GitHub Pages: 600)
   -h, --help             show this
 `;
 
@@ -62,6 +63,7 @@ const options = {
   relay: false,
   cors: false,
   isolation: true,
+  maxAge: -1,
 };
 for (let index = 2; index < process.argv.length; ++index) {
   const argument = process.argv[index];
@@ -74,6 +76,7 @@ for (let index = 2; index < process.argv.length; ++index) {
   else if (argument === "--no-browser") options.browser = false;
   else if (argument === "--cors") options.cors = true;
   else if (argument === "--no-isolation") options.isolation = false;
+  else if (argument === "--max-age") options.maxAge = Number(next());
   else if (argument === "--relay") options.relay = true;
   else if (argument === "-h" || argument === "--help") {
     process.stdout.write(usage);
@@ -241,6 +244,11 @@ const handle = (request, response) => {
   if (options.cors) {
     headers["Access-Control-Allow-Origin"] = "*";
     headers["Cross-Origin-Resource-Policy"] = "cross-origin";
+  }
+  if (options.maxAge >= 0) {
+    headers["Cache-Control"] = `max-age=${options.maxAge}`;
+    delete headers.Pragma;
+    delete headers.Expires;
   }
   if (!options.isolation) {
     for (const header of ["Cross-Origin-Opener-Policy", "Cross-Origin-Embedder-Policy", "Cross-Origin-Resource-Policy"]) delete headers[header];
