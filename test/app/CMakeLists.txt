@@ -32,12 +32,8 @@ target_link_libraries(
          stb
          SDL3::SDL3)
 
-add_executable(
-  qa_SvgImage
-  qa_SvgImage.cpp
-  ${_app_source_dir}/SvgImage.cpp
-  ${_app_source_dir}/BuiltinFace.cpp
-  ${_app_source_dir}/Layout.cpp)
+add_executable(qa_SvgImage qa_SvgImage.cpp ${_app_source_dir}/SvgImage.cpp ${_app_source_dir}/BuiltinFace.cpp
+                           ${_app_source_dir}/Layout.cpp)
 target_include_directories(qa_SvgImage PRIVATE ${_app_source_dir} ${_app_generated_dir})
 target_compile_definitions(
   qa_SvgImage PRIVATE GR4_PRESENT_ASSET_DIRECTORY="${CMAKE_SOURCE_DIR}/assets"
@@ -106,12 +102,8 @@ add_test(NAME qa_MathRender COMMAND qa_MathRender)
 # The one test that links OpenDigitizer's charts, and so the one that must not link the instrumented ImGui: it compiles
 # LiveGraph.cpp directly and nothing from the test support library, which carries the other one.
 if(GR4_PRESENT_WITH_OPENDIGITIZER)
-  add_executable(
-    qa_LiveGraph
-    qa_LiveGraph.cpp
-    ${_app_source_dir}/LiveGraph.cpp
-    ${_app_source_dir}/Fonts.cpp
-    ${_app_source_dir}/BuiltinFace.cpp)
+  add_executable(qa_LiveGraph qa_LiveGraph.cpp ${_app_source_dir}/LiveGraph.cpp ${_app_source_dir}/Fonts.cpp
+                              ${_app_source_dir}/BuiltinFace.cpp)
   target_compile_definitions(
     qa_LiveGraph PRIVATE GR4_PRESENT_HAS_OPENDIGITIZER
                          GR4_PRESENT_PACKAGE_DIRECTORY="${CMAKE_SOURCE_DIR}/presentations/default")
@@ -144,12 +136,7 @@ add_test(NAME qa_SwipeNavigation COMMAND qa_SwipeNavigation)
 add_executable(qa_Canvas qa_Canvas.cpp)
 target_include_directories(qa_Canvas SYSTEM PRIVATE $<TARGET_PROPERTY:imgui,INTERFACE_INCLUDE_DIRECTORIES>)
 target_include_directories(qa_Canvas PRIVATE ${_app_source_dir})
-target_link_libraries(
-  qa_Canvas
-  PRIVATE ut
-          gr4-present-core
-          gr4-present-options
-          gr4-present-recording)
+target_link_libraries(qa_Canvas PRIVATE ut gr4-present-core gr4-present-options gr4-present-recording)
 add_test(NAME qa_Canvas COMMAND qa_Canvas)
 
 add_executable(qa_TextRuns qa_TextRuns.cpp ${_app_source_dir}/TextRuns.cpp)
@@ -211,12 +198,8 @@ target_include_directories(qa_RasterCamera PRIVATE ${_app_source_dir})
 target_link_libraries(qa_RasterCamera PRIVATE ut gr4-present-core gr4-present-options)
 add_test(NAME qa_RasterCamera COMMAND qa_RasterCamera)
 
-add_executable(
-  qa_SideMenu
-  qa_SideMenu.cpp
-  ${_app_source_dir}/SideMenu.cpp
-  ${_app_source_dir}/Fonts.cpp
-  ${_app_source_dir}/BuiltinFace.cpp)
+add_executable(qa_SideMenu qa_SideMenu.cpp ${_app_source_dir}/SideMenu.cpp ${_app_source_dir}/Fonts.cpp
+                           ${_app_source_dir}/BuiltinFace.cpp)
 target_include_directories(qa_SideMenu PRIVATE ${_app_source_dir} ${_app_generated_dir})
 target_link_libraries(
   qa_SideMenu
@@ -258,76 +241,37 @@ list(
 # the tests that drive the whole application share one build of it against the instrumented ImGui
 add_library(gr4-present-app-under-test OBJECT ${GR4_PRESENT_APP_SOURCES})
 target_include_directories(gr4-present-app-under-test PUBLIC ${_app_generated_dir})
-target_link_libraries(
-  gr4-present-app-under-test
-  PUBLIC gr4-present-test-support
-         gr4-present-core
-         gr4-present-options
-         gr4-present-recording)
+target_link_libraries(gr4-present-app-under-test PUBLIC gr4-present-test-support gr4-present-core gr4-present-options
+                                                        gr4-present-recording)
 add_executable(qa_LaunchScreen qa_LaunchScreen.cpp)
 target_link_libraries(qa_LaunchScreen PRIVATE ut gr4-present-app-under-test)
 add_test(NAME qa_LaunchScreen COMMAND qa_LaunchScreen)
 # renders offscreen through SDL's "offscreen" video driver, so no display server is needed
-set_tests_properties(
-  qa_LaunchScreen
-  PROPERTIES LABELS
-             "gui"
-             TIMEOUT
-             120)
+set_tests_properties(qa_LaunchScreen PROPERTIES LABELS "gui" TIMEOUT 120)
 
 # every effect file draws what the one transition shader drew before effects became files, side by side on one GL
 add_executable(qa_EffectTransitions qa_EffectTransitions.cpp ${_app_source_dir}/EffectRenderer.cpp)
 target_compile_definitions(qa_EffectTransitions PRIVATE GR4_PRESENT_SOURCE_DIRECTORY="${CMAKE_SOURCE_DIR}")
-target_link_libraries(
-  qa_EffectTransitions
-  PRIVATE ut
-          gr4-present-test-support
-          gr4-present-core
-          gr4-present-options)
+target_link_libraries(qa_EffectTransitions PRIVATE ut gr4-present-test-support gr4-present-core gr4-present-options)
 add_test(NAME qa_EffectTransitions COMMAND qa_EffectTransitions)
-set_tests_properties(
-  qa_EffectTransitions
-  PROPERTIES LABELS
-             "gui"
-             TIMEOUT
-             120)
+set_tests_properties(qa_EffectTransitions PROPERTIES LABELS "gui" TIMEOUT 120)
 
 add_executable(qa_EffectRenderer qa_EffectRenderer.cpp ${_app_source_dir}/EffectRenderer.cpp)
-target_link_libraries(
-  qa_EffectRenderer
-  PRIVATE ut
-          gr4-present-test-support
-          gr4-present-core
-          gr4-present-options)
+target_link_libraries(qa_EffectRenderer PRIVATE ut gr4-present-test-support gr4-present-core gr4-present-options)
 add_test(NAME qa_EffectRenderer COMMAND qa_EffectRenderer)
-set_tests_properties(
-  qa_EffectRenderer
-  PROPERTIES LABELS
-             "gui"
-             TIMEOUT
-             120)
+set_tests_properties(qa_EffectRenderer PROPERTIES LABELS "gui" TIMEOUT 120)
 
 add_executable(qa_EffectLibrary qa_EffectLibrary.cpp ${_app_source_dir}/EffectLibrary.cpp
                                 ${_app_source_dir}/EffectRenderer.cpp)
 target_include_directories(qa_EffectLibrary PRIVATE ${_app_generated_dir})
-target_link_libraries(
-  qa_EffectLibrary
-  PRIVATE ut
-          gr4-present-test-support
-          gr4-present-core
-          gr4-present-options)
+target_link_libraries(qa_EffectLibrary PRIVATE ut gr4-present-test-support gr4-present-core gr4-present-options)
 add_test(NAME qa_EffectLibrary COMMAND qa_EffectLibrary)
 
 add_executable(qa_Fonts qa_Fonts.cpp)
 target_compile_definitions(qa_Fonts PRIVATE GR4_PRESENT_PACKAGE_DIRECTORY="${CMAKE_SOURCE_DIR}/presentations/default")
 target_link_libraries(qa_Fonts PRIVATE ut gr4-present-app-under-test)
 add_test(NAME qa_Fonts COMMAND qa_Fonts)
-set_tests_properties(
-  qa_Fonts
-  PROPERTIES LABELS
-             "gui"
-             TIMEOUT
-             120)
+set_tests_properties(qa_Fonts PROPERTIES LABELS "gui" TIMEOUT 120)
 
 add_executable(qa_NotesOverlay qa_NotesOverlay.cpp)
 target_link_libraries(qa_NotesOverlay PRIVATE ut gr4-present-app-under-test)
@@ -338,24 +282,14 @@ target_compile_definitions(qa_DocumentView
                            PRIVATE GR4_PRESENT_PACKAGE_DIRECTORY="${CMAKE_SOURCE_DIR}/presentations/default")
 target_link_libraries(qa_DocumentView PRIVATE ut gr4-present-app-under-test)
 add_test(NAME qa_DocumentView COMMAND qa_DocumentView)
-set_tests_properties(
-  qa_DocumentView
-  PROPERTIES LABELS
-             "gui"
-             TIMEOUT
-             120)
+set_tests_properties(qa_DocumentView PROPERTIES LABELS "gui" TIMEOUT 120)
 
 add_executable(qa_MainScreen qa_MainScreen.cpp)
 target_compile_definitions(qa_MainScreen
                            PRIVATE GR4_PRESENT_DEFAULT_PRESENTATION="${CMAKE_SOURCE_DIR}/presentations/default")
 target_link_libraries(qa_MainScreen PRIVATE ut gr4-present-app-under-test)
 add_test(NAME qa_MainScreen COMMAND qa_MainScreen)
-set_tests_properties(
-  qa_MainScreen
-  PROPERTIES LABELS
-             "gui"
-             TIMEOUT
-             120)
+set_tests_properties(qa_MainScreen PROPERTIES LABELS "gui" TIMEOUT 120)
 
 # the targets that compile the viewer's own sources record what a slide draws
 foreach(

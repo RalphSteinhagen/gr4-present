@@ -6,9 +6,5 @@ file(SHA256 ${PAGE} _page_hash)
 file(SHA256 ${GLUE} _glue_hash)
 file(SHA256 ${WASM} _wasm_hash)
 string(SHA256 _build_hash "${_page_hash}${_glue_hash}${_wasm_hash}")
-string(
-  SUBSTRING ${_build_hash}
-            0
-            12
-            GR4_PRESENT_BUILD_ID)
+string(SUBSTRING ${_build_hash} 0 12 GR4_PRESENT_BUILD_ID)
 configure_file(${SOURCE} ${TARGET} @ONLY)

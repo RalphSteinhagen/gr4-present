@@ -109,9 +109,8 @@ set(GR4_PRESENT_APP_SOURCES
     WindowModeControl.hpp
     ZoomPan.cpp
     ZoomPan.hpp)
-set(GR4_PRESENT_APP_SOURCES
-    ${GR4_PRESENT_APP_SOURCES}
-    PARENT_SCOPE) # test/app compiles them again, against the instrumented ImGui
+# test/app compiles them again, against the instrumented ImGui
+set(GR4_PRESENT_APP_SOURCES ${GR4_PRESENT_APP_SOURCES} PARENT_SCOPE)
 
 add_library(qrcodegen STATIC ${CMAKE_SOURCE_DIR}/third_party/qrcodegen/qrcodegen.cpp)
 target_include_directories(qrcodegen SYSTEM PUBLIC ${CMAKE_SOURCE_DIR}/third_party/qrcodegen)
@@ -232,20 +231,14 @@ if(EMSCRIPTEN)
   if(GR4_PRESENT_WITH_OPENDIGITIZER)
     # every GR4 block library's static data, about 22 MB, past the default 16 MB a module starts with; the in-app
     # download holds the 178 MB module and its archive at once, past the default 2 GB ceiling with the deck's own data
-    target_link_options(
-      ${target_name}
-      PRIVATE
-      "SHELL:-s INITIAL_MEMORY=64MB"
-      "SHELL:-s MAXIMUM_MEMORY=4GB")
+    target_link_options(${target_name} PRIVATE "SHELL:-s INITIAL_MEMORY=64MB" "SHELL:-s MAXIMUM_MEMORY=4GB")
   endif()
   set_target_properties(${target_name} PROPERTIES LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/shell.html OUTPUT_NAME index)
   # gzip takes about 60 % off the WASM; devtools/serve.mjs sends these copies to a browser that accepts gzip
   find_program(GR4_PRESENT_GZIP gzip REQUIRED)
   add_custom_command(
-    TARGET ${target_name}
-    POST_BUILD
-    COMMAND ${GR4_PRESENT_GZIP} -9 --no-name --keep --force ${EXECUTABLE_OUTPUT_PATH}/index.wasm
-            ${EXECUTABLE_OUTPUT_PATH}/index.js
+    TARGET ${target_name} POST_BUILD COMMAND ${GR4_PRESENT_GZIP} -9 --no-name --keep --force
+                                             ${EXECUTABLE_OUTPUT_PATH}/index.wasm ${EXECUTABLE_OUTPUT_PATH}/index.js
     COMMENT "gzip the viewer for serve.mjs")
 
   # the worker's cache is named after the build it serves, so it is written after each link
@@ -258,10 +251,7 @@ if(EMSCRIPTEN)
       -DWASM=${EXECUTABLE_OUTPUT_PATH}/index.wasm -DTARGET=${EXECUTABLE_OUTPUT_PATH}/gr4-serviceworker.js -P
       ${CMAKE_SOURCE_DIR}/cmake/StampServiceWorker.cmake
     COMMENT "stamp the service worker with the build id")
-  set_property(
-    TARGET ${target_name}
-    APPEND
-    PROPERTY LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/gr4-serviceworker.js)
+  set_property(TARGET ${target_name} APPEND PROPERTY LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/gr4-serviceworker.js)
   configure_file(${CMAKE_CURRENT_SOURCE_DIR}/manifest.webmanifest ${EXECUTABLE_OUTPUT_PATH}/manifest.webmanifest
                  COPYONLY)
   configure_file(${CMAKE_CURRENT_SOURCE_DIR}/icon.png ${EXECUTABLE_OUTPUT_PATH}/icon.png COPYONLY)
@@ -285,10 +275,7 @@ endif()
 # Each package is removed before being copied, because copy_directory only adds and overwrites: a figure deleted from a
 # package would otherwise go on being served. A target rather than a POST_BUILD step, because editing a presentation
 # does not relink the viewer and the staged copy must follow the source regardless.
-file(
-  GLOB _presentation_packages
-  RELATIVE ${CMAKE_SOURCE_DIR}/presentations
-  ${CMAKE_SOURCE_DIR}/presentations/*)
+file(GLOB _presentation_packages RELATIVE ${CMAKE_SOURCE_DIR}/presentations ${CMAKE_SOURCE_DIR}/presentations/*)
 set(_stage_commands)
 foreach(_package IN LISTS _presentation_packages)
   if(IS_DIRECTORY ${CMAKE_SOURCE_DIR}/presentations/${_package})

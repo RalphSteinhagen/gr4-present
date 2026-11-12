@@ -5,17 +5,10 @@ if(EMSCRIPTEN)
   # The DOM half of the viewer -- layering, layout, event routing -- cannot be reached by the ImGui test engine, so it
   # is asserted in a real headless browser instead.
   find_program(GR4_PRESENT_NODE node)
-  find_program(
-    GR4_PRESENT_BROWSER
-    NAMES google-chrome
-          chromium
-          chromium-browser
-          google-chrome-stable)
+  find_program(GR4_PRESENT_BROWSER NAMES google-chrome chromium chromium-browser google-chrome-stable)
   if(GR4_PRESENT_NODE AND GR4_PRESENT_BROWSER)
-    file(
-      GLOB _browser_tests
-      RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-      CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/qa_Browser*.mjs)
+    file(GLOB _browser_tests RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} CONFIGURE_DEPENDS
+                                                                  ${CMAKE_CURRENT_SOURCE_DIR}/qa_Browser*.mjs)
     # wholly about live graphs, which come with GR4's runtime and OpenDigitizer (not in WASM-Minimal)
     set(_runtime_browser_tests
         qa_BrowserDashboard
@@ -115,20 +108,10 @@ endif()
 # of that path.
 find_program(GR4_PRESENT_XVFB Xvfb)
 find_package(X11 COMPONENTS Xtst)
-if(GR4_PRESENT_WITH_OPENDIGITIZER
-   AND GR4_PRESENT_XVFB
-   AND TARGET X11::Xtst)
+if(GR4_PRESENT_WITH_OPENDIGITIZER AND GR4_PRESENT_XVFB AND TARGET X11::Xtst)
   add_library(gr4-present-native-display STATIC NativeDisplay.cpp NativeDisplay.hpp)
-  target_link_libraries(
-    gr4-present-native-display
-    PUBLIC X11::X11 X11::Xtst
-    PRIVATE gr4-present-options)
-  foreach(
-    _native_test IN
-    ITEMS qa_NativeFollowEdits
-          qa_NativeLoadSave
-          qa_NativeToolbar
-          qa_NativePresenter)
+  target_link_libraries(gr4-present-native-display PUBLIC X11::X11 X11::Xtst PRIVATE gr4-present-options)
+  foreach(_native_test IN ITEMS qa_NativeFollowEdits qa_NativeLoadSave qa_NativeToolbar qa_NativePresenter)
     add_executable(${_native_test} ${_native_test}.cpp)
     target_link_libraries(${_native_test} PRIVATE ut gr4-present-native-display gr4-present-options)
     add_test(NAME ${_native_test} COMMAND ${_native_test} $<TARGET_FILE:gr4-present>)

@@ -6,10 +6,7 @@ add_test(NAME qa_PageRecording COMMAND qa_PageRecording)
 find_program(GR4_PRESENT_PDFTOTEXT pdftotext)
 find_program(GR4_PRESENT_PDFINFO pdfinfo)
 find_program(GR4_PRESENT_PDFFONTS pdffonts)
-if(GR4_PRESENT_PDFTOTEXT
-   AND GR4_PRESENT_PDFINFO
-   AND GR4_PRESENT_PDFFONTS
-   AND NOT EMSCRIPTEN)
+if(GR4_PRESENT_PDFTOTEXT AND GR4_PRESENT_PDFINFO AND GR4_PRESENT_PDFFONTS AND NOT EMSCRIPTEN)
   add_executable(qa_PdfWriter qa_PdfWriter.cpp)
   target_link_libraries(qa_PdfWriter PRIVATE ut gr4-present-export gr4-present-options)
   target_compile_definitions(

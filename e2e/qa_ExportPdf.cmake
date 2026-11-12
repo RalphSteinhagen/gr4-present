@@ -26,10 +26,7 @@ execute_process(
   OUTPUT_VARIABLE log
   ERROR_VARIABLE log
   TIMEOUT 240)
-if(NOT
-   exported
-   EQUAL
-   0)
+if(NOT exported EQUAL 0)
   message(FATAL_ERROR "the viewer failed to export (${exported}):\n${log}")
 endif()
 if(DEFINED EXPECT_LOG)
@@ -51,18 +48,8 @@ foreach(line IN LISTS lines)
     endif()
   elseif(NOT fenced AND line MATCHES "^# (.*)$")
     # the title alone: a sub-title after <br> is set on its own line and the anchor is not shown
-    string(
-      REGEX
-      REPLACE "<br>.*$"
-              ""
-              title
-              "${CMAKE_MATCH_1}")
-    string(
-      REGEX
-      REPLACE " *\\{#[^}]*\\} *$"
-              ""
-              title
-              "${title}")
+    string(REGEX REPLACE "<br>.*$" "" title "${CMAKE_MATCH_1}")
+    string(REGEX REPLACE " *\\{#[^}]*\\} *$" "" title "${title}")
     string(STRIP "${title}" title)
     list(APPEND headings "${title}")
   endif()
@@ -73,33 +60,19 @@ if(DEFINED EXPECT_PAGES)
 endif()
 
 execute_process(COMMAND pdfinfo ${OUTPUT} OUTPUT_VARIABLE info)
-if(NOT
-   info
-   MATCHES
-   "Pages: +([0-9]+)")
+if(NOT info MATCHES "Pages: +([0-9]+)")
   message(FATAL_ERROR "pdfinfo could not read ${OUTPUT}:\n${info}")
 endif()
-if(NOT
-   CMAKE_MATCH_1
-   EQUAL
-   sections)
+if(NOT CMAKE_MATCH_1 EQUAL sections)
   message(FATAL_ERROR "${CMAKE_MATCH_1} pages for ${sections} sections")
 endif()
-if(NOT
-   info
-   MATCHES
-   "Page size: +960 x 540 pts")
+if(NOT info MATCHES "Page size: +960 x 540 pts")
   message(FATAL_ERROR "pages are not 13.33 x 7.5 in:\n${info}")
 endif()
 
 execute_process(COMMAND pdftotext -enc UTF-8 ${OUTPUT} - OUTPUT_VARIABLE text)
 string(ASCII 12 page_break) # pdftotext ends every page with one
-string(
-  REGEX
-  REPLACE "[ \t\n\r${page_break}]+"
-          " "
-          text
-          "${text}")
+string(REGEX REPLACE "[ \t\n\r${page_break}]+" " " text "${text}")
 set(missing)
 foreach(title IN LISTS headings)
   string(FIND "${text}" "${title}" at)
@@ -112,27 +85,17 @@ if(missing)
 endif()
 if(DEFINED EXPECT_IMAGES)
   execute_process(COMMAND pdfimages -list ${OUTPUT} OUTPUT_VARIABLE listed)
-  string(
-    REGEX MATCHALL
-          "\n +[0-9]+ +[0-9]+ +image +[0-9]+ +[0-9]+ +[a-z]+ +[0-9]+ +[0-9]+ +[a-z]+ +[a-z]+ +[0-9]+ +[0-9]+"
-          rows
-          "${listed}")
+  string(REGEX MATCHALL
+               "\n +[0-9]+ +[0-9]+ +image +[0-9]+ +[0-9]+ +[a-z]+ +[0-9]+ +[0-9]+ +[a-z]+ +[a-z]+ +[0-9]+ +[0-9]+" rows
+               "${listed}")
   set(objects)
   foreach(row IN LISTS rows)
-    string(
-      REGEX
-      REPLACE "^.* ([0-9]+) +([0-9]+)$"
-              "\\1 \\2"
-              object
-              "${row}")
+    string(REGEX REPLACE "^.* ([0-9]+) +([0-9]+)$" "\\1 \\2" object "${row}")
     list(APPEND objects "${object}")
   endforeach()
   list(REMOVE_DUPLICATES objects)
   list(LENGTH objects embedded)
-  if(NOT
-     embedded
-     EQUAL
-     EXPECT_IMAGES)
+  if(NOT embedded EQUAL EXPECT_IMAGES)
     message(FATAL_ERROR "${embedded} pictures embedded, not ${EXPECT_IMAGES}:\n${listed}")
   endif()
 endif()
