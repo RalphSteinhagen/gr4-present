@@ -187,6 +187,20 @@ The deep field ([](#fig:deep)) shows thousands of galaxies.
 :::
 )";
 
+// two slides, each with a figure without an anchor: the second slide's is captioned as its own, `Fig. 2`
+constexpr std::string_view kTwoFigures = R"(# First {#first}
+
+:::figure
+![the first picture](media/hubble-deep-field.jpg)
+:::
+
+# Second {#second}
+
+:::figure
+![the second picture](media/hubble-deep-field.jpg)
+:::
+)";
+
 // the second slide of a list split across two: citations 2 and 3, the deck's links on the slide whose range runs on
 constexpr std::string_view kSplitReferences = R"(# Sources {#sources}
 
@@ -485,6 +499,7 @@ const std::vector<Scenario>& kScenarios = *new std::vector<Scenario>{
     {.name = "document-media-later", .scheme = ColourScheme::dark, .step = 0, .source = kMediaShown, .clock = 0.45},
     {.name = "document-qr", .scheme = ColourScheme::dark, .step = 0, .source = kCoded},
     {.name = "document-figure", .scheme = ColourScheme::dark, .step = 0, .source = kFigured},
+    {.name = "document-figure-second", .scheme = ColourScheme::dark, .step = 0, .source = kTwoFigures},
     {.name = "document-references-split", .scheme = ColourScheme::dark, .step = 0, .source = kSplitReferences},
     {.name = "document-footnotes", .scheme = ColourScheme::dark, .step = 0, .source = kFootnoted},
     {.name = "document-footnotes-swapped", .scheme = ColourScheme::dark, .step = 0, .source = kFootnotedSwapped},
@@ -646,7 +661,13 @@ void drawScenario(const Scenario& scenario) {
     if (scenario.source == kSplitReferences) {
         view.citations = {"a", "b", "c", "d"};
     }
-    view.deckFigures = figuresOf(sectionsOf(shown));
+    const std::vector<Section> slides = sectionsOf(shown);
+    view.deckFigures                  = figuresOf(slides);
+    view.sectionId                    = slides.empty() ? std::string{} : slides.front().id;
+    if (scenario.source == kTwoFigures && slides.size() == 2UZ) { // the second slide of the deck, as the viewer draws it
+        shown          = slides[1].document;
+        view.sectionId = slides[1].id;
+    }
     static Layout boxes; // outlives the draw, since the view keeps a pointer to it
     if (scenario.useBoxes) {
         const ImGuiViewport& screen = *ImGui::GetMainViewport();
@@ -1135,6 +1156,17 @@ const boost::ut::suite<"DocumentView"> documentViewTests = [] {
         expect(named.size() == 2UZ && named[1].area.y > named[0].area.y + 100.0f) << "the caption under the picture, below the text";
         expect(std::ranges::any_of(runs, [](const TextRun& run) { return run.text.starts_with("Ultra"); })) << "the caption: `Fig. 1: the Hubble Ultra Deep Field`";
         expect(std::ranges::contains(gLinks["document-figure"], std::string{"#figures"})) << "the name leads to the figure's slide";
+    };
+
+    "a figure without an anchor is captioned as its own, not as the deck's first"_test = [] {
+        std::string said; // the runs' words, a space between each
+        for (const TextRun& run : gRuns["document-figure-second"]) {
+            for (const auto word : run.text | std::views::split(' ') | std::views::filter([](const auto& part) { return !std::ranges::empty(part); })) {
+                said += std::string{std::string_view{word}} + " ";
+            }
+        }
+        expect(said.contains("Fig. 2") && said.contains("second")) << "the second slide's caption reads `Fig. 2: the second picture`: " << said;
+        expect(!said.contains("Fig. 1") && !said.contains("first")) << "not the first slide's";
     };
 
     "a references slide given a range lists those citations alone, and the deck's links only where its range runs on"_test = [] {

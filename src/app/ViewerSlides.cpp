@@ -360,6 +360,7 @@ void drawSection(Viewer& viewer, const SectionVisual& visual, std::size_t step, 
     viewer.documentView.footerText    = who.empty() ? title : title + "  \u00b7  " + who;
     viewer.documentView.footerNumber  = slideNumber(viewer, visual.section);
     viewer.documentView.document      = &visual.section->document;
+    viewer.documentView.sectionId     = visual.section->id;
     viewer.documentView.step          = static_cast<int>(step);
     viewer.documentView.stepSeconds   = live && viewer.slides.stepSince ? static_cast<float>(ImGui::GetTime() - *viewer.slides.stepSince) : -1.0f;
     // the slide being entered, also while a push or zoom moves it in: its boxes are held back until the move ends

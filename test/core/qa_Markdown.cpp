@@ -1057,6 +1057,24 @@ const suite<"Markdown masters"> markdownMastersTests = [] {
         expect(figures.size() == 3UZ && eq(figures[1].name(), std::string{"aside"})) << "an unnumbered figure is named by its caption";
         expect(std::ranges::none_of(figuresOf(deck, false), [](const Figure& figure) { return figure.number > 0; })) << "a deck that numbers none";
     };
+
+    "a slide naming a region `figure` keeps its `:::figure` box, as written before figures were numbered, and is told"_test = [] {
+        const auto boxOf = [](const Document& document) { return std::ranges::find_if(document.blocks, [](const Block& block) { return block.info == "figure"; }); };
+
+        const Document placed = parseMarkdown("# Limits {#limits}\n\n:::place\nfigure: 0.25 0.27 0.55 0.73\n:::\n\n:::figure\n![limits](limits.webp)\n:::\n");
+        const auto     box    = boxOf(placed);
+        expect(box != placed.blocks.end() && isBox(*box) && eq(box->lines.size(), 1UZ)) << "the region's box, its picture as its line";
+        expect(figuresOf(sectionsOf(placed)).empty()) << "and no numbered figure";
+        expect(eq(placed.warnings.size(), 1UZ) && placed.warnings.front().contains("`picture`")) << "a note to name the region otherwise";
+
+        const Document gridded = parseMarkdown("# Grid {#grid}\n\n:::layout\ngrid: [(figure, 0.6), (text)]\n:::\n\n:::figure\n![a](a.png)\n:::\n");
+        expect(boxOf(gridded) != gridded.blocks.end() && isBox(*boxOf(gridded))) << "a grid's region too";
+
+        const Document later = parseMarkdown("# One {#one}\n\n:::place\nfigure: 0 0 1 1\n:::\n\n# Two {#two}\n\n:::figure\n![a](a.png)\n:::\n");
+        expect(eq(figuresOf(sectionsOf(later)).size(), 1UZ) && later.warnings.empty()) << "a region on the slide before names nothing here";
+        const Document prefixed = parseMarkdown("# Grid {#grid}\n\n:::layout\ngrid: [(figures), (text)]\n:::\n\n:::figure\n![a](a.png)\n:::\n");
+        expect(eq(figuresOf(sectionsOf(prefixed)).size(), 1UZ)) << "`figures` is another region";
+    };
 };
 
 int main() { return boost::ut::cfg<>.run({.report_errors = true}) ? 1 : 0; }
