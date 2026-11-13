@@ -7,8 +7,8 @@
 // amplitude zero is: sine 1 is drawn in the colour its workflow gives it, 0x00C800, and spans many rows while A1 is
 // 1 V and one or two once it is 0. The toolbar draws no play, pause or stop: the deck runs the graph itself.
 //
-// The sliders are found in the toolbar as the runs of non-background pixels wider than a label or a button, in the
-// workflow's order: f1, A1, f2, A2, noise.
+// The sliders are found in the toolbar, in the workflow's order f1, A1, f2, A2, noise, as the spans of inked columns
+// wider than a label or a button, each toolbar row taken whole: along one pixel row, a slider's hollow knob splits it.
 
 #include "NativeDisplay.hpp"
 
@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <format>
+#include <ranges>
 #include <thread>
 
 using namespace boost::ut;
@@ -56,38 +57,35 @@ struct Slider {
     return static_cast<std::size_t>(std::ranges::count_if(screen.pixels(kCharts), [&green](const auto& row) { return std::ranges::any_of(row, green); }));
 }
 
-/// runs of non-background pixels at least 50 px wide along one row, the background being the row's last pixel
-[[nodiscard]] std::vector<std::pair<int, int>> wideRuns(const std::vector<std::uint32_t>& row) {
-    std::vector<std::pair<int, int>> runs;
-    const std::uint32_t              background = row.back();
-    int                              start      = -1;
-    for (int x = 0; x <= static_cast<int>(row.size()); ++x) {
-        const bool inked = x < static_cast<int>(row.size()) && row[static_cast<std::size_t>(x)] != background;
-        if (inked && start < 0) {
-            start = x;
-        } else if (!inked && start >= 0) {
-            if (x - start >= 50) {
-                runs.emplace_back(start, x - 1);
-            }
-            start = -1;
-        }
-    }
-    return runs;
-}
-
-/// the sliders across the toolbar, row by row, aimed at the middle of the toolbar row they are on
+/// the sliders across the toolbar: its rows of controls are separated by background rows, and in each the columns inked
+/// on any of its rows are spans at least 50 px wide, aimed at the middle of the toolbar row, the background being each
+/// pixel row's last pixel
 [[nodiscard]] std::vector<Slider> slidersIn(const Screen& screen) {
-    const Pixels        rows = screen.pixels(kBand);
+    const Pixels        rows    = screen.pixels(kBand);
+    const auto          inkedAt = [&rows](std::size_t row, std::size_t column) { return rows[row][column] != rows[row].back(); };
+    const auto          blank   = [&rows, &inkedAt](std::size_t row) { return std::ranges::none_of(std::views::iota(0UZ, rows[row].size()), [&](std::size_t column) { return inkedAt(row, column); }); };
     std::vector<Slider> found;
     for (std::size_t index = 0UZ; index < rows.size(); ++index) {
         const std::size_t first = index;
-        while (index < rows.size() && !wideRuns(rows[index]).empty()) {
+        while (index < rows.size() && !blank(index)) {
             ++index;
         }
-        if (index > first) {
-            const std::size_t middle = first + (index - first) / 2UZ;
-            for (const auto& [from, to] : wideRuns(rows[middle])) {
-                found.push_back({.from = kBand.x + from, .to = kBand.x + to, .y = kBand.y + static_cast<int>(middle)});
+        if (index == first) {
+            continue;
+        }
+        const int  middle = kBand.y + static_cast<int>(first + (index - first) / 2UZ);
+        const auto inked  = [&](std::size_t column) { return std::ranges::any_of(std::views::iota(first, index), [&](std::size_t row) { return inkedAt(row, column); }); };
+        int        start  = -1;
+        for (std::size_t column = 0UZ; column <= rows[first].size(); ++column) {
+            const int  x     = static_cast<int>(column);
+            const bool inkOn = column < rows[first].size() && inked(column);
+            if (inkOn && start < 0) {
+                start = x;
+            } else if (!inkOn && start >= 0) {
+                if (x - start >= 50) {
+                    found.push_back({.from = kBand.x + start, .to = kBand.x + x - 1, .y = middle});
+                }
+                start = -1;
             }
         }
     }
