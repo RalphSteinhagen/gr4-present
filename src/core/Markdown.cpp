@@ -380,7 +380,9 @@ std::vector<std::string> parseNameList(std::string_view list) {
     return names;
 }
 
-bool isBox(const Block& block) noexcept { return block.kind == BlockKind::directive && !isConfigurationDirective(block.info); }
+// a `figure` holding lines is the box of a region its slide names `figure`, written before `:::figure` numbered a
+// picture; a figure's caption block holds none
+bool isBox(const Block& block) noexcept { return block.kind == BlockKind::directive && (!isConfigurationDirective(block.info) || (block.info == "figure" && !block.lines.empty())); }
 
 bool isLayoutSetting(std::string_view key) noexcept {
     constexpr std::array<std::string_view, 14> kSettings{"anchor", "transition", "region", "via", "camera", "grid", "duration", "advance", "rotate", "font", "size", "outline", "background", "overlay"};
@@ -684,7 +686,7 @@ std::vector<Figure> figuresOf(std::span<const Section> sections, bool numbered) 
     for (const Section& section : sections) {
         const auto collect = [&](this const auto& self, const Document& document) -> void {
             for (const Block& block : document.blocks | std::views::filter([](const Block& block) { return block.kind == BlockKind::directive; })) {
-                if (block.info == "figure") {
+                if (block.info == "figure" && !isBox(block)) {
                     const bool counted = numbered && block.field("-").empty();
                     figures.push_back(Figure{.id = block.id, .caption = std::string{block.field("caption")}, .sectionId = section.id, .number = counted ? ++number : 0});
                 } else if (!block.lines.empty()) {
@@ -852,6 +854,35 @@ struct OpenFigure {
     std::size_t                                      blocksFrom;
 };
 
+/// whether the slide being read, from its last `#` heading, names a region `name` in a `:::place`, `:::regions` or
+/// `:::grid` key, or in a `:::layout`'s `grid: [(name, ...)]`
+[[nodiscard]] bool slideNamesRegion(std::span<const Block> blocks, std::string_view name) {
+    const auto inGrid = [name](std::string_view grid) {
+        for (std::size_t at = grid.find(name); at != std::string_view::npos; at = grid.find(name, at + 1UZ)) {
+            const auto bounded = [](char next) { return next == '(' || next == ')' || next == ',' || next == ' ' || next == '[' || next == ']'; };
+            if ((at == 0UZ || bounded(grid[at - 1UZ])) && (at + name.size() == grid.size() || bounded(grid[at + name.size()]))) {
+                return true;
+            }
+        }
+        return false;
+    };
+    for (const Block& block : blocks | std::views::reverse) {
+        if (block.kind == BlockKind::heading && block.level == 1) {
+            return false;
+        }
+        if (block.kind != BlockKind::directive) {
+            continue;
+        }
+        if ((block.info == "place" || block.info == "regions" || block.info == "grid") && std::ranges::contains(block.fields, name, [](const auto& field) { return std::string_view{field.first}; })) {
+            return true;
+        }
+        if ((block.info == "layout" || block.info == "grid") && inGrid(block.field("grid"))) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// the caption a figure's closing fence leaves after its lines: its `caption:` line, taken out of the flow, else the
 /// alternative text of its picture
 [[nodiscard]] Block figureCaptionOf(std::vector<Block>& blocks, const OpenFigure& figure) {
@@ -911,7 +942,8 @@ Document parseMarkdown(std::string_view source) {
     std::size_t openDirectiveIndex = 0UZ;
     std::string paragraph;
 
-    const auto insideBox = [&] { return insideDirective && !document.blocks.empty() && isBox(document.blocks.back()); };
+    // a region's `:::figure` box is one before its first line arrives
+    const auto insideBox = [&] { return insideDirective && !document.blocks.empty() && (isBox(document.blocks.back()) || document.blocks.back().info == "figure"); };
 
     const auto flushParagraph = [&] {
         const std::string_view body = trim(paragraph);
@@ -1016,7 +1048,12 @@ Document parseMarkdown(std::string_view source) {
                 openFigure.reset();
                 continue;
             }
-            if (name == "figure") {
+            // a slide naming a region `figure` keeps its box, as written before `:::figure` numbered pictures
+            const bool figureRegion = name == "figure" && slideNamesRegion(document.blocks, name);
+            if (figureRegion) {
+                document.warnings.push_back(std::format("line {}: `:::figure` fills the region `figure` this slide names; `:::figure` now numbers a picture, so name the region otherwise, e.g. `picture`", index + 1UZ));
+            }
+            if (name == "figure" && !figureRegion) {
                 flushParagraph();
                 if (openFigure) {
                     document.warnings.push_back(std::format("line {}: a `:::figure` inside another, which takes it in", index + 1UZ));
@@ -1069,7 +1106,7 @@ Document parseMarkdown(std::string_view source) {
             insideDirective  = true;
             nestedFenceDepth = 0UZ;
             // a content box keeps its options as fields; a configuring directive keeps none, its keys name areas
-            const bool box = !isConfigurationDirective(name);
+            const bool box = !isConfigurationDirective(name) || figureRegion;
             if (!box && !options.empty()) {
                 document.warnings.push_back(std::format("line {}: `:::{}` takes its settings as `key: value` lines, so the braces are ignored", index + 1UZ, name));
             }

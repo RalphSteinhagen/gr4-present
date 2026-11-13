@@ -160,6 +160,7 @@ struct DocumentView {
     /// every `:::figure` in the deck, numbered unless the deck says `figure-numbers: false`: what its caption says and
     /// where `[](#fig:id)` leads
     std::vector<Figure> deckFigures = {};
+    std::string         sectionId   = {}; // the slide drawn, whose figures' captions are its own
 
     /// while a page is exported: everything this view draws, in the terms a PDF page needs; null otherwise
     PageRecording* recording = nullptr;

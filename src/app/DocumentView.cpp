@@ -1640,7 +1640,8 @@ void DocumentView::layoutReferences(Pass& pass, const Block& block) {
 }
 
 void DocumentView::layoutFigureCaption(Pass& pass, const Block& block, float pictureGap) {
-    const auto        figure = std::ranges::find(deckFigures, block.id, &Figure::id);
+    // by slide, anchor and caption: figures without an anchor all share the empty one
+    const auto        figure = std::ranges::find_if(deckFigures, [&](const Figure& each) { return each.sectionId == sectionId && each.id == block.id && each.caption == block.field("caption"); });
     const std::string line   = figure != deckFigures.end() ? figure->captionLine() : std::string{block.field("caption")};
     if (line.empty()) {
         return;
@@ -1976,7 +1977,7 @@ auto DocumentView::layoutPass(const Theme& theme, const Document& contents, floa
                 layoutQr(pass, block);
             } else if (block.info == "references") {
                 layoutReferences(pass, block);
-            } else if (block.info == "figure") {
+            } else if (block.info == "figure" && !isBox(block)) {
                 layoutFigureCaption(pass, block, gapBefore);
             } else if (block.info == "gr4" || block.info == "shader" || block.info == "stage") {
                 layoutRegion(pass, block);
