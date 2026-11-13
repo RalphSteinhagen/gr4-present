@@ -55,7 +55,8 @@ if (typeof window === "undefined") {
     }
   };
   self.addEventListener("activate", (event) => event.waitUntil(dropOtherBuilds().then(() => self.clients.claim())));
-  const answer = async (request) => {
+  // `keepWhile`: the worker stays up until the copy is kept
+  const answer = async (request, keepWhile) => {
     const url = new URL(request.url);
     const navigation = request.mode === "navigate";
     const viewerFile = url.origin === self.location.origin && kViewerFiles.includes(url.pathname.split("/").pop());
@@ -70,8 +71,9 @@ if (typeof window === "undefined") {
     try {
       // a navigation's request cannot be fetched with options of its own, so its address is
       const response = await (navigation || viewerFile ? fresh(request.url) : fetch(request));
+      // a copy the cache cannot take (its storage full or refused) costs the copy, never the answer
       if (keepable && response.status === 200 && (response.type === "basic" || response.type === "cors") && !response.redirected) {
-        await cache.put(request, response.clone());
+        keepWhile(cache.put(request, response.clone()).catch(() => {}));
       }
       return isolated(response);
     } catch (error) {
@@ -84,7 +86,7 @@ if (typeof window === "undefined") {
   self.addEventListener("fetch", (event) => {
     const request = event.request;
     if (request.method !== "GET" || (request.cache === "only-if-cached" && request.mode !== "same-origin")) return;
-    event.respondWith(answer(request));
+    event.respondWith(answer(request, (keeping) => event.waitUntil(keeping)));
   });
 } else {
   (() => {
