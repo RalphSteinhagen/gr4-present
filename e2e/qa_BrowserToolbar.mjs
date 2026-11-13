@@ -78,54 +78,45 @@ const kSpectrumWorkflow = "workflows/modulated-sines.grc";
 
 const regionOf = async (page, id) => JSON.parse(await page.evaluate("JSON.stringify(window.gr4Regions || {})"))[id];
 
-// sliders are runs of non-background pixels wider than any label, button or icon, counted once per toolbar row
+// sliders are spans of inked columns wider than any label, button or icon, each toolbar row -- the rows of controls
+// between background rows -- taken whole: along one pixel row, a slider's hollow knob splits it
 const slidersIn = (image, [x, y, width, height]) => {
   const background = pixelAt(image, Math.floor(x + width - 3), Math.floor(y + height - 3));
-  const perRow = [];
-  for (let row = Math.floor(y); row < y + height; ++row) {
-    perRow.push(runsAlong(image, x, width, row, background).filter((run) => run.to - run.from >= 50 && run.to - run.from < 0.9 * width).length);
-  }
+  const inked = (column, row) => !pixelMatches(pixelAt(image, column, row), background, 20);
+  const columns = Array.from({ length: Math.floor(width) }, (_, index) => Math.floor(x) + index);
   const sliders = [];
-  for (let row = 0; row < perRow.length;) {
-    if (perRow[row] === 0) {
+  for (let row = Math.floor(y); row < y + height; ++row) {
+    const first = row;
+    while (row < y + height && columns.some((column) => inked(column, row))) {
       ++row;
+    }
+    if (row === first) {
       continue;
     }
-    let most = 0;
-    const first = row;
-    for (; row < perRow.length && perRow[row] > 0; ++row) {
-      most = Math.max(most, perRow[row]);
+    const spans = [];
+    let start = -1;
+    for (const column of [...columns, Infinity]) {
+      let any = false;
+      for (let line = first; line < row && column !== Infinity && !any; ++line) {
+        any = inked(column, line);
+      }
+      if (any && start < 0) {
+        start = column;
+      } else if (!any && start >= 0) {
+        if (column - start >= 50 && column - start < 0.9 * width) {
+          spans.push({ from: start, to: column - 1 });
+        }
+        start = -1;
+      }
     }
-    sliders.push({ rows: [Math.floor(y) + first, Math.floor(y) + row - 1], sliders: most });
+    if (spans.length > 0) {
+      sliders.push({ rows: [first, row - 1], sliders: spans.length, from: spans[0].from });
+    }
   }
   return sliders;
 };
 
-const firstSliderIn = (image, [x, y, width, height]) => {
-  const background = pixelAt(image, Math.floor(x + width - 3), Math.floor(y + height - 3));
-  for (let row = Math.floor(y); row < y + height; ++row) {
-    const wide = runsAlong(image, x, width, row, background).filter((run) => run.to - run.from >= 50 && run.to - run.from < 0.9 * width);
-    if (wide.length > 0) {
-      return wide[0].from;
-    }
-  }
-  return undefined;
-};
-
-const runsAlong = (image, x, width, row, background) => {
-  const runs = [];
-  let start = -1;
-  for (let column = Math.floor(x); column < x + width; ++column) {
-    const inked = !pixelMatches(pixelAt(image, column, row), background, 20);
-    if (inked && start < 0) {
-      start = column;
-    } else if (!inked && start >= 0) {
-      runs.push({ from: start, to: column - 1, y: row });
-      start = -1;
-    }
-  }
-  return runs.filter((run) => run.to - run.from >= 10); // a button, not part of an icon or a stray anti-aliased pixel
-};
+const firstSliderIn = (image, toolbar) => slidersIn(image, toolbar)[0]?.from;
 
 const step = async (page, key, toView) => {
   for (let press = 0; press < 10 && !(await page.evaluate("(globalThis.gr4Location || '')")).includes(`view=${toView}&`); ++press) {

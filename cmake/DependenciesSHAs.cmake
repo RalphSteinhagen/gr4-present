@@ -2,9 +2,9 @@
 # file force-sets GIT_SHA_GNURADIO4 to its pin, and would win otherwise.
 set(GR4_PRESENT_GIT_REF_GNURADIO4 02d6a41100fc6265d92cacb631b77319c7b87e21 CACHE STRING "" FORCE)
 
-# main (2026-11-12) past the merge of #533, on the GR4 pin above. A merged branch's head is unreachable once the branch
+# main (2026-11-13) past the styled widgets, on the GR4 pin above. A merged branch's head is unreachable once the branch
 # is deleted, so the pin follows main.
-set(GIT_REF_OPENDIGITIZER 730f4243f2223904e305a12be5c0dd4736e4c507 CACHE STRING "" FORCE)
+set(GIT_REF_OPENDIGITIZER 6b29f3813ac2cb44581198287f150d39682bbd4b CACHE STRING "" FORCE)
 
 set(GIT_SHA_UT v2.3.1 CACHE STRING "" FORCE) # latest release as of 2024-04-03
 
