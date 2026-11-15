@@ -123,6 +123,10 @@ if(GR4_PRESENT_WITH_OPENDIGITIZER)
             gnuradio4::gr-localisation
             gnuradio4::gr-filter
             gr4-present-block-libraries)
+  if(TARGET gr-sdr) # the RTL-SDR of OpenDigitizer's FM radio, as the viewer registers it
+    target_link_libraries(qa_LiveGraph PRIVATE gr-sdr)
+    target_compile_definitions(qa_LiveGraph PRIVATE GR4_PRESENT_HAS_RTLSDR)
+  endif()
   add_test(NAME qa_LiveGraph COMMAND qa_LiveGraph)
   set_tests_properties(qa_LiveGraph PROPERTIES TIMEOUT 120)
 endif()

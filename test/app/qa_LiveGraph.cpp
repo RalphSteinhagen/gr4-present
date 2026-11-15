@@ -287,6 +287,20 @@ int main() {
         }
     };
 
+    // Ground truth: OpenDigitizer's FM radio (its sample FMRadio.grc) as a deck's backup slide runs it, under the spellings
+    // its workflow uses: the RDS panel this viewer registers, the blocks no other workflow names and, where GR4's sdr
+    // blocks are built, the RTL-SDR dongle and its connect button
+    "the FM radio's blocks, its RDS panel and its dongle can be built under their spellings"_test = [] {
+        std::vector<std::string_view> ids{"opendigitizer::charts::RDSView", "opendigitizer::TagSink<uint8>", "gr::audio::AudioSinkMultiplexed<float32>", "gr::digital::RDSDecoder", //
+            "gr::filter::HilbertTransform<float32, gr::filter::HilbertOutput::complex>", "gr::filter::FrequencyXlatingFilter<complex<float32>>", "gr::basic::KeepMInN<complex<float32>>"};
+#ifdef GR4_PRESENT_HAS_RTLSDR
+        ids.insert(ids.end(), {"gr::blocks::sdr::RTL2832Source<complex<float32>>", "DigitizerUi::ImControlRTL2832Connect"});
+#endif
+        for (const std::string_view id : ids) {
+            expect(gr::globalBlockRegistry().create(id, {}) != nullptr) << id << " is not a block the registry builds";
+        }
+    };
+
     // Ground truth: one block of each GR4 library the workflows above name none of, as the registry spells it
     "a block of every GR4 block library can be built, not only those the shipped workflows name"_test = [] {
         constexpr std::array kOnePerLibrary{"gr::analog::FMDemodulator<float32>", "gr::digital::SymbolSync<float32>", "gr::beamforming::ConventionalBeamformer<float32, gr::beamforming::Constraint::conventional>", //

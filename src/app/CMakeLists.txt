@@ -211,6 +211,12 @@ if(GR4_PRESENT_WITH_OPENDIGITIZER)
             gnuradio4::gr-localisation
             gnuradio4::gr-filter
             gr4-present-block-libraries)
+  # GR4's sdr blocks, header-only and without a gnuradio4:: alias: the RTL-SDR dongle of OpenDigitizer's FM radio, read
+  # natively through usbfs and in a browser through WebUSB
+  if(TARGET gr-sdr)
+    target_link_libraries(${target_name} PRIVATE gr-sdr)
+    target_compile_definitions(${target_name} PRIVATE GR4_PRESENT_HAS_RTLSDR)
+  endif()
 else()
   target_link_libraries(${target_name} PRIVATE imgui raii_wrapper)
 endif()
@@ -229,8 +235,9 @@ if(EMSCRIPTEN)
     "SHELL:-s NO_EXIT_RUNTIME=1"
     "SHELL:-s MINIFY_HTML=0"
     "-sFETCH=1" # gr::algorithm::fileio reads http(s) through emscripten_fetch
-    # shell.html copies the deck beside a page opened as a file into the in-memory file system before main()
-    "SHELL:-s EXPORTED_RUNTIME_METHODS=FS,addRunDependency,removeRunDependency"
+    # shell.html copies the deck beside a page opened as a file into the in-memory file system before main(); the RTL-SDR's
+    # WebUSB bulk read writes into the module's memory from JavaScript (GR4's RTL2832Device), as OpenDigitizer exports it
+    "SHELL:-s EXPORTED_RUNTIME_METHODS=FS,addRunDependency,removeRunDependency,wasmMemory"
     # MicroTeX throws on a formula it cannot parse and the viewer catches it. Emscripten needs -fexceptions on the link
     # as well as the compile, or the catch is not generated and the throw takes the whole thread with it.
     -fexceptions

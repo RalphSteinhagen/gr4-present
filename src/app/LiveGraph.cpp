@@ -33,6 +33,13 @@
 #include <blocks/ImPlotSink.hpp>
 #include <blocks/TestSpectrumGenerator.hpp>
 
+// OpenDigitizer's FM radio, registered below: its RDS panel and, where GR4's sdr blocks are built, the dongle and its button
+#include <charts/RDSView.hpp>
+#ifdef GR4_PRESENT_HAS_RTLSDR
+#include <blocks/ImControlRTL2832Connect.hpp>
+#include <gnuradio-4.0/sdr/RTL2832Source.hpp>
+#endif
+
 #include <gnuradio-4.0/BlockRegistry.hpp>
 #include <gnuradio-4.0/GrAnalogBlocks.hpp>
 #include <gnuradio-4.0/GrAudioBlocks.hpp>
@@ -61,6 +68,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <complex>
 #include <exception>
 #include <string>
 #include <tuple>
@@ -334,6 +342,13 @@ void registerTheBlocksTheWorkflowsName() {
     gr::globalBlockRegistry().insert<gr::blocks::trigger::TimeInterval<double>>("=gr::blocks::trigger::TimeInterval<float64>");
     gr::globalBlockRegistry().insert<gr::filter::BasicFilterProto<float, gr::Resampling<1UZ, 1UZ, false>>>("=gr::filter::BasicFilterProto<float32, gr::Resampling<1, 1, false>>");
     gr::globalBlockRegistry().insert<gr::filter::IQDemodulator<float, gr::Resampling<1024U, 1U, false>>>("=gr::filter::IQDemodulator<float32, gr::Resampling<1024, 1, false>>");
+    // OpenDigitizer's FM radio (its sample FMRadio.grc): the RDS panel and, where GR4's sdr blocks are built, the RTL-SDR
+    // dongle and the button that opens the browser's USB chooser for it, as OpenDigitizer's own main() registers them
+    gr::registerBlock<opendigitizer::charts::RDSView>(gr::globalBlockRegistry());
+#ifdef GR4_PRESENT_HAS_RTLSDR
+    gr::registerBlock<DigitizerUi::ImControlRTL2832Connect>(gr::globalBlockRegistry());
+    gr::registerBlock<gr::blocks::sdr::RTL2832Source<std::complex<float>>, "">(gr::globalBlockRegistry());
+#endif
 }
 } // namespace
 
