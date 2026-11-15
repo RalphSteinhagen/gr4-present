@@ -161,6 +161,15 @@ int main() {
         reach(graph, true, "the state in which its blocks do work");
     };
 
+    // Ground truth: the author's schedule (2026-11-15), 2 s, then 4 s each time, never given up while the view is shown
+    "a graph that stalls again on the same view waits 2 s, then 4 s each time"_test = [] {
+        using std::chrono::seconds;
+        static_assert(LiveGraph::retryDelay(0UZ) == seconds{2});
+        expect(LiveGraph::retryDelay(1UZ) == seconds{4});
+        expect(LiveGraph::retryDelay(2UZ) == seconds{4});
+        expect(LiveGraph::retryDelay(1000UZ) == seconds{4});
+    };
+
     // idling stops a graph, and a stopped scheduler loop exits with nobody left to read the message start() sends
     "a graph the deck idles runs again when its slide arrives"_test = [] {
         LiveGraph graph{contentsOf("controlled-sines.grc")};

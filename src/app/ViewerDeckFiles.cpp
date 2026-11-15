@@ -552,6 +552,7 @@ void beginLoading(Viewer& viewer, std::string_view base, DeckOpening opening) {
     viewer.videos.release();
     viewer.live.graphs.clear();
     viewer.live.retryAfter.clear();
+    viewer.live.stallsOnView.clear();
     viewer.live.tendedView.clear();
     viewer.live.sources.clear();
     viewer.live.toolbarBoxes.clear();

@@ -4,6 +4,7 @@
 #include <gr4-present/ChartLegend.hpp>
 
 #include <chrono>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -34,6 +35,10 @@ public:
 
     /// running, but its graph has made no progress for a few seconds: what a slide should not keep showing as live
     [[nodiscard]] bool stalled(std::chrono::steady_clock::time_point now) const noexcept;
+
+    /// how long a stalled graph waits to be built again, after `stallsOnView` earlier stalls on the view shown: a missing
+    /// device stays missing, so the second and later attempts wait longer
+    [[nodiscard]] static constexpr std::chrono::seconds retryDelay(std::size_t stallsOnView) noexcept { return stallsOnView == 0UZ ? std::chrono::seconds{2} : std::chrono::seconds{4}; }
 
     /// relays scheduler state to the charts and drives `setRunning` to its wanted state; call once a frame
     void pump(std::chrono::steady_clock::time_point now);

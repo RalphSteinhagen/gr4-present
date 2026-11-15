@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.27)
 
 # C as well as C++: the Theora decoder and stb are C, and a CXX-only project has no compile rule for them
-project(gr4-present VERSION 0.1.0 LANGUAGES C CXX)
+project(gr4-present VERSION 0.1.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

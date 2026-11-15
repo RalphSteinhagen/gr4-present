@@ -23,12 +23,6 @@
 
 namespace gr::present {
 
-namespace {
-
-constexpr auto kLiveGraphRetryDelay = std::chrono::seconds{2};
-
-}
-
 [[nodiscard]] static bool                     drawFallback(Viewer& viewer, const RegionRegistry::Entry& entry, const Rectangle& box);
 [[nodiscard]] static bool                     graphFailed(const Viewer& viewer, std::string_view workflow);
 [[nodiscard]] static std::string_view         activeWorkflow(const Viewer& viewer, const LiveRegion& binding);
@@ -264,6 +258,7 @@ void tendLiveGraphs(Viewer& viewer) {
     }
     viewer.live.tendedView = viewer.navigator.cursor.viewId;
     if (!settled) {
+        viewer.live.stallsOnView.clear();
         for (auto& [workflow, graph] : viewer.live.graphs) {
             tend(workflow, *graph);
         }
@@ -274,7 +269,8 @@ void tendLiveGraphs(Viewer& viewer) {
         if (!graph->second->stalled(viewer.frameStart)) {
             continue;
         }
-        viewer.live.retryAfter.insert_or_assign(graph->first, now + kLiveGraphRetryDelay);
+        const std::size_t stallsBefore = viewer.live.stallsOnView[graph->first]++;
+        viewer.live.retryAfter.insert_or_assign(graph->first, now + LiveGraph::retryDelay(stallsBefore));
         viewer.live.graphs.erase(graph);
         return;
     }
