@@ -71,4 +71,6 @@ LiveRegion liveRegionFrom(const std::vector<std::pair<std::string, std::string>>
     return binding;
 }
 
+bool showsRecordingUntilGranted(const LiveRegion& region, bool deviceGranted) noexcept { return !deviceGranted && !region.needs.empty() && region.standby.empty() && !region.fallback.empty(); }
+
 } // namespace gr::present

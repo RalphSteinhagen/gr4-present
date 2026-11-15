@@ -28,6 +28,15 @@ const suite<"LiveRegion"> liveRegionTests = [] {
         expect(region.standby == "workflows/clap.grc");
     };
 
+    "a region waiting for its device without a standby shows its recording until the device is granted"_test = [] {
+        const LiveRegion radio = liveRegionFrom({{"workflow", "workflows/fm-radio.grc"}, {"needs", "usb"}, {"fallback", "media/fm-radio.png"}});
+        expect(showsRecordingUntilGranted(radio, false)) << "not granted: the recording, the toolbar kept";
+        expect(!showsRecordingUntilGranted(radio, true)) << "granted: the charts";
+        expect(!showsRecordingUntilGranted(liveRegionFrom({{"workflow", "w.grc"}, {"needs", "usb"}, {"fallback", "f.png"}, {"standby", "s.grc"}}), false)) << "a standby runs instead";
+        expect(!showsRecordingUntilGranted(liveRegionFrom({{"workflow", "w.grc"}, {"needs", "usb"}}), false)) << "no recording to show";
+        expect(!showsRecordingUntilGranted(liveRegionFrom({{"workflow", "w.grc"}, {"fallback", "f.png"}}), false)) << "no device to wait for";
+    };
+
     "a live region may run longer or shorter than the deck before an exported page takes it"_test = [] {
         expect(std::abs(liveRegionFrom({{"workflow", "w.grc"}, {"export_wait", "7s"}}).exportWait - 7.0f) < 0.001f);
         expect(std::abs(liveRegionFrom({{"workflow", "w.grc"}, {"export_wait", "0.5"}}).exportWait - 0.5f) < 0.001f);

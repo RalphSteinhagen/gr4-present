@@ -1383,7 +1383,9 @@ toolbar: toolbar
 :::
 
 :::notes
-Until the browser grants the microphone, `standby:` plays a recorded clap instead.
+Until the browser grants the microphone, `standby:` plays a recorded clap instead. A region with no `standby:` shows its
+`fallback:` recording until then, its toolbar kept, so a control in the workflow can grant the device, as
+OpenDigitizer's RTL-SDR connect button does for `needs: usb`.
 :::
 
 # Effect Shaders<br>Effects the Deck brings along, compiled when the Slide needs them {#effects}
