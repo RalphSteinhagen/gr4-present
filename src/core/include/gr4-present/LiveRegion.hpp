@@ -32,6 +32,11 @@ struct LiveRegion {
 
 [[nodiscard]] LiveRegion liveRegionFrom(const std::vector<std::pair<std::string, std::string>>& fields);
 
+/// whether `region` shows its `fallback` recording where its charts go, its toolbar and status bar kept: while the
+/// device it `needs` is not granted and it has no `standby` to run meanwhile. Its workflow runs on, so a control in it
+/// can be what grants the device (OpenDigitizer's RTL-SDR connect button), and the charts take over once it is granted
+[[nodiscard]] bool showsRecordingUntilGranted(const LiveRegion& region, bool deviceGranted) noexcept;
+
 } // namespace gr::present
 
 #endif // GR4_PRESENT_LIVE_REGION_HPP

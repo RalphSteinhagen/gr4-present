@@ -135,6 +135,9 @@ static void                                   requestDevicesOf(Viewer& viewer, s
     }
 
     graph->second->pump(viewer.frameStart);
+    // waiting for its device with nothing to run meanwhile: the recording where the charts go, the toolbar kept, as its
+    // control may be the one that grants the device
+    const bool recordingInPlace = showsRecordingUntilGranted(entry->binding, liveDeviceGranted(entry->binding.needs)) && drawFallback(viewer, *entry, box);
 
     Rectangle drawnBox = box;
     if (const float aspect = statedAspect(viewer, id); aspect > 0.0f) {
@@ -144,7 +147,7 @@ static void                                   requestDevicesOf(Viewer& viewer, s
         drawnBox.y      = box.y + (box.height - drawnBox.height) * 0.5f;
     }
     ImGui::SetCursorScreenPos(ImVec2{drawnBox.x, drawnBox.y});
-    const bool drawn = [&] {
+    const bool drawn = recordingInPlace || [&] {
         const ScopedChild chart{std::string{id}.c_str(), ImVec2{drawnBox.width, drawnBox.height}, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse};
         viewer.zoomedLists.push_back(ImGui::GetWindowDrawList());
         return static_cast<bool>(chart) && (entry->binding.widget == "flowgraph" ? graph->second->drawFlowgraph(id) : graph->second->draw(entry->binding.legend.value_or(viewer.loader.manifest().liveLegend)));
