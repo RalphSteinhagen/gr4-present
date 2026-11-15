@@ -2,9 +2,10 @@
 # file force-sets GIT_SHA_GNURADIO4 to its pin, and would win otherwise.
 set(GR4_PRESENT_GIT_REF_GNURADIO4 53796de6d16a2b6474895f6c637099744a3fdae5 CACHE STRING "" FORCE)
 
-# main (2026-11-13) past the FM radio demo and the browser microphone pairs' alignment, on the GR4 pin above. A merged
-# branch's head is unreachable once the branch is deleted, so the pin follows main.
-set(GIT_REF_OPENDIGITIZER b44a9083fe483c6c03ddc0b7ba25a865831f9a3b CACHE STRING "" FORCE)
+# main (2026-11-15) past the browser microphone pairs waiting for their device and taking exact silence as a stall, the
+# device control's fallback entry and the tensor sink's sample count, on the GR4 pin above. A merged branch's head is
+# unreachable once the branch is deleted, so the pin follows main.
+set(GIT_REF_OPENDIGITIZER 66583e28dbfad243f23e6d18f5676c011da28bd3 CACHE STRING "" FORCE)
 
 set(GIT_SHA_UT v2.3.1 CACHE STRING "" FORCE) # latest release as of 2024-04-03
 
